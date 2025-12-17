@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserAuthMethod {
+  GOOGLE
+  API
+}
+
+// ============================================
+// USER MODELS
+// ============================================
+
+model User {
+  id             String          @id @default(uuid())
+  email          String          @unique @db.VarChar(320)
+  username       String          @unique @db.VarChar(50)
+  password       String          @db.VarChar(72)
+  emailValidated Boolean         @default(false) @map("email_validated")
+  userAuthMethod UserAuthMethod  @default(API) @map("user_auth_method")
+  role           UserRole        @default(USER)
+  visits         Int             @default(0)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  
+  preference     UserPreference?
+  refreshTokens  RefreshToken[]  @relation("UserRefreshTokens")
+
+  @@map("users")
+}
+
+model UserPreference {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  emailUpdates Boolean  @default(true) @map("email_updates")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("user_preferences")
+}
+
+// ============================================
+// AUTH MODELS
+// ============================================
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String
+  tokenID   String   @unique @map("token_id")
+  userID    String   @map("user_id")
+  user      User     @relation("UserRefreshTokens", fields: [userID], references: [id], onDelete: Cascade)
+  expiresAt DateTime @db.Timestamp @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userID])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}

@@ -1,0 +1,115 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: notifyhub-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=notifyhub
+      - POSTGRES_PASSWORD=localdev123
+      - POSTGRES_DB=notifyhub
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - notifyhub-network
+
+  # ==========================================
+  # Redis - Queue & Cache
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: notifyhub-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - notifyhub-network
+
+  # ==========================================
+  # API Server - NestJS
+  # ==========================================
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile.dev
+    container_name: notifyhub-api-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Exposed directly (no nginx for local dev)
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=notifyhub
+      - DATABASE_PASSWORD=localdev123
+      - DATABASE_NAME=notifyhub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+    volumes:
+      - ./src:/app/src:cached
+      - ./package.json:/app/package.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - notifyhub-network
+    command: npm run start:dev
+
+  # ==========================================
+  # Worker - NestJS
+  # ==========================================
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile.dev
+    container_name: notifyhub-worker-dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=notifyhub
+      - DATABASE_PASSWORD=localdev123
+      - DATABASE_NAME=notifyhub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+    volumes:
+      - ./src:/app/src:cached
+      - ./package.json:/app/package.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - notifyhub-network
+    command: npm run start:worker:dev
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  notifyhub-network:
+    driver: bridge
+
+# ==========================================
+# Volumes (Persistent Data)
+# ==========================================
+volumes:
+  postgres-data:
+  redis-data:
