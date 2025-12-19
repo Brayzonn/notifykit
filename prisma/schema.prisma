@@ -8,67 +8,79 @@ datasource db {
 }
 
 // ============================================
-// ENUMS
+// CUSTOMER MODEL 
 // ============================================
 
-enum UserRole {
-  ADMIN
-  USER
-}
+model Customer {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  apiKey        String   @unique @map("api_key")
+  apiKeyHash    String   @unique @map("api_key_hash")
+  plan          String   @default("free")
+  monthlyLimit  Int      @default(1000) @map("monthly_limit")
+  usageCount    Int      @default(0) @map("usage_count")
+  usageResetAt  DateTime @default(now()) @map("usage_reset_at")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-enum UserAuthMethod {
-  GOOGLE
-  API
+  // Relations
+  jobs          Job[]
+
+  @@index([apiKeyHash])
+  @@index([email])
+  @@map("customers")
 }
 
 // ============================================
-// USER MODELS
+// JOB MODEL
 // ============================================
 
-model User {
-  id             String          @id @default(uuid())
-  email          String          @unique @db.VarChar(320)
-  username       String          @unique @db.VarChar(50)
-  password       String          @db.VarChar(72)
-  emailValidated Boolean         @default(false) @map("email_validated")
-  userAuthMethod UserAuthMethod  @default(API) @map("user_auth_method")
-  role           UserRole        @default(USER)
-  visits         Int             @default(0)
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  
-  preference     UserPreference?
-  refreshTokens  RefreshToken[]  @relation("UserRefreshTokens")
+model Job {
+  id              String    @id @default(uuid()) @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  type            String
+  status          String    @default("pending")
+  priority        Int       @default(5)
+  payload         Json
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3) @map("max_attempts")
+  errorMessage    String?   @map("error_message")
+  idempotencyKey  String?   @map("idempotency_key")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
 
-  @@map("users")
+  // Relations
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  deliveryLogs    DeliveryLog[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt(sort: Desc)])
+  @@index([customerId, idempotencyKey])
+  @@map("jobs")
 }
 
-model UserPreference {
-  id           String   @id @default(uuid())
-  userId       String   @unique @map("user_id")
-  emailUpdates Boolean  @default(true) @map("email_updates")
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ============================================
+// DELIVERY LOG MODEL
+// ============================================
+
+model DeliveryLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  jobId        String   @map("job_id") @db.Uuid
+  attempt      Int
+  status       String
+  response     Json?
+  errorMessage String?  @map("error_message")
   createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@map("user_preferences")
-}
+  // Relations
+  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-// ============================================
-// AUTH MODELS
-// ============================================
-
-model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String
-  tokenID   String   @unique @map("token_id")
-  userID    String   @map("user_id")
-  user      User     @relation("UserRefreshTokens", fields: [userID], references: [id], onDelete: Cascade)
-  expiresAt DateTime @db.Timestamp @map("expires_at")
-  isRevoked Boolean  @default(false) @map("is_revoked")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([userID])
-  @@index([expiresAt])
-  @@map("refresh_tokens")
+  @@index([jobId])
+  @@index([createdAt(sort: Desc)])
+  @@map("delivery_logs")
 }
