@@ -1,13 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Public } from '@/auth/decorators/public.decorator';
 
-@ApiTags('API Info')
 @Controller()
 export class AppController {
-  @Public()
   @Get()
-  @ApiOperation({ summary: 'Get API information' })
   getApiInfo() {
     return {
       name: 'My NestJS API',

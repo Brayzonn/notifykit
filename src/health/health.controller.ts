@@ -7,7 +7,7 @@ import {
   PrismaHealthIndicator,
   HealthIndicatorResult,
 } from '@nestjs/terminus';
-import { Public } from '@/auth/decorators/public.decorator';
+
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 
@@ -22,7 +22,6 @@ export class HealthController {
     private disk: DiskHealthIndicator,
   ) {}
 
-  @Public()
   @Get()
   @HealthCheck()
   check() {
@@ -56,7 +55,6 @@ export class HealthController {
     }
   }
 
-  @Public()
   @Get('simple')
   simpleCheck() {
     return {
