@@ -34,17 +34,15 @@ export class WebhookWorkerProcessor {
     );
 
     try {
-      // Step 1: Update job status to 'processing'
-      // await this.prisma.job.update({
-      //   where: { id: jobId },
-      //   data: {
-      //     status: 'processing',
-      //     startedAt: new Date(),
-      //     attempts: job.attemptsMade + 1,
-      //   },
-      // });
+      await this.prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: 'processing',
+          startedAt: new Date(),
+          attempts: job.attemptsMade + 1,
+        },
+      });
 
-      // Step 2: Make HTTP request
       const response = await firstValueFrom(
         this.httpService.request({
           url,
@@ -60,27 +58,25 @@ export class WebhookWorkerProcessor {
         }),
       );
 
-      // Step 3: Update job status to 'completed'
-      // await this.prisma.job.update({
-      //   where: { id: jobId },
-      //   data: {
-      //     status: 'completed',
-      //     completedAt: new Date(),
-      //   },
-      // });
+      await this.prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
 
-      // Step 4: Log delivery success
-      // await this.prisma.deliveryLog.create({
-      //   data: {
-      //     jobId,
-      //     attempt: job.attemptsMade + 1,
-      //     status: 'success',
-      //     response: {
-      //       statusCode: response.status,
-      //       body: response.data,
-      //     },
-      //   },
-      // });
+      await this.prisma.deliveryLog.create({
+        data: {
+          jobId,
+          attempt: job.attemptsMade + 1,
+          status: 'success',
+          response: {
+            statusCode: response.status,
+            body: response.data,
+          },
+        },
+      });
 
       this.logger.log(
         `Webhook delivered successfully: ${jobId} - Status: ${response.status}`,
@@ -96,42 +92,38 @@ export class WebhookWorkerProcessor {
           }
         : null;
 
-      // Log delivery failure
-      // await this.prisma.deliveryLog.create({
-      //   data: {
-      //     jobId,
-      //     attempt: job.attemptsMade + 1,
-      //     status: 'failed',
-      //     errorMessage: error.message,
-      //     response: errorResponse,
-      //   },
-      // });
+      await this.prisma.deliveryLog.create({
+        data: {
+          jobId,
+          attempt: job.attemptsMade + 1,
+          status: 'failed',
+          errorMessage: error.message,
+          response: errorResponse,
+        },
+      });
 
-      // Determine if we should retry based on error type
       const shouldRetry = this.shouldRetryWebhook(error);
 
       if (!shouldRetry || job.attemptsMade >= 2) {
-        // Don't retry 4xx errors or if max attempts reached
         await this.queueService.moveToDeadLetterQueue(job.data, error.mesnsage);
 
-        // Update job status to 'failed'
-        // await this.prisma.job.update({
-        //   where: { id: jobId },
-        //   data: {
-        //     status: 'failed',
-        //     errorMessage: error.message,
-        //   },
-        // });
+        await this.prisma.job.update({
+          where: { id: jobId },
+          data: {
+            status: 'failed',
+            errorMessage: error.message,
+          },
+        });
 
         if (!shouldRetry) {
           this.logger.warn(
             `Not retrying webhook job ${jobId} - Client error (4xx)`,
           );
-          return; // Don't throw, prevent retry
+          return;
         }
       }
 
-      throw error; // Re-throw to trigger retry
+      throw error;
     }
   }
 
@@ -139,7 +131,6 @@ export class WebhookWorkerProcessor {
    * Determine if webhook should be retried based on error
    */
   private shouldRetryWebhook(error: any): boolean {
-    // Don't retry client errors (4xx)
     if (
       error.response &&
       error.response.status >= 400 &&
@@ -148,7 +139,6 @@ export class WebhookWorkerProcessor {
       return false;
     }
 
-    // Retry server errors (5xx) and network errors
     return true;
   }
 

@@ -10,7 +10,7 @@ import { Job } from 'bull';
 import { QUEUE_NAMES } from '../queue.constants';
 import { EmailJobData, QueueService } from '../queue.service';
 // import { SendGridService } from '../../sendgrid/sendgrid.service';
-// import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Processor(QUEUE_NAMES.EMAIL)
 export class EmailWorkerProcessor {
@@ -18,7 +18,7 @@ export class EmailWorkerProcessor {
 
   constructor(
     // private readonly sendGridService: SendGridService,
-    // private readonly prisma: PrismaService,
+    private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
   ) {}
 
@@ -33,74 +33,66 @@ export class EmailWorkerProcessor {
     );
 
     try {
-      // Step 1: Update job status to 'processing'
-      // await this.prisma.job.update({
-      //   where: { id: jobId },
-      //   data: {
-      //     status: 'processing',
-      //     startedAt: new Date(),
-      //     attempts: job.attemptsMade + 1,
-      //   },
-      // });
+      await this.prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: 'processing',
+          startedAt: new Date(),
+          attempts: job.attemptsMade + 1,
+        },
+      });
 
-      // Step 2: Send email via SendGrid
-      // const response = await this.sendGridService.sendEmail({
-      //   to,
-      //   subject,
-      //   body,
-      //   from: from || 'noreply@notifyhub.com',
-      // });
+      //   const response = await this.sendGridService.sendEmail({
+      //     to,
+      //     subject,
+      //     body,
+      //     from: from || 'noreply@notifyhub.com',
+      //   });
 
-      // TEMP: Mock success for now
+      const response = 'mock response';
       await this.mockEmailSend();
 
-      // Step 3: Update job status to 'completed'
-      // await this.prisma.job.update({
-      //   where: { id: jobId },
-      //   data: {
-      //     status: 'completed',
-      //     completedAt: new Date(),
-      //   },
-      // });
+      await this.prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
 
-      // Step 4: Log delivery success
-      // await this.prisma.deliveryLog.create({
-      //   data: {
-      //     jobId,
-      //     attempt: job.attemptsMade + 1,
-      //     status: 'success',
-      //     response: response,
-      //   },
-      // });
+      await this.prisma.deliveryLog.create({
+        data: {
+          jobId,
+          attempt: job.attemptsMade + 1,
+          status: 'success',
+          response: response,
+        },
+      });
 
       this.logger.log(`Email sent successfully: ${jobId}`);
       return { success: true };
     } catch (error) {
       this.logger.error(`Email job failed: ${jobId} - ${error.message}`);
 
-      // Log delivery failure
-      // await this.prisma.deliveryLog.create({
-      //   data: {
-      //     jobId,
-      //     attempt: job.attemptsMade + 1,
-      //     status: 'failed',
-      //     errorMessage: error.message,
-      //   },
-      // });
+      await this.prisma.deliveryLog.create({
+        data: {
+          jobId,
+          attempt: job.attemptsMade + 1,
+          status: 'failed',
+          errorMessage: error.message,
+        },
+      });
 
-      // If max attempts reached, move to DLQ
       if (job.attemptsMade >= 2) {
-        // 3 total attempts (0, 1, 2)
         await this.queueService.moveToDeadLetterQueue(job.data, error.message);
 
-        // Update job status to 'failed'
-        // await this.prisma.job.update({
-        //   where: { id: jobId },
-        //   data: {
-        //     status: 'failed',
-        //     errorMessage: error.message,
-        //   },
-        // });
+        await this.prisma.job.update({
+          where: { id: jobId },
+          data: {
+            status: 'failed',
+            errorMessage: error.message,
+          },
+        });
       }
 
       throw error;
