@@ -98,14 +98,14 @@ export class WebhookWorkerProcessor {
           attempt: job.attemptsMade + 1,
           status: 'failed',
           errorMessage: error.message,
-          response: errorResponse,
+          response: errorResponse ?? undefined,
         },
       });
 
       const shouldRetry = this.shouldRetryWebhook(error);
 
       if (!shouldRetry || job.attemptsMade >= 2) {
-        await this.queueService.moveToDeadLetterQueue(job.data, error.mesnsage);
+        await this.queueService.moveToDeadLetterQueue(job.data, error.message);
 
         await this.prisma.job.update({
           where: { id: jobId },
