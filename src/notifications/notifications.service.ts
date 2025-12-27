@@ -4,6 +4,7 @@ import { QueueService } from '../queues/queue.service';
 import { QUEUE_PRIORITIES } from '../queues/queue.constants';
 import { SendEmailDto } from './dto/send-email.dto';
 import { SendWebhookDto } from './dto/send-webhook.dto';
+import { JobType, JobStatus } from '@prisma/client';
 
 @Injectable()
 export class NotificationsService {
@@ -39,8 +40,8 @@ export class NotificationsService {
     const job = await this.prisma.job.create({
       data: {
         customerId,
-        type: 'email',
-        status: 'pending',
+        type: JobType.EMAIL,
+        status: JobStatus.PENDING,
         priority: dto.priority || QUEUE_PRIORITIES.NORMAL,
         payload: {
           to: dto.to,
@@ -114,8 +115,8 @@ export class NotificationsService {
     const job = await this.prisma.job.create({
       data: {
         customerId,
-        type: 'webhook',
-        status: 'pending',
+        type: JobType.WEBHOOK,
+        status: JobStatus.PENDING,
         priority: dto.priority || QUEUE_PRIORITIES.NORMAL,
         payload: {
           url: dto.url,
@@ -211,8 +212,10 @@ export class NotificationsService {
 
     const where = {
       customerId,
-      ...(options.type && { type: options.type }),
-      ...(options.status && { status: options.status }),
+      ...(options.type && { type: JobType[options.type.toUpperCase()] }),
+      ...(options.status && {
+        status: JobStatus[options.status.toUpperCase()],
+      }),
     };
 
     const [jobs, total] = await Promise.all([
@@ -256,7 +259,7 @@ export class NotificationsService {
       where: {
         id: jobId,
         customerId,
-        status: 'failed',
+        status: JobStatus.FAILED,
       },
     });
 
@@ -268,14 +271,14 @@ export class NotificationsService {
     await this.prisma.job.update({
       where: { id: jobId },
       data: {
-        status: 'pending',
+        status: JobStatus.PENDING,
         attempts: 0,
         errorMessage: null,
       },
     });
 
     // Re-queue the job
-    if (job.type === 'email') {
+    if (job.type === JobType.EMAIL) {
       const payload = job.payload as any;
       await this.queueService.addEmailJob(
         {
@@ -288,7 +291,7 @@ export class NotificationsService {
         },
         job.priority,
       );
-    } else if (job.type === 'webhook') {
+    } else if (job.type === JobType.WEBHOOK) {
       const payload = job.payload as any;
       await this.queueService.addWebhookJob(
         {

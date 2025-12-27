@@ -3,12 +3,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { QueueService } from './queue.service';
+import { SendGridModule } from '@/sendgrid/sendgrid.module';
 import { EmailWorkerProcessor } from './processors/email-worker.processor';
 import { WebhookWorkerProcessor } from './processors/webhook-worker.processor';
 
 @Module({
   imports: [
     HttpModule,
+    SendGridModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

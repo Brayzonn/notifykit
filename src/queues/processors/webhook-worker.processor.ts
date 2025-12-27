@@ -7,6 +7,7 @@ import {
 } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
+import { JobStatus, DeliveryStatus } from '@prisma/client';
 import { QUEUE_NAMES } from '../queue.constants';
 import { WebhookJobData, QueueService } from '../queue.service';
 import { HttpService } from '@nestjs/axios';
@@ -37,7 +38,7 @@ export class WebhookWorkerProcessor {
       await this.prisma.job.update({
         where: { id: jobId },
         data: {
-          status: 'processing',
+          status: JobStatus.PROCESSING,
           startedAt: new Date(),
           attempts: job.attemptsMade + 1,
         },
@@ -61,7 +62,7 @@ export class WebhookWorkerProcessor {
       await this.prisma.job.update({
         where: { id: jobId },
         data: {
-          status: 'completed',
+          status: JobStatus.COMPLETED,
           completedAt: new Date(),
         },
       });
@@ -70,7 +71,7 @@ export class WebhookWorkerProcessor {
         data: {
           jobId,
           attempt: job.attemptsMade + 1,
-          status: 'success',
+          status: DeliveryStatus.SUCCESS,
           response: {
             statusCode: response.status,
             body: response.data,
@@ -96,7 +97,7 @@ export class WebhookWorkerProcessor {
         data: {
           jobId,
           attempt: job.attemptsMade + 1,
-          status: 'failed',
+          status: DeliveryStatus.FAILED,
           errorMessage: error.message,
           response: errorResponse ?? undefined,
         },
@@ -110,7 +111,7 @@ export class WebhookWorkerProcessor {
         await this.prisma.job.update({
           where: { id: jobId },
           data: {
-            status: 'failed',
+            status: JobStatus.FAILED,
             errorMessage: error.message,
           },
         });

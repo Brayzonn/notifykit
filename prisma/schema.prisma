@@ -8,23 +8,49 @@ datasource db {
 }
 
 // ============================================
+// ENUMS
+// ============================================
+
+enum CustomerPlan {
+  FREE
+  INDIE
+  STARTUP
+}
+
+enum JobType {
+  EMAIL
+  WEBHOOK
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DeliveryStatus {
+  SUCCESS
+  FAILED
+}
+
+// ============================================
 // CUSTOMER MODEL 
 // ============================================
 
 model Customer {
-  id            String   @id @default(uuid()) @db.Uuid
-  email         String   @unique
-  apiKey        String   @unique @map("api_key")
-  apiKeyHash    String   @unique @map("api_key_hash")
-  plan          String   @default("free")
-  monthlyLimit  Int      @default(1000) @map("monthly_limit")
-  usageCount    Int      @default(0) @map("usage_count")
-  usageResetAt  DateTime @default(now()) @map("usage_reset_at")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id            String       @id @default(uuid()) @db.Uuid
+  email         String       @unique
+  apiKey        String       @unique @map("api_key")
+  apiKeyHash    String       @unique @map("api_key_hash")
+  plan          CustomerPlan @default(FREE)              
+  monthlyLimit  Int          @default(1000) @map("monthly_limit")
+  usageCount    Int          @default(0) @map("usage_count")
+  usageResetAt  DateTime     @default(now()) @map("usage_reset_at")
+  isActive      Boolean      @default(true) @map("is_active")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  // Relations
   jobs          Job[]
 
   @@index([apiKeyHash])
@@ -39,8 +65,8 @@ model Customer {
 model Job {
   id              String    @id @default(uuid()) @db.Uuid
   customerId      String    @map("customer_id") @db.Uuid
-  type            String
-  status          String    @default("pending")
+  type            JobType   
+  status          JobStatus @default(PENDING)   
   priority        Int       @default(5)
   payload         Json
   attempts        Int       @default(0)
@@ -52,7 +78,6 @@ model Job {
   startedAt       DateTime? @map("started_at")
   completedAt     DateTime? @map("completed_at")
 
-  // Relations
   customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   deliveryLogs    DeliveryLog[]
 
@@ -69,16 +94,15 @@ model Job {
 // ============================================
 
 model DeliveryLog {
-  id           String   @id @default(uuid()) @db.Uuid
-  jobId        String   @map("job_id") @db.Uuid
+  id           String         @id @default(uuid()) @db.Uuid
+  jobId        String         @map("job_id") @db.Uuid
   attempt      Int
-  status       String
+  status       DeliveryStatus 
   response     Json?
-  errorMessage String?  @map("error_message")
-  createdAt    DateTime @default(now()) @map("created_at")
+  errorMessage String?        @map("error_message")
+  createdAt    DateTime       @default(now()) @map("created_at")
 
-  // Relations
-  job          Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job          Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
   @@index([createdAt(sort: Desc)])
