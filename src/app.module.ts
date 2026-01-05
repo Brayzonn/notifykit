@@ -9,6 +9,7 @@ import { HealthModule } from '@/health/health.module';
 import { RedisModule } from '@/redis/redis.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queues/queue.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { QueueModule } from './queues/queue.module';
     QueueModule,
     NotificationsModule,
     HealthModule,
+    CustomersModule,
   ],
   controllers: [AppController],
 })
