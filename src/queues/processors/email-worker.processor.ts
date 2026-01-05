@@ -1,6 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DeliveryStatus, JobStatus } from '@prisma/client';
 import { QUEUE_NAMES } from '../queue.constants';
 import { EmailJobData, QueueService } from '../queue.service';
@@ -10,13 +11,19 @@ import { PrismaService } from '../../prisma/prisma.service';
 @Processor(QUEUE_NAMES.EMAIL, { concurrency: 5 })
 export class EmailWorkerProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailWorkerProcessor.name);
+  private readonly defaultFromEmail: string;
 
   constructor(
     private readonly sendGridService: SendGridService,
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
+    private readonly configService: ConfigService,
   ) {
     super();
+    this.defaultFromEmail = this.configService.get<string>(
+      'SENDGRID_FROM_EMAIL',
+      'noreply@notifyhub.com',
+    );
   }
 
   async process(job: Job<EmailJobData>): Promise<any> {
@@ -27,6 +34,17 @@ export class EmailWorkerProcessor extends WorkerHost {
     );
 
     try {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { sendingDomain: true, domainVerified: true, plan: true },
+      });
+
+      if (!customer) {
+        throw new Error(`Customer not found: ${customerId}`);
+      }
+
+      const fromAddress = this.determineFromAddress(from, customer);
+
       await this.prisma.job.update({
         where: { id: jobId },
         data: {
@@ -40,15 +58,12 @@ export class EmailWorkerProcessor extends WorkerHost {
         to,
         subject,
         body,
-        from: from || 'noreply@notifyhub.com',
+        from: fromAddress,
       });
 
       await this.prisma.job.update({
         where: { id: jobId },
-        data: {
-          status: JobStatus.COMPLETED,
-          completedAt: new Date(),
-        },
+        data: { status: JobStatus.COMPLETED, completedAt: new Date() },
       });
 
       await this.prisma.deliveryLog.create({
@@ -56,11 +71,11 @@ export class EmailWorkerProcessor extends WorkerHost {
           jobId,
           attempt: job.attemptsMade + 1,
           status: DeliveryStatus.SUCCESS,
-          response: response,
+          response,
         },
       });
 
-      this.logger.log(`Email sent successfully: ${jobId}`);
+      this.logger.log(`Email sent successfully from ${fromAddress}: ${jobId}`);
       return { success: true };
     } catch (error) {
       this.logger.error(`Email job failed: ${jobId} - ${error.message}`);
@@ -76,18 +91,40 @@ export class EmailWorkerProcessor extends WorkerHost {
 
       if (job.attemptsMade >= 2) {
         await this.queueService.moveToDeadLetterQueue(job.data, error.message);
-
         await this.prisma.job.update({
           where: { id: jobId },
-          data: {
-            status: JobStatus.FAILED,
-            errorMessage: error.message,
-          },
+          data: { status: JobStatus.FAILED, errorMessage: error.message },
         });
       }
 
       throw error;
     }
+  }
+
+  private determineFromAddress(
+    requestedFrom: string | undefined,
+    customer: { sendingDomain: string | null; domainVerified: boolean },
+  ): string {
+    if (!requestedFrom) {
+      return customer.domainVerified && customer.sendingDomain
+        ? `noreply@em.${customer.sendingDomain}`
+        : this.defaultFromEmail;
+    }
+
+    const fromDomain = requestedFrom.split('@')[1];
+    const expectedDomain = `em.${customer.sendingDomain}`;
+
+    if (
+      (fromDomain === expectedDomain ||
+        fromDomain === customer.sendingDomain) &&
+      !customer.domainVerified
+    ) {
+      throw new Error(
+        `Cannot send from ${requestedFrom}. Domain ${customer.sendingDomain} is not verified.`,
+      );
+    }
+
+    return requestedFrom;
   }
 
   @OnWorkerEvent('active')

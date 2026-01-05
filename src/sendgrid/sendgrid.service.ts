@@ -56,12 +56,16 @@ export class SendGridService {
         messageId: response.headers['x-message-id'],
       };
     } catch (error) {
-      this.logger.error(`SendGrid error: ${error.message}`);
+      this.logger.error(
+        'SendGrid error details:',
+        JSON.stringify(error, null, 2),
+      );
 
       if (error.response) {
-        const { statusCode, body } = error.response;
+        const statusCode = error.response.statusCode || error.code;
+        const errorBody = error.response.body;
         throw new Error(
-          `SendGrid API error (${statusCode}): ${JSON.stringify(body)}`,
+          `SendGrid API error (${statusCode}): ${JSON.stringify(errorBody)}`,
         );
       }
 

@@ -51,6 +51,13 @@ model Customer {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
+  sendingDomain     String?   @map("sending_domain")         
+  domainVerified    Boolean   @default(false) @map("domain_verified")
+  sendgridDomainId  String?   @unique @map("sendgrid_domain_id")
+  domainDnsRecords  Json?     @map("domain_dns_records")    
+  domainRequestedAt DateTime? @map("domain_requested_at")
+  domainVerifiedAt  DateTime? @map("domain_verified_at")
+
   jobs          Job[]
 
   @@index([apiKeyHash])
