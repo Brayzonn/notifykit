@@ -6,10 +6,14 @@ import { RateLimitGuard } from './guards/rate-limit.guard';
 import { QuotaGuard } from './guards/quota.guard';
 import { RedisModule } from '@/redis/redis.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtStrategy } from './strategy/jwt.strategy';
+import { AuthService } from './auth.service';
+import { EmailModule } from '@/email/email.module';
 
 @Module({
   imports: [
     RedisModule,
+    EmailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -19,7 +23,14 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
       inject: [ConfigService],
     }),
   ],
-  providers: [ApiKeyGuard, RateLimitGuard, QuotaGuard],
-  exports: [ApiKeyGuard, RateLimitGuard, QuotaGuard, JwtAuthGuard],
+  providers: [
+    ApiKeyGuard,
+    RateLimitGuard,
+    QuotaGuard,
+    AuthService,
+    JwtStrategy,
+    JwtAuthGuard,
+  ],
+  exports: [AuthService, JwtAuthGuard, ApiKeyGuard, RateLimitGuard, QuotaGuard],
 })
 export class AuthModule {}
