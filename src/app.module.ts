@@ -10,6 +10,10 @@ import { RedisModule } from '@/redis/redis.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { QueueModule } from './queues/queue.module';
 import { CustomersModule } from './customers/customers.module';
+import { AuthModule } from './auth/auth.module';
+import { EmailModule } from './email/email.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 
 @Module({
   imports: [
@@ -18,12 +22,18 @@ import { CustomersModule } from './customers/customers.module';
     }),
     RedisModule,
     PrismaModule,
+    AuthModule,
+    EmailModule,
     QueueModule,
     NotificationsModule,
     HealthModule,
     CustomersModule,
   ],
   controllers: [AppController],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
