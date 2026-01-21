@@ -24,7 +24,7 @@ export class EmailService {
     }
 
     this.fromEmail = this.configService.get<string>(
-      'FROM_EMAIL',
+      'SENDGRID_FROM_EMAIL',
       'noreply@notifyhub.com',
     );
   }
