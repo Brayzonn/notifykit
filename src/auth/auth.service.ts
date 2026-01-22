@@ -16,7 +16,7 @@ import {
   ResendOtpDto,
   JwtPayload,
 } from '@/auth/dto/auth.dto';
-import { User, AuthProvider } from '@prisma/client';
+import { User, AuthProvider, $Enums } from '@prisma/client';
 import { AuthResponse, AuthTokens } from '@/auth/interfaces/auth.interface';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
@@ -43,47 +43,50 @@ export class AuthService {
   }
 
   /**
-   * Signup - Create account and send OTP
+   * Signup - Store signup dataand send OTP
    */
   async signup(signupDto: SignupDto): Promise<{ email: string }> {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: signupDto.email },
     });
 
-    if (existingUser) {
+    if (existingUser && existingUser.emailVerified) {
       throw new ConflictException('Email already registered');
     }
 
     const hashedPassword = await argon2.hash(signupDto.password);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: signupDto.email,
-        password: hashedPassword,
-        name: signupDto.name,
-        company: signupDto.company,
-        provider: AuthProvider.EMAIL,
-        emailVerified: false,
-      },
-    });
+    const signupData = {
+      email: signupDto.email,
+      password: hashedPassword,
+      name: signupDto.name,
+      company: signupDto.company,
+    };
+
+    await this.redis.set(
+      `signup:${signupDto.email}`,
+      JSON.stringify(signupData),
+      600, // 10 minutes
+    );
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    await this.redis.set(`otp:${user.email}`, otp, 600);
+    await this.redis.set(`otp:${signupDto.email}`, otp, 600);
 
     try {
       await this.emailService.sendOtpEmail({
-        email: user.email,
+        email: signupDto.email,
         otp,
         expiresInMinutes: 10,
       });
     } catch (error) {
-      await this.prisma.user.delete({ where: { id: user.id } });
-      await this.redis.del(`otp:${user.email}`);
+      await this.redis.del(`signup:${signupDto.email}`);
+      await this.redis.del(`otp:${signupDto.email}`);
       throw new BadRequestException('Failed to send verification email');
     }
 
-    return { email: user.email };
+    this.logger.log(`Signup initiated for ${signupDto.email}: OTP ${otp}`);
+
+    return { email: signupDto.email };
   }
 
   /**
@@ -148,50 +151,85 @@ export class AuthService {
   }
 
   /**
-   * Verify OTP - complete signup process
+   * Verify OTP - Create user and complete signup process
    */
   async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<AuthResponse> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: verifyOtpDto.email },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    if (user.emailVerified) {
-      throw new BadRequestException('Email already verified');
-    }
-
-    const storedOtp = await this.redis.get(`otp:${user.email}`);
+    const storedOtp = await this.redis.get(`otp:${verifyOtpDto.email}`);
 
     if (!storedOtp) {
-      throw new UnauthorizedException('OTP expired. Please request a new one.');
+      throw new UnauthorizedException('OTP expired. Please sign up again.');
     }
 
     if (storedOtp !== verifyOtpDto.otp) {
       throw new UnauthorizedException('Invalid OTP');
     }
 
-    const verifyUser = await this.prisma.user.update({
-      where: { id: user.id },
-      data: { emailVerified: true },
+    const signupDataStr = await this.redis.get(`signup:${verifyOtpDto.email}`);
+
+    if (!signupDataStr) {
+      throw new UnauthorizedException(
+        'Signup session expired. Please sign up again.',
+      );
+    }
+
+    const signupData = JSON.parse(signupDataStr);
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: verifyOtpDto.email },
     });
 
-    await this.redis.del(`otp:${user.email}`);
+    let user: {
+      id: string;
+      email: string;
+      password: string | null;
+      name: string;
+      company: string | null;
+      role: $Enums.UserRole;
+      emailVerified: boolean;
+      provider: $Enums.AuthProvider;
+      providerId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    };
 
-    const tokens = await this.generateTokens(verifyUser);
+    if (existingUser) {
+      user = await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          password: signupData.password,
+          name: signupData.name,
+          company: signupData.company,
+          emailVerified: true,
+        },
+      });
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          email: signupData.email,
+          password: signupData.password,
+          name: signupData.name,
+          company: signupData.company,
+          provider: AuthProvider.EMAIL,
+          emailVerified: true,
+        },
+      });
+    }
+
+    await this.redis.del(`otp:${verifyOtpDto.email}`);
+    await this.redis.del(`signup:${verifyOtpDto.email}`);
+
+    const tokens = await this.generateTokens(user);
 
     await this.prisma.refreshToken.create({
       data: {
-        userId: verifyUser.id,
+        userId: user.id,
         token: tokens.refreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
 
     return {
-      user: this.sanitizeUser(verifyUser),
+      user: this.sanitizeUser(user),
       tokens,
     };
   }
@@ -200,19 +238,15 @@ export class AuthService {
    * Resend OTP
    */
   async resendOtp(resendOtpDto: ResendOtpDto): Promise<{ expiresIn: number }> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: resendOtpDto.email },
-    });
+    const signupDataStr = await this.redis.get(`signup:${resendOtpDto.email}`);
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+    if (!signupDataStr) {
+      throw new UnauthorizedException(
+        'Signup session expired. Please sign up again.',
+      );
     }
 
-    if (user.emailVerified) {
-      throw new BadRequestException('Email already verified');
-    }
-
-    const resendKey = `otp-resend:${user.email}`;
+    const resendKey = `otp-resend:${resendOtpDto.email}`;
     const resendCount = await this.redis.get(resendKey);
 
     if (resendCount && parseInt(resendCount) >= 3) {
@@ -222,7 +256,7 @@ export class AuthService {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    await this.redis.set(`otp:${user.email}`, otp, 600);
+    await this.redis.set(`otp:${resendOtpDto.email}`, otp, 600);
 
     const currentCount = await this.redis.getClient().incr(resendKey);
     if (currentCount === 1) {
@@ -230,12 +264,12 @@ export class AuthService {
     }
 
     await this.emailService.sendOtpEmail({
-      email: user.email,
+      email: resendOtpDto.email,
       otp,
       expiresInMinutes: 10,
     });
 
-    this.logger.log(`Resent OTP for ${user.email}: ${otp}`);
+    this.logger.log(`Resent OTP for ${resendOtpDto.email}: ${otp}`);
 
     return { expiresIn: 600 };
   }
