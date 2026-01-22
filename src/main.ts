@@ -7,6 +7,7 @@ import { validationPipeOptions } from '@/config/validation.config';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { setupRequestSizeLimit } from '@/config/request-size.config';
+import { setupCookies } from '@/config/cookie.config';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -25,6 +26,7 @@ async function bootstrap() {
   logger.log(`Starting application on port ${port}`);
 
   setupRequestSizeLimit(app, configService);
+  setupCookies(app, configService);
 
   app.enableCors(createCorsConfig(configService));
   app.useGlobalFilters(new AllExceptionsFilter());
