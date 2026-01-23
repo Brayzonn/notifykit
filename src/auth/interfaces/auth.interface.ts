@@ -16,3 +16,11 @@ export interface AuthResponse {
   };
   tokens: AuthTokens;
 }
+
+export interface GithubProfile {
+  githubId: string;
+  email: string;
+  username: string;
+  name: string;
+  avatar?: string;
+}
