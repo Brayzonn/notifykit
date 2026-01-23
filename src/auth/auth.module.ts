@@ -6,10 +6,11 @@ import { RateLimitGuard } from './guards/rate-limit.guard';
 import { QuotaGuard } from './guards/quota.guard';
 import { RedisModule } from '@/redis/redis.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { JwtStrategy } from './strategy/jwt.strategy';
+import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthService } from './auth.service';
 import { EmailModule } from '@/email/email.module';
 import { AuthController } from './auth.controller';
+import { GithubStrategy } from './strategies/github.strategy';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AuthController } from './auth.controller';
     QuotaGuard,
     AuthService,
     JwtStrategy,
+    GithubStrategy,
     JwtAuthGuard,
   ],
   exports: [AuthService, JwtAuthGuard, ApiKeyGuard, RateLimitGuard, QuotaGuard],
