@@ -54,12 +54,12 @@ model User {
   password      String?
   name          String
   company       String?
+  avatar        String?
   role          UserRole      @default(USER)
-  emailVerified Boolean       @default(false) @map("email_verified")
-  
   provider      AuthProvider  @default(EMAIL) 
   providerId    String?       @map("provider_id")
-  
+  emailVerified Boolean       @default(false) @map("email_verified")
+  deletedAt     DateTime?     @map("deleted_at") 
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
@@ -67,6 +67,7 @@ model User {
 
   @@unique([provider, providerId])
   @@index([email])
+  @@index([deletedAt]) 
   @@map("users")
 }
 
@@ -124,7 +125,6 @@ model Customer {
 // ============================================
 // JOB MODEL
 // ============================================
-
 model Job {
   id              String    @id @default(uuid()) @db.Uuid
   customerId      String    @map("customer_id") @db.Uuid
@@ -144,11 +144,11 @@ model Job {
   customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   deliveryLogs    DeliveryLog[]
 
+  @@unique([customerId, idempotencyKey])  
   @@index([customerId])
   @@index([status])
   @@index([type])
   @@index([createdAt(sort: Desc)])
-  @@index([customerId, idempotencyKey])
   @@map("jobs")
 }
 
