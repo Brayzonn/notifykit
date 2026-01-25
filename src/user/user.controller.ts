@@ -129,15 +129,6 @@ export class UserController {
     return await this.userService.getApiKey(user.id);
   }
 
-  @Post('api-key/reveal')
-  @HttpCode(HttpStatus.OK)
-  async revealApiKey(
-    @User() user: AuthenticatedUser,
-    @Body('password') password?: string,
-  ) {
-    return await this.userService.revealApiKey(user.id, password);
-  }
-
   @Post('api-key/regenerate')
   @HttpCode(HttpStatus.OK)
   async regenerateApiKey(
