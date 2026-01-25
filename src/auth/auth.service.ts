@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
+import * as crypto from 'crypto';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   SignupDto,
@@ -16,7 +17,7 @@ import {
   ResendOtpDto,
   JwtPayload,
 } from '@/auth/dto/auth.dto';
-import { User, AuthProvider, $Enums } from '@prisma/client';
+import { User, AuthProvider, Customer, CustomerPlan } from '@prisma/client';
 import {
   AuthResponse,
   AuthTokens,
@@ -60,6 +61,9 @@ export class AuthService {
       where: { email: profile.email },
     });
 
+    let isNewUser = false;
+    let apiKey: string | undefined;
+
     if (!user) {
       user = await this.prisma.user.create({
         data: {
@@ -71,6 +75,8 @@ export class AuthService {
           ...(profile.avatar && { avatar: profile.avatar }),
         },
       });
+
+      isNewUser = true;
     } else if (user.provider === AuthProvider.EMAIL) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -81,6 +87,11 @@ export class AuthService {
           emailVerified: true,
         },
       });
+    }
+
+    if (isNewUser) {
+      const { apiKey: newApiKey } = await this.createCustomerForUser(user);
+      apiKey = newApiKey;
     }
 
     const tokens = await this.generateTokens(user);
@@ -96,6 +107,7 @@ export class AuthService {
     return {
       user: this.sanitizeUser(user),
       tokens,
+      ...(apiKey && { apiKey }),
     };
   }
 
@@ -236,6 +248,8 @@ export class AuthService {
     });
 
     let user: User;
+    let isNewUser = false;
+    let apiKey: string | undefined;
 
     if (existingUser) {
       user = await this.prisma.user.update({
@@ -258,6 +272,12 @@ export class AuthService {
           emailVerified: true,
         },
       });
+      isNewUser = true;
+    }
+
+    if (isNewUser) {
+      const { apiKey: newApiKey } = await this.createCustomerForUser(user);
+      apiKey = newApiKey;
     }
 
     await this.redis.del(`otp:${verifyOtpDto.email}`);
@@ -276,6 +296,7 @@ export class AuthService {
     return {
       user: this.sanitizeUser(user),
       tokens,
+      ...(apiKey && { apiKey }),
     };
   }
 
@@ -374,6 +395,50 @@ export class AuthService {
    * HELPERS
    * ══════════════════════════════════════════════════════════════════════
    */
+
+  /**
+   * Create customer record for new user
+   */
+  private async createCustomerForUser(
+    user: User,
+  ): Promise<{ customer: Customer; apiKey: string }> {
+    const existingCustomer = await this.prisma.customer.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (existingCustomer) {
+      return { customer: existingCustomer, apiKey: existingCustomer.apiKey };
+    }
+
+    const apiKey = this.generateApiKey();
+    const apiKeyHash = await argon2.hash(apiKey);
+
+    const customer = await this.prisma.customer.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        apiKey,
+        apiKeyHash,
+        plan: CustomerPlan.FREE,
+        monthlyLimit: 1000,
+        usageCount: 0,
+        usageResetAt: new Date(),
+        isActive: true,
+      },
+    });
+
+    this.logger.log(`Customer created for user: ${user.id}`);
+
+    return { customer, apiKey };
+  }
+
+  /**
+   * Generate API key
+   */
+  private generateApiKey(): string {
+    const randomBytes = crypto.randomBytes(32);
+    return `nh_${randomBytes.toString('hex')}`;
+  }
 
   /**
    * Verify refresh tokens
