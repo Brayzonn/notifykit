@@ -22,7 +22,6 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:prod": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:reset": "prisma migrate reset"
   },
   "dependencies": {
@@ -89,8 +88,5 @@
   },
   "overrides": {
     "lodash": "^4.17.21"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   }
 }
