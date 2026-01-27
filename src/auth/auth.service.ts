@@ -85,6 +85,12 @@ export class AuthService {
       });
     }
 
+    if (user.deletedAt) {
+      throw new UnauthorizedException(
+        'Account has been deleted. Please contact support.',
+      );
+    }
+
     await this.createCustomerForUser(user);
 
     const tokens = await this.generateTokens(user);
@@ -154,6 +160,10 @@ export class AuthService {
 
     if (!user || !user.password) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.deletedAt) {
+      throw new UnauthorizedException('Account has been deleted');
     }
 
     if (!user.emailVerified) {
@@ -355,6 +365,11 @@ export class AuthService {
     if (storedToken.expiresAt < new Date()) {
       await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
       throw new UnauthorizedException('Refresh token expired');
+    }
+
+    if (storedToken.user.deletedAt) {
+      await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
+      throw new UnauthorizedException('Account has been deleted');
     }
 
     return storedToken;
