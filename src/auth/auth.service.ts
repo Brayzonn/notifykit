@@ -504,14 +504,6 @@ export class AuthService {
   }
 
   /**
-   * Generate API key
-   */
-  private generateApiKey(): string {
-    const randomBytes = crypto.randomBytes(32);
-    return `nh_${randomBytes.toString('hex')}`;
-  }
-
-  /**
    * Remove sensitive data from user object
    */
   private sanitizeUser(user: User) {
