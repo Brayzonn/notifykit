@@ -384,6 +384,10 @@ export class UserService {
       data: { isActive: false },
     });
 
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+
     return { message: 'Account deleted successfully' };
   }
 
@@ -470,6 +474,7 @@ export class UserService {
       where: { userId },
       select: {
         apiKey: true,
+        apiKeyHash: true,
         createdAt: true,
       },
     });
@@ -478,13 +483,30 @@ export class UserService {
       throw new NotFoundException('Customer record not found');
     }
 
-    const maskedKey =
-      customer.apiKey.substring(0, 11) +
-      '••••••••••••••••••••' +
-      customer.apiKey.slice(-4);
+    if (!customer.apiKeyHash) {
+      throw new NotFoundException(
+        'No API key generated yet. Please generate one.',
+      );
+    }
+
+    if (customer.apiKey) {
+      const plaintext = customer.apiKey;
+
+      await this.prisma.customer.update({
+        where: { userId },
+        data: { apiKey: null },
+      });
+
+      return {
+        apiKey: plaintext,
+        firstTime: true,
+        createdAt: customer.createdAt,
+      };
+    }
 
     return {
-      apiKey: maskedKey,
+      apiKey: 'nh_••••••••••••••••••••••••••••••••••••••••••••••••••••••••',
+      masked: true,
       createdAt: customer.createdAt,
     };
   }
@@ -503,7 +525,10 @@ export class UserService {
     }
 
     const newApiKey = this.generateApiKey();
-    const newApiKeyHash = await argon2.hash(newApiKey);
+    const newApiKeyHash = crypto
+      .createHash('sha256')
+      .update(newApiKey)
+      .digest('hex');
 
     await this.prisma.customer.update({
       where: { userId },
@@ -515,7 +540,8 @@ export class UserService {
 
     return {
       apiKey: newApiKey,
-      message: 'API key generated successfully. Save it securely.',
+      message:
+        "API key generated successfully. Save it securely - you won't see it again.",
     };
   }
 
