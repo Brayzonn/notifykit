@@ -67,15 +67,6 @@ export class NotificationsService {
       dto.priority || QUEUE_PRIORITIES.NORMAL,
     );
 
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        usageCount: {
-          increment: 1,
-        },
-      },
-    });
-
     this.logger.log(`Email job created and queued: ${job.id}`);
 
     return {
@@ -138,15 +129,6 @@ export class NotificationsService {
       },
       dto.priority || QUEUE_PRIORITIES.NORMAL,
     );
-
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        usageCount: {
-          increment: 1,
-        },
-      },
-    });
 
     this.logger.log(`Webhook job created and queued: ${job.id}`);
 
