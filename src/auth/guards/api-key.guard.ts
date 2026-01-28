@@ -9,10 +9,29 @@ import {
 import { Request } from 'express';
 import { PrismaService } from '@/prisma/prisma.service';
 import * as crypto from 'crypto';
+import { CustomerPlan } from '@prisma/client';
+
+export interface AuthenticatedCustomer {
+  id: string;
+  email: string;
+  plan: CustomerPlan;
+  monthlyLimit: number;
+  usageCount: number;
+  usageResetAt: Date;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      customer?: AuthenticatedCustomer;
+    }
+  }
+}
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
   private readonly logger = new Logger(ApiKeyGuard.name);
+  private readonly API_KEY_REGEX = /^nh_[a-f0-9]{64}$/;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -21,11 +40,20 @@ export class ApiKeyGuard implements CanActivate {
     const apiKey = this.extractApiKey(request);
 
     if (!apiKey) {
-      throw new UnauthorizedException('API key is missing');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        message: 'API key is missing',
+        error: 'Unauthorized',
+      });
     }
 
     if (!this.isValidApiKeyFormat(apiKey)) {
-      throw new UnauthorizedException('Invalid API key format');
+      this.logger.warn(`Invalid API key format: ${apiKey.substring(0, 11)}...`);
+      throw new UnauthorizedException({
+        statusCode: 401,
+        message: 'Invalid API key format',
+        error: 'Unauthorized',
+      });
     }
 
     const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
@@ -53,25 +81,31 @@ export class ApiKeyGuard implements CanActivate {
       this.logger.warn(
         `Invalid API key attempt: ${apiKey.substring(0, 11)}...`,
       );
-      throw new UnauthorizedException('Invalid API key');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        message: 'Invalid API key',
+        error: 'Unauthorized',
+      });
     }
 
-    if (customer.user.deletedAt) {
+    if (customer.user?.deletedAt) {
       this.logger.warn(`Deleted user attempted API access: ${customer.email}`);
-      throw new ForbiddenException('Account has been deleted');
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Account has been deleted',
+        error: 'Forbidden',
+      });
     }
 
     if (!customer.isActive) {
       this.logger.warn(
         `Inactive customer attempted API access: ${customer.email}`,
       );
-      throw new ForbiddenException('Account is inactive');
-    }
-
-    if (customer.usageCount >= customer.monthlyLimit) {
-      throw new ForbiddenException(
-        `Monthly usage limit exceeded (${customer.usageCount}/${customer.monthlyLimit}). Upgrade your plan or wait for reset on ${customer.usageResetAt.toLocaleDateString()}.`,
-      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Account is inactive',
+        error: 'Forbidden',
+      });
     }
 
     const now = new Date();
@@ -82,16 +116,41 @@ export class ApiKeyGuard implements CanActivate {
       this.logger.log(`Reset monthly usage for customer: ${customer.email}`);
     }
 
-    // Attach customer to request
-    request['customer'] = {
+    if (customer.usageCount >= customer.monthlyLimit) {
+      this.logger.warn(
+        `Usage limit exceeded for customer: ${customer.email} (${customer.usageCount}/${customer.monthlyLimit})`,
+      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: `Monthly usage limit exceeded (${customer.usageCount}/${customer.monthlyLimit}). Upgrade your plan or wait for reset on ${customer.usageResetAt.toLocaleDateString()}.`,
+        error: 'Forbidden',
+      });
+    }
+
+    const updatedCustomer = await this.prisma.customer.update({
+      where: { id: customer.id },
+      data: {
+        usageCount: {
+          increment: 1,
+        },
+      },
+      select: {
+        usageCount: true,
+      },
+    });
+
+    request.customer = {
       id: customer.id,
       email: customer.email,
       plan: customer.plan,
       monthlyLimit: customer.monthlyLimit,
-      usageCount: customer.usageCount,
+      usageCount: updatedCustomer.usageCount,
       usageResetAt: customer.usageResetAt,
     };
 
+    this.logger.debug(
+      `Authenticated customer: ${customer.email} (${updatedCustomer.usageCount}/${customer.monthlyLimit} used)`,
+    );
     return true;
   }
 
@@ -111,7 +170,7 @@ export class ApiKeyGuard implements CanActivate {
   }
 
   private isValidApiKeyFormat(apiKey: string): boolean {
-    return apiKey.startsWith('nh_') && apiKey.length === 67; // nh_ + 64 hex chars
+    return this.API_KEY_REGEX.test(apiKey);
   }
 
   private async resetMonthlyUsage(customerId: string): Promise<void> {
@@ -128,7 +187,6 @@ export class ApiKeyGuard implements CanActivate {
 
   private getNextResetDate(): Date {
     const now = new Date();
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return nextMonth;
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   }
 }
