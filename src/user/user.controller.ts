@@ -19,6 +19,7 @@ import {
   UpdateEmailDto,
   GetJobsDto,
   DeleteAccountDto,
+  RegenerateApiKeyDto,
 } from '@/user/dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
@@ -133,14 +134,18 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   async regenerateApiKey(
     @User() user: AuthenticatedUser,
-    @Body('confirm') confirm: boolean,
+    @Body() dto: RegenerateApiKeyDto,
   ) {
-    if (!confirm) {
+    if (!dto.confirmEmail) {
       throw new BadRequestException(
-        'Confirmation required to regenerate API key',
+        'Confirmation email required to regenerate API key',
       );
     }
-    return await this.userService.regenerateApiKey(user.id);
+    return await this.userService.regenerateApiKey(
+      user.id,
+      user.email,
+      dto.confirmEmail,
+    );
   }
 
   /**

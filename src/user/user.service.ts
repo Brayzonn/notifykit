@@ -514,7 +514,11 @@ export class UserService {
   /**
    * Regenerate API key
    */
-  async regenerateApiKey(userId: string) {
+  async regenerateApiKey(userId: string, email: string, confirmEmail: string) {
+    if (email !== confirmEmail) {
+      throw new BadRequestException('Confirmation email does not match');
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { customer: true },
@@ -535,6 +539,7 @@ export class UserService {
       data: {
         apiKey: newApiKey,
         apiKeyHash: newApiKeyHash,
+        createdAt: new Date(),
       },
     });
 
