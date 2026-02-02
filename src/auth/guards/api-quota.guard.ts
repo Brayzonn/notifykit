@@ -10,7 +10,7 @@ import {
 import { Request } from 'express';
 import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
 import { AuthenticatedCustomer } from '../interfaces/api-guard.interface';
-import { CustomersService } from '@/customers/customers.service';
+import { AuthService } from '../auth.service';
 
 interface CustomerRequest extends Request {
   customer: AuthenticatedCustomer;
@@ -21,7 +21,7 @@ export class QuotaGuard implements CanActivate {
   private readonly logger = new Logger(QuotaGuard.name);
   private readonly GRACE_PERIOD_DAYS = 7;
 
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(private readonly authService: AuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<CustomerRequest>();
@@ -55,7 +55,7 @@ export class QuotaGuard implements CanActivate {
     }
 
     // Increment usage
-    await this.customersService.incrementUsage(customer.id);
+    await this.authService.incrementUsage(customer.id);
     customer.usageCount = currentUsage + 1;
 
     this.logger.debug(
@@ -70,7 +70,7 @@ export class QuotaGuard implements CanActivate {
     now: Date,
   ): Promise<void> {
     if (customer.plan === CustomerPlan.FREE) {
-      await this.customersService.resetMonthlyUsage(customer.id);
+      await this.authService.resetMonthlyUsage(customer.id);
       this.syncCustomerInMemory(customer);
 
       this.logger.log(`Reset FREE plan customer: ${customer.email}`);
@@ -84,7 +84,7 @@ export class QuotaGuard implements CanActivate {
       customer.subscriptionEndDate > now;
 
     if (hasActiveSubscription) {
-      await this.customersService.resetMonthlyUsage(customer.id);
+      await this.authService.resetMonthlyUsage(customer.id);
       this.syncCustomerInMemory(customer);
 
       this.logger.log(`Reset ${customer.plan} customer: ${customer.email}`);
@@ -98,7 +98,7 @@ export class QuotaGuard implements CanActivate {
     );
 
     if (isInGracePeriod) {
-      await this.customersService.resetMonthlyUsage(customer.id);
+      await this.authService.resetMonthlyUsage(customer.id);
       this.syncCustomerInMemory(customer);
 
       const daysLeft = this.getDaysLeft(customer.subscriptionEndDate, now);
@@ -107,7 +107,7 @@ export class QuotaGuard implements CanActivate {
       );
     } else {
       // Grace period over - downgrade
-      await this.customersService.downgradeToFreePlan(
+      await this.authService.downgradeToFreePlan(
         customer.id,
         'SUBSCRIPTION_EXPIRED',
       );
