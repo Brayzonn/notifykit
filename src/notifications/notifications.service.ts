@@ -6,6 +6,15 @@ import { SendEmailDto } from './dto/send-email.dto';
 import { SendWebhookDto } from './dto/send-webhook.dto';
 import { JobType, JobStatus } from '@prisma/client';
 import { toApiStatus } from '@/common/utils/enum.util';
+import {
+  JobResponse,
+  JobStatusResponse,
+  JobListResponse,
+  RetryJobResponse,
+  ListJobsOptions,
+  EmailPayloadData,
+  WebhookPayloadData,
+} from '@/notifications/interfaces/notification.interface';
 
 @Injectable()
 export class NotificationsService {
@@ -19,7 +28,7 @@ export class NotificationsService {
   /**
    * Create and queue an email notification job
    */
-  async sendEmail(customerId: string, dto: SendEmailDto) {
+  async sendEmail(customerId: string, dto: SendEmailDto): Promise<JobResponse> {
     if (dto.idempotencyKey) {
       const existing = await this.prisma.job.findFirst({
         where: {
@@ -48,7 +57,7 @@ export class NotificationsService {
           subject: dto.subject,
           body: dto.body,
           from: dto.from,
-        },
+        } as EmailPayloadData,
         idempotencyKey: dto.idempotencyKey,
         attempts: 0,
         maxAttempts: 3,
@@ -80,7 +89,10 @@ export class NotificationsService {
   /**
    * Create and queue a webhook notification job
    */
-  async sendWebhook(customerId: string, dto: SendWebhookDto) {
+  async sendWebhook(
+    customerId: string,
+    dto: SendWebhookDto,
+  ): Promise<JobResponse> {
     if (dto.idempotencyKey) {
       const existing = await this.prisma.job.findFirst({
         where: {
@@ -111,7 +123,7 @@ export class NotificationsService {
           method: dto.method || 'POST',
           headers: dto.headers,
           payload: dto.payload,
-        },
+        } as WebhookPayloadData,
         idempotencyKey: dto.idempotencyKey,
         attempts: 0,
         maxAttempts: 3,
@@ -143,7 +155,10 @@ export class NotificationsService {
   /**
    * Get job status by ID
    */
-  async getJobStatus(customerId: string, jobId: string) {
+  async getJobStatus(
+    customerId: string,
+    jobId: string,
+  ): Promise<JobStatusResponse | null> {
     const job = await this.prisma.job.findFirst({
       where: {
         id: jobId,
@@ -180,13 +195,8 @@ export class NotificationsService {
    */
   async listJobs(
     customerId: string,
-    options: {
-      page?: number;
-      limit?: number;
-      type?: 'email' | 'webhook';
-      status?: 'pending' | 'processing' | 'completed' | 'failed';
-    } = {},
-  ) {
+    options: ListJobsOptions = {},
+  ): Promise<JobListResponse> {
     const page = options.page || 1;
     const limit = Math.min(options.limit || 20, 100);
     const skip = (page - 1) * limit;
@@ -241,7 +251,10 @@ export class NotificationsService {
   /**
    * Retry a failed job
    */
-  async retryJob(customerId: string, jobId: string) {
+  async retryJob(
+    customerId: string,
+    jobId: string,
+  ): Promise<RetryJobResponse | null> {
     const job = await this.prisma.job.findFirst({
       where: {
         id: jobId,
@@ -264,7 +277,7 @@ export class NotificationsService {
     });
 
     if (job.type === JobType.EMAIL) {
-      const payload = job.payload as any;
+      const payload = job.payload as EmailPayloadData;
       await this.queueService.addEmailJob(
         {
           jobId: job.id,
@@ -277,7 +290,7 @@ export class NotificationsService {
         job.priority,
       );
     } else if (job.type === JobType.WEBHOOK) {
-      const payload = job.payload as any;
+      const payload = job.payload as WebhookPayloadData;
       await this.queueService.addWebhookJob(
         {
           jobId: job.id,

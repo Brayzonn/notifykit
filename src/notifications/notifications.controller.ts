@@ -13,7 +13,7 @@ import {
 import { NotificationsService } from '@/notifications/notifications.service';
 import { ApiKeyGuard } from '@/auth/guards/api-key.guard';
 import { CustomerRateLimitGuard } from '@/auth/guards/customer-rate-limit.guard';
-import { QuotaGuard } from '@/auth/guards/quota.guard';
+import { QuotaGuard } from '@/auth/guards/api-quota.guard';
 import {
   CurrentCustomer,
   AuthenticatedCustomer,

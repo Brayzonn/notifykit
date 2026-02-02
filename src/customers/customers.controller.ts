@@ -7,7 +7,7 @@ import {
 import { CustomersService } from './customers.service';
 import { Public } from '@/auth/decorators/public.decorator';
 import { RequestDomainDto } from '@/customers/dto/customer.dto';
-import { QuotaGuard } from '@/auth/guards/quota.guard';
+import { QuotaGuard } from '@/auth/guards/api-quota.guard';
 import { CustomerRateLimitGuard } from '@/auth/guards/customer-rate-limit.guard';
 
 @Public()
