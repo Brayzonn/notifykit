@@ -8,24 +8,16 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { RedisService } from '../../redis/redis.service';
-import { CustomerPlan } from '@prisma/client';
+import { AuthenticatedCustomer } from '../interfaces/api-guard.interface';
 
 interface CustomerRequest extends Request {
-  customer: {
-    id: string;
-    email: string;
-    plan: CustomerPlan;
-    monthlyLimit: number;
-    usageCount: number;
-    usageResetAt: Date;
-  };
+  customer: AuthenticatedCustomer;
 }
 
 @Injectable()
 export class CustomerRateLimitGuard implements CanActivate {
   private readonly logger = new Logger(CustomerRateLimitGuard.name);
 
-  // Rate limits per plan (requests per minute)
   private readonly rateLimits = {
     free: 10,
     indie: 100,
@@ -46,11 +38,12 @@ export class CustomerRateLimitGuard implements CanActivate {
     }
 
     const { id: customerId, plan } = customer;
+    const planKey = plan.toLowerCase();
 
-    const isAllowed = await this.checkRateLimit(customerId, plan);
+    const isAllowed = await this.checkRateLimit(customerId, planKey);
 
     if (!isAllowed) {
-      const limit = this.rateLimits[plan] || this.rateLimits.free;
+      const limit = this.rateLimits[planKey] || this.rateLimits.free;
       this.logger.warn(`Rate limit exceeded for customer: ${customerId}`);
 
       throw new HttpException(
@@ -73,10 +66,10 @@ export class CustomerRateLimitGuard implements CanActivate {
    */
   private async checkRateLimit(
     customerId: string,
-    plan: string,
+    planKey: string,
   ): Promise<boolean> {
     const key = `rate_limit:${customerId}:minute`;
-    const limit = this.rateLimits[plan] || this.rateLimits.free;
+    const limit = this.rateLimits[planKey] || this.rateLimits.free;
     const ttl = 60; // 1 minute
 
     try {
@@ -109,7 +102,8 @@ export class CustomerRateLimitGuard implements CanActivate {
     plan: string,
   ): Promise<{ remaining: number; limit: number; resetIn: number }> {
     const key = `rate_limit:${customerId}:minute`;
-    const limit = this.rateLimits[plan] || this.rateLimits.free;
+    const planKey = plan.toLowerCase();
+    const limit = this.rateLimits[planKey] || this.rateLimits.free;
 
     const currentCount = await this.redis.get(key);
     const count = currentCount ? parseInt(currentCount, 10) : 0;
