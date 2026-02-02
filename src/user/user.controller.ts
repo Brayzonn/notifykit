@@ -28,6 +28,7 @@ import { User } from '@/common/decorators/user.decorator';
 import { UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '@/common/interfaces/authenticated-user.interface';
 import { Public } from '@/auth/decorators/public.decorator';
+import { RequestDomainDto } from './dto/RequestDomain.dto';
 
 @Controller('user')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -181,5 +182,39 @@ export class UserController {
     @Param('id') jobId: string,
   ) {
     return await this.userService.getJobDetails(user.id, jobId);
+  }
+
+  /**
+   * ================================
+   * DOMAIN VERIFICATION
+   * ================================
+   */
+
+  @Post('domain/request')
+  async requestDomainVerification(
+    @User() user: AuthenticatedUser,
+    @Body() dto: RequestDomainDto,
+  ) {
+    return await this.userService.requestDomainVerification(
+      user.id,
+      dto.domain,
+    );
+  }
+
+  @Post('domain/verify')
+  @HttpCode(HttpStatus.OK)
+  async checkDomainVerification(@User() user: AuthenticatedUser) {
+    return await this.userService.checkDomainVerification(user.id);
+  }
+
+  @Get('domain/status')
+  async getDomainStatus(@User() user: AuthenticatedUser) {
+    return await this.userService.getDomainStatus(user.id);
+  }
+
+  @Delete('domain')
+  @HttpCode(HttpStatus.OK)
+  async removeDomain(@User() user: AuthenticatedUser) {
+    return await this.userService.removeDomain(user.id);
   }
 }
