@@ -9,25 +9,6 @@ import {
 import { Request } from 'express';
 import { PrismaService } from '@/prisma/prisma.service';
 import * as crypto from 'crypto';
-import { CustomerPlan } from '@prisma/client';
-
-export interface AuthenticatedCustomer {
-  id: string;
-  email: string;
-  plan: CustomerPlan;
-  monthlyLimit: number;
-  usageCount?: number;
-  usageResetAt: Date;
-  billingCycleStartAt: Date;
-}
-
-declare global {
-  namespace Express {
-    interface Request {
-      customer?: AuthenticatedCustomer;
-    }
-  }
-}
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -70,6 +51,11 @@ export class ApiKeyGuard implements CanActivate {
         usageResetAt: true,
         billingCycleStartAt: true,
         isActive: true,
+        subscriptionStatus: true,
+        paymentProvider: true,
+        providerCustomerId: true,
+        providerSubscriptionId: true,
+        subscriptionEndDate: true,
         user: {
           select: {
             id: true,
@@ -118,6 +104,11 @@ export class ApiKeyGuard implements CanActivate {
       usageCount: customer.usageCount,
       usageResetAt: customer.usageResetAt,
       billingCycleStartAt: customer.billingCycleStartAt,
+      subscriptionStatus: customer.subscriptionStatus ?? undefined,
+      paymentProvider: customer.paymentProvider ?? undefined,
+      providerCustomerId: customer.providerCustomerId ?? undefined,
+      providerSubscriptionId: customer.providerSubscriptionId ?? undefined,
+      subscriptionEndDate: customer.subscriptionEndDate ?? undefined,
     };
 
     this.logger.debug(`API key authenticated: ${customer.email}`);
