@@ -29,9 +29,14 @@ export class EmailWorkerProcessor extends WorkerHost {
   async process(job: Job<EmailJobData>): Promise<any> {
     const { jobId, customerId, to, subject, body, from } = job.data;
 
-    this.logger.log(
-      `Processing email job: ${jobId} (attempt ${job.attemptsMade + 1})`,
-    );
+    const currentJob = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      select: { attempts: true },
+    });
+
+    const nextAttempt = (currentJob?.attempts || 0) + 1;
+
+    this.logger.log(`Processing email job: ${jobId} (attempt ${nextAttempt})`);
 
     try {
       const customer = await this.prisma.customer.findUnique({
@@ -50,7 +55,7 @@ export class EmailWorkerProcessor extends WorkerHost {
         data: {
           status: JobStatus.PROCESSING,
           startedAt: new Date(),
-          attempts: job.attemptsMade + 1,
+          attempts: nextAttempt,
         },
       });
 
@@ -69,7 +74,7 @@ export class EmailWorkerProcessor extends WorkerHost {
       await this.prisma.deliveryLog.create({
         data: {
           jobId,
-          attempt: job.attemptsMade + 1,
+          attempt: nextAttempt,
           status: DeliveryStatus.SUCCESS,
           response,
         },
@@ -80,20 +85,43 @@ export class EmailWorkerProcessor extends WorkerHost {
     } catch (error) {
       this.logger.error(`Email job failed: ${jobId} - ${error.message}`);
 
+      let errorMessage = error.message;
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        // Check for nested error message structures
+        if (
+          data?.errors &&
+          Array.isArray(data.errors) &&
+          data.errors.length > 0
+        ) {
+          errorMessage = `${status} - ${data.errors[0].message || data.errors[0]}`;
+        } else if (data?.error?.message) {
+          errorMessage = `${status} - ${data.error.message}`;
+        } else if (data?.message) {
+          errorMessage = `${status} - ${data.message}`;
+        } else if (typeof data === 'string') {
+          errorMessage = `${status} - ${data}`;
+        } else {
+          errorMessage = `Request failed with status ${status}`;
+        }
+      }
+
       await this.prisma.deliveryLog.create({
         data: {
           jobId,
-          attempt: job.attemptsMade + 1,
+          attempt: nextAttempt,
           status: DeliveryStatus.FAILED,
-          errorMessage: error.message,
+          errorMessage,
         },
       });
 
-      if (job.attemptsMade >= 2) {
-        await this.queueService.moveToDeadLetterQueue(job.data, error.message);
+      if (nextAttempt >= 3) {
+        await this.queueService.moveToDeadLetterQueue(job.data, errorMessage);
         await this.prisma.job.update({
           where: { id: jobId },
-          data: { status: JobStatus.FAILED, errorMessage: error.message },
+          data: { status: JobStatus.FAILED, errorMessage },
         });
       }
 
