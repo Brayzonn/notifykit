@@ -25,6 +25,13 @@ export class WebhookWorkerProcessor extends WorkerHost {
   async process(job: Job<WebhookJobData>): Promise<any> {
     const { jobId, url, method, headers, payload } = job.data;
 
+    const currentJob = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      select: { attempts: true },
+    });
+
+    const nextAttempt = (currentJob?.attempts || 0) + 1;
+
     this.logger.log(
       `Processing webhook job: ${jobId} (attempt ${job.attemptsMade + 1})`,
     );
@@ -35,7 +42,7 @@ export class WebhookWorkerProcessor extends WorkerHost {
         data: {
           status: JobStatus.PROCESSING,
           startedAt: new Date(),
-          attempts: job.attemptsMade + 1,
+          attempts: nextAttempt,
         },
       });
 
@@ -65,7 +72,7 @@ export class WebhookWorkerProcessor extends WorkerHost {
       await this.prisma.deliveryLog.create({
         data: {
           jobId,
-          attempt: job.attemptsMade + 1,
+          attempt: nextAttempt,
           status: DeliveryStatus.SUCCESS,
           response: {
             statusCode: response.status,
@@ -88,26 +95,43 @@ export class WebhookWorkerProcessor extends WorkerHost {
           }
         : null;
 
+      let errorMessage = error.message;
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        // Check for nested error message structures
+        if (data?.error?.message) {
+          errorMessage = `${status} - ${data.error.message}`;
+        } else if (data?.message) {
+          errorMessage = `${status} - ${data.message}`;
+        } else if (typeof data === 'string') {
+          errorMessage = `${status} - ${data}`;
+        } else {
+          errorMessage = `Request failed with status ${status}`;
+        }
+      }
+
       await this.prisma.deliveryLog.create({
         data: {
           jobId,
-          attempt: job.attemptsMade + 1,
+          attempt: nextAttempt,
           status: DeliveryStatus.FAILED,
-          errorMessage: error.message,
+          errorMessage,
           response: errorResponse ?? undefined,
         },
       });
 
       const shouldRetry = this.shouldRetryWebhook(error);
 
-      if (!shouldRetry || job.attemptsMade >= 2) {
-        await this.queueService.moveToDeadLetterQueue(job.data, error.message);
+      if (!shouldRetry || nextAttempt >= 3) {
+        await this.queueService.moveToDeadLetterQueue(job.data, errorMessage);
 
         await this.prisma.job.update({
           where: { id: jobId },
           data: {
             status: JobStatus.FAILED,
-            errorMessage: error.message,
+            errorMessage,
           },
         });
 
