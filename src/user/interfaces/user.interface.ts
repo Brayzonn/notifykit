@@ -158,7 +158,7 @@ export interface JobsPagination {
 }
 
 export interface JobsHistoryResponse {
-  jobs: Job[];
+  data: Job[];
   pagination: JobsPagination;
 }
 

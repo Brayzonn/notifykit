@@ -9,7 +9,13 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
-import { AuthProvider, CustomerPlan, JobStatus, Prisma } from '@prisma/client';
+import {
+  AuthProvider,
+  CustomerPlan,
+  JobStatus,
+  JobType,
+  Prisma,
+} from '@prisma/client';
 import {
   UpdateProfileDto,
   ChangePasswordDto,
@@ -660,6 +666,7 @@ export class UserService {
     page: number = 1,
     limit: number = 20,
     status?: JobStatus,
+    type?: JobType,
   ): Promise<JobsHistoryResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -675,6 +682,10 @@ export class UserService {
 
     if (status) {
       where.status = status;
+    }
+
+    if (type) {
+      where.type = type;
     }
 
     const [jobs, total] = await Promise.all([
@@ -694,7 +705,7 @@ export class UserService {
     ]);
 
     return {
-      jobs,
+      data: jobs,
       pagination: {
         total,
         page,
