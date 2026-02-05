@@ -335,12 +335,14 @@ export class AuthService {
   /**
    * Logout - Invalidate refresh token
    */
-  async logout(token: string): Promise<void> {
+  async logout(token: string): Promise<{ message: string }> {
     try {
       await this.prisma.refreshToken.delete({ where: { token } });
       this.logger.log('User logged out successfully');
+      return { message: 'Logged out successfully' };
     } catch (error) {
       this.logger.warn('Refresh token not found during logout');
+      return { message: 'Logged out successfully' };
     }
   }
 
