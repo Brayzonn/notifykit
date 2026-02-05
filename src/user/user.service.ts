@@ -458,63 +458,33 @@ export class UserService {
   /**
    * Get dashboard summary
    */
-  async getDashboardSummary(userId: string): Promise<DashboardSummary> {
-    const customer = await this.prisma.customer.findUnique({
-      where: { userId },
-      select: {
-        plan: true,
-        monthlyLimit: true,
-        usageCount: true,
-        usageResetAt: true,
-        jobs: {
-          where: {
-            createdAt: {
-              gte: new Date(new Date().setDate(new Date().getDate() - 7)),
-            },
-          },
-          select: {
-            status: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
+  async getDashboardSummary(
+    userId: string,
+    days: number = 7,
+  ): Promise<DashboardSummary> {
+    const startDate = this.getStartDate(days);
+    const customer = await this.fetchCustomerWithJobs(userId, startDate);
 
     if (!customer) {
       throw new NotFoundException('Customer record not found');
     }
 
-    const totalJobs = customer.jobs.length;
-    const successfulJobs = customer.jobs.filter(
-      (j) => j.status === 'COMPLETED',
-    ).length;
-    const failedJobs = customer.jobs.filter(
-      (j) => j.status === 'FAILED',
-    ).length;
-    const pendingJobs = customer.jobs.filter(
-      (j) => j.status === 'PENDING' || j.status === 'PROCESSING',
-    ).length;
+    const { jobs, plan, monthlyLimit, usageCount, usageResetAt } = customer;
 
-    const successRate =
-      totalJobs > 0 ? ((successfulJobs / totalJobs) * 100).toFixed(2) : '0';
-
-    const remaining = customer.monthlyLimit - customer.usageCount;
+    const jobStats = this.calculateJobStats(jobs);
+    const activityByDay = this.groupJobsByDay(jobs, days);
+    const remaining = Math.max(monthlyLimit - usageCount, 0);
 
     return {
       usage: {
-        plan: customer.plan,
-        monthlyLimit: customer.monthlyLimit,
-        used: customer.usageCount,
-        remaining: remaining > 0 ? remaining : 0,
-        resetAt: customer.usageResetAt,
+        plan,
+        monthlyLimit,
+        used: usageCount,
+        remaining,
+        resetAt: usageResetAt,
       },
-      jobs: {
-        total: totalJobs,
-        successful: successfulJobs,
-        failed: failedJobs,
-        pending: pendingJobs,
-        successRate: `${successRate}%`,
-      },
+      jobs: jobStats,
+      activityByDay,
     };
   }
 
@@ -779,9 +749,9 @@ export class UserService {
   /**
    * Request domain verification
    */
-  async requestDomainVerification(customerId: string, domain: string) {
+  async requestDomainVerification(userId: string, domain: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { userId },
       select: {
         plan: true,
         sendgridDomainId: true,
@@ -809,7 +779,7 @@ export class UserService {
       where: {
         sendingDomain: domain,
         domainVerified: true,
-        id: { not: customerId },
+        userId: { not: userId },
       },
     });
 
@@ -833,7 +803,7 @@ export class UserService {
       await this.sendGridDomainService.authenticateDomain(domain);
 
     await this.prisma.customer.update({
-      where: { id: customerId },
+      where: { userId },
       data: {
         sendingDomain: domain,
         sendgridDomainId: domainId.toString(),
@@ -845,7 +815,7 @@ export class UserService {
     });
 
     this.logger.log(
-      `Domain verification requested: ${domain} for customer: ${customerId}`,
+      `Domain verification requested: ${domain} for customer: ${userId}`,
     );
 
     return {
@@ -875,9 +845,9 @@ export class UserService {
   /**
    * Check domain verification status
    */
-  async checkDomainVerification(customerId: string) {
+  async checkDomainVerification(userId: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { userId },
       select: {
         sendingDomain: true,
         domainVerified: true,
@@ -902,7 +872,7 @@ export class UserService {
 
     if (valid && !customer.domainVerified) {
       await this.prisma.customer.update({
-        where: { id: customerId },
+        where: { userId },
         data: {
           domainVerified: true,
           domainVerifiedAt: new Date(),
@@ -910,7 +880,7 @@ export class UserService {
       });
 
       this.logger.log(
-        `Domain verified: ${customer.sendingDomain} for customer: ${customerId}`,
+        `Domain verified: ${customer.sendingDomain} for customer: ${userId}`,
       );
     }
 
@@ -927,9 +897,9 @@ export class UserService {
   /**
    * Get domain status
    */
-  async getDomainStatus(customerId: string) {
+  async getDomainStatus(userId: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { userId },
       select: {
         sendingDomain: true,
         domainVerified: true,
@@ -963,9 +933,9 @@ export class UserService {
   /**
    * Remove domain verification
    */
-  async removeDomain(customerId: string) {
+  async removeDomain(userId: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+      where: { userId },
     });
 
     if (!customer) {
@@ -985,7 +955,7 @@ export class UserService {
     }
 
     await this.prisma.customer.update({
-      where: { id: customerId },
+      where: { userId },
       data: {
         sendingDomain: null,
         domainVerified: false,
@@ -996,7 +966,7 @@ export class UserService {
       },
     });
 
-    this.logger.log(`Domain removed for customer: ${customerId}`);
+    this.logger.log(`Domain removed for customer: ${userId}`);
 
     return { message: 'Domain removed successfully' };
   }
@@ -1022,5 +992,99 @@ export class UserService {
   private generateApiKey(): string {
     const randomBytes = crypto.randomBytes(32);
     return `nh_${randomBytes.toString('hex')}`;
+  }
+
+  private getStartDate(days: number): Date {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+    return startDate;
+  }
+
+  private async fetchCustomerWithJobs(userId: string, startDate: Date) {
+    return this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        plan: true,
+        monthlyLimit: true,
+        usageCount: true,
+        usageResetAt: true,
+        jobs: {
+          where: { createdAt: { gte: startDate } },
+          select: { status: true, type: true, createdAt: true },
+        },
+      },
+    });
+  }
+
+  private calculateJobStats(jobs: Array<{ status: JobStatus; type: JobType }>) {
+    const totalJobs = jobs.length;
+    const successfulJobs = jobs.filter((j) => j.status === 'COMPLETED').length;
+    const failedJobs = jobs.filter((j) => j.status === 'FAILED').length;
+    const pendingJobs = jobs.filter(
+      (j) => j.status === 'PENDING' || j.status === 'PROCESSING',
+    ).length;
+    const emailJobs = jobs.filter((j) => j.type === 'EMAIL').length;
+    const webhookJobs = jobs.filter((j) => j.type === 'WEBHOOK').length;
+
+    const successRate =
+      totalJobs > 0 ? ((successfulJobs / totalJobs) * 100).toFixed(2) : '0';
+
+    return {
+      total: totalJobs,
+      successful: successfulJobs,
+      failed: failedJobs,
+      pending: pendingJobs,
+      successRate: `${successRate}%`,
+      emailJobs,
+      webhookJobs,
+    };
+  }
+
+  private groupJobsByDay(
+    jobs: Array<{ createdAt: Date; status: JobStatus }>,
+    days: number,
+  ) {
+    const activityMap = this.initializeActivityMap(days);
+
+    for (const job of jobs) {
+      const dateStr = job.createdAt.toISOString().split('T')[0];
+      const entry = activityMap.get(dateStr);
+      if (entry) {
+        entry.total++;
+        if (job.status === JobStatus.COMPLETED) entry.successful++;
+        if (job.status === JobStatus.FAILED) entry.failed++;
+        if (
+          job.status === JobStatus.PENDING ||
+          job.status === JobStatus.PROCESSING
+        )
+          entry.pending++;
+      }
+    }
+
+    return Array.from(activityMap.entries())
+      .map(([date, counts]) => ({ date, ...counts }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  private initializeActivityMap(days: number) {
+    const activityMap = new Map<
+      string,
+      { total: number; pending: number; successful: number; failed: number }
+    >();
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      activityMap.set(dateStr, {
+        total: 0,
+        pending: 0,
+        successful: 0,
+        failed: 0,
+      });
+    }
+
+    return activityMap;
   }
 }

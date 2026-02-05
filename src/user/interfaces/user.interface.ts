@@ -62,25 +62,30 @@ export interface EmailChangeSuccessResponse {
  * DASHBOARD
  * ===================================================== */
 
-export interface DashboardUsage {
-  plan: string;
-  monthlyLimit: number;
-  used: number;
-  remaining: number;
-  resetAt: Date;
-}
-
-export interface DashboardJobs {
-  total: number;
-  successful: number;
-  failed: number;
-  pending: number;
-  successRate: string;
-}
-
 export interface DashboardSummary {
-  usage: DashboardUsage;
-  jobs: DashboardJobs;
+  usage: {
+    plan: string;
+    monthlyLimit: number;
+    used: number;
+    remaining: number;
+    resetAt: Date;
+  };
+  jobs: {
+    total: number;
+    successful: number;
+    failed: number;
+    pending: number;
+    successRate: string;
+    emailJobs: number;
+    webhookJobs: number;
+  };
+  activityByDay: {
+    date: string;
+    total: number;
+    pending: number;
+    successful: number;
+    failed: number;
+  }[];
 }
 
 /* =====================================================

@@ -11,6 +11,8 @@ import {
   HttpStatus,
   UseGuards,
   BadRequestException,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import {
@@ -116,8 +118,12 @@ export class UserController {
    */
 
   @Get('dashboard')
-  async getDashboard(@User() user: AuthenticatedUser) {
-    return await this.userService.getDashboardSummary(user.id);
+  async getDashboard(
+    @User() user: AuthenticatedUser,
+    @Query('days', new DefaultValuePipe(7), ParseIntPipe) days: number,
+  ) {
+    const validDays = [7, 30, 90].includes(days) ? days : 7;
+    return await this.userService.getDashboardSummary(user.id, validDays);
   }
 
   /**
