@@ -116,7 +116,7 @@ model Customer {
   apiKey              String?      @unique @map("api_key")
   apiKeyHash          String?      @unique @map("api_key_hash")
   plan                CustomerPlan @default(FREE)
-  monthlyLimit        Int          @default(1000) @map("monthly_limit")
+  monthlyLimit        Int          @map("monthly_limit")
   usageCount          Int          @default(0) @map("usage_count")
   usageResetAt        DateTime     @default(now()) @map("usage_reset_at")
   billingCycleStartAt DateTime     @default(now()) @map("billing_cycle_start_at")
