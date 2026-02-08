@@ -45,11 +45,6 @@ export class BillingController {
     return this.billingService.getSubscriptionDetails(user.id);
   }
 
-  @Get('usage')
-  async getUsage(@User() user: AuthenticatedUser) {
-    return this.billingService.getUsageStats(user.id);
-  }
-
   @Get('invoices')
   async getInvoices(@User() user: AuthenticatedUser) {
     return this.billingService.getInvoices(user.id);
