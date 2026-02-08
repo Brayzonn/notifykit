@@ -13,6 +13,8 @@ import { EmailModule } from './email/email.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { UserModule } from './user/user.module';
+import { PaymentModule } from './payment/payment.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { UserModule } from './user/user.module';
     QueueModule,
     NotificationsModule,
     HealthModule,
+    BillingModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [
