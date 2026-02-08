@@ -90,7 +90,6 @@ export class BillingService {
 
     await this.paymentService.cancelSubscription(
       customer.providerSubscriptionId,
-      customer.paymentProvider,
     );
 
     await this.prisma.customer.update({
@@ -160,24 +159,6 @@ export class BillingService {
           status: inv.status,
           date: new Date(inv.created * 1000),
           pdfUrl: inv.invoice_pdf,
-        })),
-      };
-    }
-
-    // Fetch from Paystack
-    if (customer.paymentProvider === PaymentProvider.PAYSTACK) {
-      const paystackInvoices = await this.paymentService.getPaystackInvoices(
-        customer.providerCustomerId,
-      );
-
-      return {
-        invoices: paystackInvoices.map((inv) => ({
-          id: inv.id,
-          amount: inv.amount / 100,
-          currency: inv.currency,
-          status: inv.status,
-          date: new Date(inv.created_at),
-          pdfUrl: inv.receipt_url,
         })),
       };
     }
