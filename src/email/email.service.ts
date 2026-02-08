@@ -7,6 +7,7 @@ import {
   EmailChangeSuccessData,
   EmailChangeVerificationData,
   OtpEmailData,
+  PaymentFailedEmailData,
   WelcomeEmailData,
 } from '@/email/interfaces/email.interface';
 import { otpEmailTemplate } from '@/email/templates/otp.template';
@@ -16,6 +17,7 @@ import { emailChangeVerificationTemplate } from '@/email/templates/email-change-
 import { emailChangeConfirmationTemplate } from '@/email/templates/email-change-confirmation.template';
 import { emailChangeCancelledTemplate } from '@/email/templates/email-change-cancelled.template';
 import { emailChangeSuccessTemplate } from '@/email/templates/email-change-success.template';
+import { paymentFailedEmailTemplate } from './templates/payment-failed.template';
 
 @Injectable()
 export class EmailService {
@@ -149,5 +151,23 @@ export class EmailService {
     });
 
     this.logger.log(`Email change success notification sent to ${data.email}`);
+  }
+
+  async sendPaymentFailedEmail(data: PaymentFailedEmailData): Promise<void> {
+    const html = paymentFailedEmailTemplate(
+      data.name,
+      data.plan,
+      data.amount,
+      data.retryDate,
+    );
+
+    await sgMail.send({
+      to: data.email,
+      from: this.fromEmail,
+      subject: 'Payment Failed - Action Required - NotifyHub',
+      html,
+    });
+
+    this.logger.log(`Payment failed email sent to ${data.email}`);
   }
 }
