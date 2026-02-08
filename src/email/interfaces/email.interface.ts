@@ -44,3 +44,11 @@ export interface EmailChangeCancelledData {
 export interface EmailChangeSuccessData {
   email: string;
 }
+
+export interface PaymentFailedEmailData {
+  email: string;
+  name: string;
+  plan: string;
+  amount: number;
+  retryDate: Date | null;
+}
