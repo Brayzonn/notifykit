@@ -157,7 +157,7 @@ export class UserController {
 
   /**
    * ================================
-   * USAGE & BILLING
+   * USAGE
    * ================================
    */
 
