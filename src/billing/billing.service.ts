@@ -40,14 +40,20 @@ export class BillingService {
       throw new NotFoundException('Customer not found');
     }
 
-    if (customer.plan === targetPlan) {
+    if (
+      customer.plan === targetPlan &&
+      customer.subscriptionStatus !== SubscriptionStatus.CANCELLED
+    ) {
       throw new BadRequestException('Already on this plan');
     }
 
     if (this.isDowngrade(customer.plan, targetPlan)) {
-      throw new BadRequestException(
-        'Please cancel current subscription to downgrade',
-      );
+      const message =
+        customer.subscriptionStatus === SubscriptionStatus.CANCELLED
+          ? 'Please wait until your current subscription expires before subscribing to a lower plan'
+          : 'Please cancel current subscription to downgrade';
+
+      throw new BadRequestException(message);
     }
 
     const checkoutUrl = await this.paymentService.createCheckoutSession({
