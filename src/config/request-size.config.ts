@@ -9,6 +9,11 @@ export function setupRequestSizeLimit(
   app.use(
     json({
       limit: configService.get<string>('MAX_JSON_SIZE', '10mb'),
+      verify: (req: any, res, buf) => {
+        if (req.url && req.url.endsWith('/payment/stripe/webhook')) {
+          req.rawBody = buf;
+        }
+      },
     }),
   );
 
