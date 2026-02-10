@@ -48,8 +48,8 @@ export class PaymentService {
             quantity: 1,
           },
         ],
-        success_url: `${this.configService.get('FRONTEND_URL')}/dashboard/billing?success=true`,
-        cancel_url: `${this.configService.get('FRONTEND_URL')}/dashboard/billing?cancelled=true`,
+        success_url: `${this.configService.get('FRONTEND_URL')}/user/dashboard/usage?success=true`,
+        cancel_url: `${this.configService.get('FRONTEND_URL')}/user/dashboard/usage?cancelled=true`,
         metadata: {
           customerId: request.customerId,
           plan: request.plan,
