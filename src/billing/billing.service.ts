@@ -177,17 +177,36 @@ export class BillingService {
     },
   ) {
     const now = new Date();
-    const resetDate = new Date(now);
-    resetDate.setDate(resetDate.getDate() + 30);
+
+    const currentCustomer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!currentCustomer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const isActiveUpgrade =
+      currentCustomer.providerSubscriptionId !== null &&
+      currentCustomer.subscriptionStatus === SubscriptionStatus.ACTIVE &&
+      currentCustomer.usageResetAt &&
+      currentCustomer.usageResetAt > now;
+
+    const resetDate = isActiveUpgrade
+      ? currentCustomer.usageResetAt
+      : subscriptionData.nextBillingDate;
+
+    const billingCycleStart = isActiveUpgrade
+      ? currentCustomer.billingCycleStartAt
+      : now;
 
     await this.prisma.customer.update({
       where: { id: customerId },
       data: {
         plan: subscriptionData.plan,
         monthlyLimit: PLAN_LIMITS[subscriptionData.plan].monthlyLimit,
-        usageCount: 0,
         usageResetAt: resetDate,
-        billingCycleStartAt: now,
+        billingCycleStartAt: billingCycleStart,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         paymentProvider: subscriptionData.paymentProvider as any,
         providerCustomerId: subscriptionData.providerCustomerId,
@@ -198,7 +217,7 @@ export class BillingService {
     });
 
     this.logger.log(
-      `Subscription activated for customer ${customerId} on ${subscriptionData.plan} plan`,
+      `Subscription ${isActiveUpgrade ? 'upgraded' : 'activated'} for customer ${customerId} on ${subscriptionData.plan} plan`,
     );
   }
 
