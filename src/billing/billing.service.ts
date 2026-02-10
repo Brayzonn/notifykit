@@ -92,12 +92,14 @@ export class BillingService {
       customer.providerSubscriptionId,
     );
 
-    await this.prisma.customer.update({
+    const updatedCustomer = await this.prisma.customer.update({
       where: { id: customer.id },
       data: {
         subscriptionStatus: SubscriptionStatus.CANCELLED,
         previousPlan: customer.plan,
         downgradedAt: new Date(),
+        nextBillingDate: null,
+        subscriptionEndDate: customer.nextBillingDate,
       },
     });
 
@@ -107,7 +109,7 @@ export class BillingService {
 
     return {
       message: 'Subscription cancelled successfully',
-      effectiveUntil: customer.subscriptionEndDate,
+      effectiveUntil: updatedCustomer.subscriptionEndDate,
     };
   }
 
@@ -186,27 +188,13 @@ export class BillingService {
       throw new NotFoundException('Customer not found');
     }
 
-    const isActiveUpgrade =
-      currentCustomer.providerSubscriptionId !== null &&
-      currentCustomer.subscriptionStatus === SubscriptionStatus.ACTIVE &&
-      currentCustomer.usageResetAt &&
-      currentCustomer.usageResetAt > now;
-
-    const resetDate = isActiveUpgrade
-      ? currentCustomer.usageResetAt
-      : subscriptionData.nextBillingDate;
-
-    const billingCycleStart = isActiveUpgrade
-      ? currentCustomer.billingCycleStartAt
-      : now;
-
     await this.prisma.customer.update({
       where: { id: customerId },
       data: {
         plan: subscriptionData.plan,
         monthlyLimit: PLAN_LIMITS[subscriptionData.plan].monthlyLimit,
-        usageResetAt: resetDate,
-        billingCycleStartAt: billingCycleStart,
+        usageResetAt: subscriptionData.nextBillingDate,
+        billingCycleStartAt: now,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         paymentProvider: subscriptionData.paymentProvider as any,
         providerCustomerId: subscriptionData.providerCustomerId,
@@ -215,10 +203,6 @@ export class BillingService {
         lastPaymentDate: now,
       },
     });
-
-    this.logger.log(
-      `Subscription ${isActiveUpgrade ? 'upgraded' : 'activated'} for customer ${customerId} on ${subscriptionData.plan} plan`,
-    );
   }
 
   async handleSubscriptionCancelled(subscriptionId: string) {
