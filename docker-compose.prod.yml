@@ -1,0 +1,74 @@
+services:
+  # ==========================================
+  # API Service
+  # ==========================================
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile.prod
+    container_name: notifykit-api
+    restart: unless-stopped
+    ports:
+      - '5932:3000'
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - notifykit-network
+
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: notifykit-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - notifykit-network
+
+  # ==========================================
+  # Redis
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: notifykit-redis
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
+    volumes:
+      - redis-data:/data
+    networks:
+      - notifykit-network
+
+  # ==========================================
+  # Nginx Reverse Proxy
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: notifykit-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - notifykit-network
+
+networks:
+  notifykit-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
