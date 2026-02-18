@@ -1,13 +1,13 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiKeyGuard } from './auth/guards/api-key.guard';
+import { Controller, Get } from '@nestjs/common';
+import { Public } from './auth/decorators/public.decorator';
 
+@Public()
 @Controller('')
-@UseGuards(ApiKeyGuard)
 export class AppController {
   @Get('ping')
   ping() {
     return {
-      message: 'Pong',
+      message: 'heyya',
     };
   }
 
