@@ -1,4 +1,4 @@
-cat > docker/api/Dockerfile.dev << 'EOF'
+
 FROM node:18-alpine
 
 WORKDIR /app
@@ -13,6 +13,5 @@ COPY src ./src
 EXPOSE 3000
 
 CMD ["npm", "run", "start:dev"]
-EOF
-```
+
 
