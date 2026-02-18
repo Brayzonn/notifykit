@@ -7,7 +7,7 @@ export class AppController {
   @Get('ping')
   ping() {
     return {
-      message: 'heya',
+      message: 'heyya',
     };
   }
 

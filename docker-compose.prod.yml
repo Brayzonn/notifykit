@@ -50,20 +50,20 @@ services:
   # ==========================================
   # Nginx Reverse Proxy
   # ==========================================
-  nginx:
-    image: nginx:alpine
-    container_name: notifykit-nginx
-    restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - api
-    networks:
-      - notifykit-network
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: notifykit-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - '80:80'
+  #     - '443:443'
+  #   volumes:
+  #     - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - api
+  #   networks:
+  #     - notifykit-network
 
 networks:
   notifykit-network:
