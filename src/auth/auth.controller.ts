@@ -176,12 +176,15 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const refreshToken = request.cookies?.refreshToken;
+    console.log(`Logout attempt - cookie present: ${!!refreshToken}`);
 
     if (!refreshToken) {
+      console.warn('Logout failed - no refresh token cookie');
       throw new UnauthorizedException('Refresh token not found');
     }
 
     const result = await this.authService.logout(refreshToken);
+    console.log('Logout complete - clearing cookie');
 
     const cookieOptions = CookieConfig.getRefreshTokenOptions(
       this.configService,
