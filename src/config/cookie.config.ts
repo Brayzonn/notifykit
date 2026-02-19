@@ -21,7 +21,7 @@ export class CookieConfig {
     return {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
@@ -33,7 +33,7 @@ export class CookieConfig {
     return {
       httpOnly: true,
       secure: isProduction,
-      sameSite: 'lax',
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
       maxAge: 15 * 60 * 1000, // 15 minutes
     };

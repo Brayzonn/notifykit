@@ -533,7 +533,7 @@ export class UserService {
     }
 
     return {
-      apiKey: 'nh_•••••••••••••••',
+      apiKey: 'nh_••••••••••••••••••',
       masked: true,
       createdAt: customer.createdAt,
     };
