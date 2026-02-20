@@ -197,6 +197,75 @@ export class AuthService {
   }
 
   /**
+   * Request password reset - Generate OTP and send email
+   */
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user || !user.emailVerified || user.deletedAt) {
+      return { message: 'If this email exists, a reset code has been sent' };
+    }
+
+    if (user.provider !== AuthProvider.EMAIL) {
+      throw new BadRequestException(
+        'This account uses social login. Please sign in with social login.',
+      );
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    await this.redis.set(`reset-password:${email}`, otp, 600); // 10 minutes
+
+    try {
+      await this.emailService.sendResetPasswordEmail({
+        email,
+        otp,
+        expiresInMinutes: 10,
+      });
+    } catch (error) {
+      await this.redis.del(`reset-password:${email}`);
+      throw new BadRequestException('Failed to send reset email');
+    }
+
+    this.logger.log(`Password reset OTP sent to ${email}`);
+    return { message: 'If this email exists, a reset code has been sent' };
+  }
+
+  /**
+   * Confirm password reset - Verify OTP and update password
+   */
+  async confirmPasswordReset(
+    email: string,
+    otp: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const storedOtp = await this.redis.get(`reset-password:${email}`);
+
+    if (!storedOtp || storedOtp !== otp) {
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    const hashedPassword = await argon2.hash(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+
+    await this.redis.del(`reset-password:${email}`);
+
+    this.logger.log(`Password reset successful for ${email}`);
+    return { message: 'Password reset successfully' };
+  }
+
+  /**
    * Verify OTP - Create user and complete signup process
    */
   async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<AuthResponse> {
