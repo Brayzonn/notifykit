@@ -91,3 +91,20 @@ export class ResendOtpDto {
   @IsEmail()
   email: string;
 }
+
+export class RequestPasswordResetDto {
+  @IsEmail()
+  email: string;
+}
+
+export class ConfirmPasswordResetDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  otp: string;
+
+  @IsString()
+  @MinLength(8)
+  newPassword: string;
+}
