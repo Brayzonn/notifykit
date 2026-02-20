@@ -17,6 +17,8 @@ import {
   SigninDto,
   VerifyOtpDto,
   ResendOtpDto,
+  RequestPasswordResetDto,
+  ConfirmPasswordResetDto,
 } from '@/auth/dto/auth.dto';
 import { AuthService } from '@/auth/auth.service';
 import { CookieConfig } from '@/config/cookie.config';
@@ -168,6 +170,24 @@ export class AuthController {
     return { user, accessToken: tokens.accessToken };
   }
 
+  @Public()
+  @Post('reset-password/request')
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return await this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Public()
+  @Post('reset-password/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+    return await this.authService.confirmPasswordReset(
+      dto.email,
+      dto.otp,
+      dto.newPassword,
+    );
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -176,15 +196,12 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const refreshToken = request.cookies?.refreshToken;
-    console.log(`Logout attempt - cookie present: ${!!refreshToken}`);
 
     if (!refreshToken) {
-      console.warn('Logout failed - no refresh token cookie');
       throw new UnauthorizedException('Refresh token not found');
     }
 
     const result = await this.authService.logout(refreshToken);
-    console.log('Logout complete - clearing cookie');
 
     const cookieOptions = CookieConfig.getRefreshTokenOptions(
       this.configService,
