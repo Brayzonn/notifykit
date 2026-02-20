@@ -18,6 +18,7 @@ import { emailChangeConfirmationTemplate } from '@/email/templates/email-change-
 import { emailChangeCancelledTemplate } from '@/email/templates/email-change-cancelled.template';
 import { emailChangeSuccessTemplate } from '@/email/templates/email-change-success.template';
 import { paymentFailedEmailTemplate } from './templates/payment-failed.template';
+import { resetPasswordEmailTemplate } from './templates/reset-password.template';
 
 @Injectable()
 export class EmailService {
@@ -53,6 +54,22 @@ export class EmailService {
     });
 
     this.logger.log(`OTP email sent to ${data.email}`);
+  }
+
+  /**
+   * Send reset password OTP email
+   */
+  async sendResetPasswordEmail(data: OtpEmailData): Promise<void> {
+    const html = resetPasswordEmailTemplate(data.otp, data.expiresInMinutes);
+
+    await sgMail.send({
+      to: data.email,
+      from: this.fromEmail,
+      subject: 'Reset Your Password - NotifyKit',
+      html,
+    });
+
+    this.logger.log(`Password reset email sent to ${data.email}`);
   }
 
   /**
