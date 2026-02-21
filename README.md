@@ -271,6 +271,35 @@ GET /api/v1/health
 
 ---
 
+## Testing
+
+This project includes a comprehensive Jest test suite with 150+ tests covering:
+
+- **Auth Service** (33 tests): signin, password reset, token refresh, logout
+- **Stripe Webhooks** (28 tests): signature verification, subscription events, payment handling
+- **Guards** (51 tests): API key validation, quota enforcement, JWT authentication
+- **Queue Processors** (40 tests): email/webhook job processing, retry logic, error handling
+- **E2E Tests** (21 scenarios): Complete auth flow, password reset, API integration
+
+Run tests with:
+```bash
+# All unit tests
+npm run test
+
+# With coverage
+npm run test:cov
+
+# E2E tests
+npm run test:e2e
+
+# Watch mode
+npm run test:watch
+```
+
+See [TEST_SUMMARY.md](./TEST_SUMMARY.md) for detailed test documentation.
+
+---
+
 ## License
 
 MIT
