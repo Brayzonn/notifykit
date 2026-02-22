@@ -503,6 +503,7 @@ export class UserService {
       select: {
         apiKey: true,
         apiKeyHash: true,
+        apiKeyLastFour: true,
         createdAt: true,
       },
     });
@@ -532,8 +533,10 @@ export class UserService {
       };
     }
 
+    const lastFour = customer.apiKeyLastFour ?? '••••';
+
     return {
-      apiKey: 'nh_••••••••••••••••••',
+      apiKey: `nh_••••••••••••••••${lastFour}`,
       masked: true,
       createdAt: customer.createdAt,
     };
@@ -566,11 +569,14 @@ export class UserService {
       .update(newApiKey)
       .digest('hex');
 
+    const lastFour = newApiKey.slice(-4);
+
     await this.prisma.customer.update({
       where: { userId },
       data: {
         apiKey: newApiKey,
         apiKeyHash: newApiKeyHash,
+        apiKeyLastFour: lastFour,
         createdAt: new Date(),
       },
     });

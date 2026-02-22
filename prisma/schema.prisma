@@ -116,6 +116,7 @@ model Customer {
   email               String       @unique
   apiKey              String?      @unique @map("api_key")
   apiKeyHash          String?      @unique @map("api_key_hash")
+  apiKeyLastFour      String?      @map("api_key_last_four")
   plan                CustomerPlan @default(FREE)
   monthlyLimit        Int          @map("monthly_limit")
   usageCount          Int          @default(0) @map("usage_count")
