@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from '@/app.module';
 import { createCorsConfig } from '@/config/cors.config';
 import { validationPipeOptions } from '@/config/validation.config';
@@ -37,6 +38,34 @@ async function bootstrap() {
     type: VersioningType.URI,
     defaultVersion: '1',
   });
+
+  // Swagger setup
+  if (nodeEnv !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('NotifyHub API')
+      .setDescription('Notification infrastructure for modern products')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
+      .addTag('Auth', 'Authentication endpoints')
+      .addTag('User', 'User management endpoints')
+      .addTag('Admin', 'Admin endpoints (requires ADMIN role)')
+      .addTag('Billing', 'Billing and subscription management')
+      .addTag('Notifications', 'Send email and webhook notifications')
+      .addTag('Health', 'Health check endpoints')
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+      },
+    });
+
+    logger.log(`Swagger documentation will be available at: http://localhost:${port}/docs`);
+  }
 
   app.enableShutdownHooks();
 

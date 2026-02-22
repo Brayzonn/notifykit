@@ -256,6 +256,22 @@ GET /api/v1/health
 | GET    | `/api/v1/notifications/jobs/:id`       | Get job status            |
 | POST   | `/api/v1/notifications/jobs/:id/retry` | Retry failed job          |
 
+### Admin (ADMIN role required)
+
+| Method | Endpoint                              | Description                          |
+| ------ | ------------------------------------- | ------------------------------------ |
+| GET    | `/api/v1/admin/users`                 | List all users (paginated)           |
+| GET    | `/api/v1/admin/users/:id`             | Get user details                     |
+| PATCH  | `/api/v1/admin/users/:id`             | Update user                          |
+| DELETE | `/api/v1/admin/users/:id`             | Soft delete user                     |
+| GET    | `/api/v1/admin/customers`             | List all customers (paginated)       |
+| GET    | `/api/v1/admin/customers/:id`         | Get customer with jobs summary       |
+| PATCH  | `/api/v1/admin/customers/:id/plan`    | Update customer plan                 |
+| PATCH  | `/api/v1/admin/customers/:id/usage-reset` | Reset customer usage             |
+| GET    | `/api/v1/admin/jobs`                  | List all jobs (paginated)            |
+| DELETE | `/api/v1/admin/jobs/:id`              | Hard delete job                      |
+| GET    | `/api/v1/admin/stats`                 | Get system-wide statistics           |
+
 ### Health
 
 | Method | Endpoint                | Description         |
