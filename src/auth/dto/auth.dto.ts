@@ -93,17 +93,21 @@ export class ResendOtpDto {
 }
 
 export class RequestPasswordResetDto {
+  @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
   email: string;
 }
 
 export class ConfirmPasswordResetDto {
+  @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
   email: string;
 
+  @ApiProperty({ example: '123456', minLength: 6, maxLength: 6 })
   @IsString()
   otp: string;
 
+  @ApiProperty({ example: 'NewPassword123', minLength: 8 })
   @IsString()
   @MinLength(8)
   newPassword: string;
