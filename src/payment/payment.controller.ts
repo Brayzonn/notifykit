@@ -17,12 +17,14 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { AuthenticatedUser } from '@/common/interfaces/authenticated-user.interface';
 import { StripeWebhookHandler } from './webhooks/stripe-webhook.handler';
+import { PaystackWebhookHandler } from './webhooks/paystack-webhook.handler';
 
 @Controller('payment')
 export class PaymentController {
   constructor(
     private readonly paymentService: PaymentService,
     private readonly stripeWebhookHandler: StripeWebhookHandler,
+    private readonly paystackWebhookHandler: PaystackWebhookHandler,
   ) {}
 
   @Public()
@@ -36,6 +38,24 @@ export class PaymentController {
       throw new BadRequestException('Missing request body');
     }
     return this.stripeWebhookHandler.handle(req.rawBody, signature);
+  }
+
+  @Public()
+  @Post('paystack/webhook')
+  @HttpCode(HttpStatus.OK)
+  async handlePaystackWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-paystack-signature') signature: string,
+  ) {
+    if (!req.rawBody) {
+      throw new BadRequestException('Missing request body');
+    }
+
+    if (!signature) {
+      throw new BadRequestException('Missing x-paystack-signature header');
+    }
+
+    return this.paystackWebhookHandler.handle(req.rawBody, signature);
   }
 
   @UseGuards(JwtAuthGuard)
