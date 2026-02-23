@@ -11,7 +11,7 @@ The backend API for [NotifyKit](https://notifykit.dev) — notification infrastr
 - **Cache/Queue**: Redis
 - **Auth**: JWT (access + refresh tokens), GitHub OAuth
 - **Email**: SendGrid
-- **Payments**: Stripe
+- **Payments**: Multi-provider (Stripe, Paystack, with extensible architecture)
 - **Containerization**: Docker
 
 ---
@@ -281,9 +281,10 @@ GET /api/v1/health
 
 ### Webhooks
 
-| Method | Endpoint                         | Description            |
-| ------ | -------------------------------- | ---------------------- |
-| POST   | `/api/v1/payment/stripe/webhook` | Stripe webhook handler |
+| Method | Endpoint                           | Description              |
+| ------ | ---------------------------------- | ------------------------ |
+| POST   | `/api/v1/payment/stripe/webhook`   | Stripe webhook handler   |
+| POST   | `/api/v1/payment/paystack/webhook` | Paystack webhook handler |
 
 ---
 
