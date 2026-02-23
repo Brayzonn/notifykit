@@ -52,7 +52,7 @@ export class WebhookWorkerProcessor extends WorkerHost {
           method: method || 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'NotifyHub/1.0',
+            'User-Agent': 'NotifyKit/1.0',
             ...headers,
           },
           data: payload,

@@ -148,7 +148,7 @@ describe('EmailWorkerProcessor', () => {
       // Verify email sent with correct parameters
       expect(sendGridService.sendEmail).toHaveBeenCalledWith({
         to: emailData.to,
-        from: 'noreply@notifyhub.com', // Default from config
+        from: 'noreply@notifykit.dev', // Default from config
         subject: emailData.subject,
         body: emailData.body,
       });
@@ -541,7 +541,7 @@ describe('EmailWorkerProcessor', () => {
     it('should reject sending from main domain without em subdomain', async () => {
       const emailData = {
         ...createMockEmailData(),
-        from: 'test@notifyhub.com', // Trying to send from main domain
+        from: 'test@notifykit.dev', // Trying to send from main domain
       };
       const mockJob = createMockJob(emailData, 0);
 

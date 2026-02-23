@@ -22,7 +22,7 @@ export class EmailWorkerProcessor extends WorkerHost {
     super();
     this.defaultFromEmail = this.configService.get<string>(
       'SENDGRID_FROM_EMAIL',
-      'noreply@notifyhub.com',
+      'noreply@notifykit.dev',
     );
   }
 
@@ -158,11 +158,11 @@ export class EmailWorkerProcessor extends WorkerHost {
       );
     }
 
-    //  Restrict NotifyHub domain to only verified addresses
-    if (fromDomain === 'notifyhub.com' || fromDomain === 'zoneyhub.com') {
+    //  Restrict NotifyKit domain to only verified addresses
+    if (fromDomain === 'notifykit.dev') {
       if (requestedFrom !== this.defaultFromEmail) {
         throw new Error(
-          `Cannot send from ${requestedFrom}. Only ${this.defaultFromEmail} is allowed for NotifyHub domain.`,
+          `Cannot send from ${requestedFrom}. Only ${this.defaultFromEmail} is allowed for NotifyKit domain.`,
         );
       }
     }

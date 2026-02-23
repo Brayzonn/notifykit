@@ -146,7 +146,7 @@ describe('WebhookWorkerProcessor', () => {
         data: webhookData.payload,
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
-          'User-Agent': 'NotifyHub/1.0',
+          'User-Agent': 'NotifyKit/1.0',
           'X-Custom-Header': 'custom-value',
         }),
         timeout: 30000,
@@ -272,7 +272,7 @@ describe('WebhookWorkerProcessor', () => {
           Authorization: 'Bearer secret-token',
           'X-Api-Key': 'api-key-123',
           'Content-Type': 'application/json',
-          'User-Agent': 'NotifyHub/1.0',
+          'User-Agent': 'NotifyKit/1.0',
         }),
         timeout: 30000,
         validateStatus: expect.any(Function),
@@ -721,7 +721,7 @@ describe('WebhookWorkerProcessor', () => {
         data: webhookData.payload,
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'NotifyHub/1.0',
+          'User-Agent': 'NotifyKit/1.0',
         },
         timeout: 30000,
         validateStatus: expect.any(Function),
