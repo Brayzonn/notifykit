@@ -42,7 +42,7 @@ async function bootstrap() {
   // Swagger setup
   if (nodeEnv !== 'production') {
     const config = new DocumentBuilder()
-      .setTitle('NotifyHub API')
+      .setTitle('NotifyKit API')
       .setDescription('Notification infrastructure for modern products')
       .setVersion('1.0')
       .addBearerAuth()

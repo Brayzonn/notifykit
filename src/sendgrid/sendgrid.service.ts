@@ -18,7 +18,7 @@ export class SendGridService {
     const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
     this.defaultFromEmail = this.configService.get<string>(
       'SENDGRID_FROM_EMAIL',
-      'noreply@notifyhub.com',
+      'noreply@notifykit.dev',
     );
 
     if (!apiKey) {

@@ -7,18 +7,18 @@ export class AppController {
   @Get('ping')
   ping() {
     return {
-      message: 'pongg',
+      message: 'pong',
     };
   }
 
   @Get('info')
   getApiInfo() {
     return {
-      name: 'NotifyHub API',
+      name: 'NotifyKit API',
       version: '1.0.0',
       description:
         'Notification infrastructure service for emails and webhooks',
-      documentation: 'https://docs.notifyhub.com',
+      documentation: 'https://docs.notifykit.dev',
     };
   }
 }

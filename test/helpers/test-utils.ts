@@ -169,7 +169,7 @@ export const createMockConfigService = (): MockedConfigService => ({
       JWT_REFRESH_EXPIRES_IN: '7d',
       STRIPE_SECRET_KEY: 'sk_test_mock',
       STRIPE_WEBHOOK_SECRET: 'whsec_test_mock',
-      SENDGRID_FROM_EMAIL: 'noreply@notifyhub.com',
+      SENDGRID_FROM_EMAIL: 'noreply@notifykit.dev',
     };
     return config[key] || defaultValue;
   }),
