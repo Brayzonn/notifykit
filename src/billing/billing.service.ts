@@ -6,11 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentService } from '@/payment/payment.service';
-import {
-  CustomerPlan,
-  PaymentProvider,
-  SubscriptionStatus,
-} from '@prisma/client';
+import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
 import {
   CancelSubscriptionResponse,
@@ -153,25 +149,12 @@ export class BillingService {
       return { invoices: [] };
     }
 
-    // Fetch from Stripe
-    if (customer.paymentProvider === PaymentProvider.STRIPE) {
-      const stripeInvoices = await this.paymentService.getStripeInvoices(
-        customer.providerCustomerId,
-      );
+    const invoices = await this.paymentService.getInvoices(
+      customer.providerCustomerId,
+      customer.paymentProvider,
+    );
 
-      return {
-        invoices: stripeInvoices.map((inv) => ({
-          id: inv.id,
-          amount: inv.amount_paid / 100, // cents to dollars
-          currency: inv.currency,
-          status: inv.status,
-          date: new Date(inv.created * 1000),
-          pdfUrl: inv.invoice_pdf,
-        })),
-      };
-    }
-
-    return { invoices: [] };
+    return { invoices };
   }
 
   async handleSubscriptionActivated(
