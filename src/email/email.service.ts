@@ -36,7 +36,7 @@ export class EmailService {
 
     this.fromEmail = this.configService.get<string>(
       'SENDGRID_FROM_EMAIL',
-      'noreply@notifyhub.com',
+      'noreply@notifykit.dev',
     );
   }
 
@@ -49,7 +49,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Verify Your Email - NotifyHub',
+      subject: 'Verify Your Email - NotifyKit',
       html,
     });
 
@@ -81,7 +81,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Welcome to NotifyHub',
+      subject: 'Welcome to NotifyKit',
       html,
     });
 
@@ -97,7 +97,7 @@ export class EmailService {
     await sgMail.send({
       to: email,
       from: this.fromEmail,
-      subject: 'Reset Your Password - NotifyHub',
+      subject: 'Reset Your Password - NotifyKit',
       html,
     });
 
@@ -112,7 +112,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Verify Your New Email Address - NotifyHub',
+      subject: 'Verify Your New Email Address - NotifyKit',
       html,
     });
 
@@ -133,7 +133,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Confirm Email Change Request - NotifyHub',
+      subject: 'Confirm Email Change Request - NotifyKit',
       html,
     });
 
@@ -148,7 +148,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Email Change Cancelled - NotifyHub',
+      subject: 'Email Change Cancelled - NotifyKit',
       html,
     });
 
@@ -163,7 +163,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Email Updated Successfully - NotifyHub',
+      subject: 'Email Updated Successfully - NotifyKit',
       html,
     });
 
@@ -181,7 +181,7 @@ export class EmailService {
     await sgMail.send({
       to: data.email,
       from: this.fromEmail,
-      subject: 'Payment Failed - Action Required - NotifyHub',
+      subject: 'Payment Failed - Action Required - NotifyKit',
       html,
     });
 

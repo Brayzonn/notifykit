@@ -17,7 +17,7 @@ export class SendEmailDto {
   to: string;
 
   @ApiProperty({
-    example: 'Welcome to NotifyHub',
+    example: 'Welcome to NotifyKit',
     description: 'Email subject line'
   })
   @IsString()

@@ -8,7 +8,7 @@ export const otpEmailTemplate = (
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Verify Your Email - NotifyHub</title>
+      <title>Verify Your Email - NotifyKit</title>
       <style>
         body {
           margin: 0;
@@ -86,13 +86,13 @@ export const otpEmailTemplate = (
     <body>
       <div class="container">
         <div class="header">
-          <h1 class="logo">NotifyHub</h1>
+          <h1 class="logo">NotifyKit</h1>
         </div>
         
         <div class="content">
           <h2 class="title">Verify Your Email</h2>
           <p class="text">
-            Thank you for signing up with NotifyHub! To complete your registration, 
+            Thank you for signing up with NotifyKit! To complete your registration, 
             please use the verification code below:
           </p>
           
@@ -102,15 +102,15 @@ export const otpEmailTemplate = (
           </div>
           
           <p class="text">
-            If you didn't create an account with NotifyHub, you can safely ignore this email.
+            If you didn't create an account with NotifyKit, you can safely ignore this email.
           </p>
         </div>
         
         <div class="footer">
-          <p>© ${new Date().getFullYear()} NotifyHub. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NotifyKit. All rights reserved.</p>
           <p>
-            <a href="https://notifyhub.com">Website</a> | 
-            <a href="https://docs.notifyhub.com">Documentation</a>
+            <a href="https://notifykit.dev">Website</a> | 
+            <a href="https://docs.notifykit.dev">Documentation</a>
           </p>
         </div>
       </div>

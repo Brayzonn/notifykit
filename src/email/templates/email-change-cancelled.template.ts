@@ -80,7 +80,7 @@ export const emailChangeCancelledTemplate = (
     <body>
       <div class="container">
         <div class="header">
-          <h1 class="logo">NotifyHub</h1>
+          <h1 class="logo">NotifyKit</h1>
         </div>
         
         <div class="content">
@@ -107,7 +107,7 @@ export const emailChangeCancelledTemplate = (
         </div>
         
         <div class="footer">
-          <p>© ${new Date().getFullYear()} NotifyHub. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NotifyKit. All rights reserved.</p>
         </div>
       </div>
     </body>

@@ -88,7 +88,7 @@ export const emailChangeVerificationTemplate = (
     <body>
       <div class="container">
         <div class="header">
-          <h1 class="logo">NotifyHub</h1>
+          <h1 class="logo">NotifyKit</h1>
         </div>
         
         <div class="content">
@@ -97,7 +97,7 @@ export const emailChangeVerificationTemplate = (
           <p class="text">Hi ${name},</p>
           
           <p class="text">
-            You requested to change your NotifyHub email address. Click the button below 
+            You requested to change your NotifyKit email address. Click the button below 
             to verify you own this email:
           </p>
           
@@ -118,7 +118,7 @@ export const emailChangeVerificationTemplate = (
         </div>
         
         <div class="footer">
-          <p>© ${new Date().getFullYear()} NotifyHub. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NotifyKit. All rights reserved.</p>
         </div>
       </div>
     </body>

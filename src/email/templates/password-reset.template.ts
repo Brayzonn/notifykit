@@ -5,7 +5,7 @@ export const passwordResetEmailTemplate = (resetUrl: string): string => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Reset Your Password - NotifyHub</title>
+      <title>Reset Your Password - NotifyKit</title>
       <style>
         body {
           margin: 0;
@@ -73,7 +73,7 @@ export const passwordResetEmailTemplate = (resetUrl: string): string => {
     <body>
       <div class="container">
         <div class="header">
-          <h1 class="logo">NotifyHub</h1>
+          <h1 class="logo">NotifyKit</h1>
         </div>
         
         <div class="content">
@@ -98,10 +98,10 @@ export const passwordResetEmailTemplate = (resetUrl: string): string => {
         </div>
         
         <div class="footer">
-          <p>© ${new Date().getFullYear()} NotifyHub. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NotifyKit. All rights reserved.</p>
           <p>
-            <a href="https://notifyhub.com">Website</a> | 
-            <a href="https://docs.notifyhub.com">Documentation</a>
+            <a href="https://notifykit.dev">Website</a> | 
+            <a href="https://docs.notifykit.dev">Documentation</a>
           </p>
         </div>
       </div>

@@ -54,13 +54,13 @@ export const paymentFailedEmailTemplate = (
                   </p>
                   
                   <ol style="margin: 0 0 20px; padding-left: 20px; color: #333333; font-size: 16px; line-height: 1.8;">
-                    <li>Log in to your NotifyHub dashboard</li>
+                    <li>Log in to your NotifyKit dashboard</li>
                     <li>Go to Billing settings</li>
                     <li>Update your payment method</li>
                   </ol>
                   
                   <div style="text-align: center; margin: 30px 0;">
-                    <a href="${process.env.FRONTEND_URL || 'https://notifyhub.com'}/dashboard/billing" 
+                    <a href="${process.env.FRONTEND_URL || 'https://notifykit.dev'}/dashboard/billing" 
                        style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
                       Update Payment Method
                     </a>
@@ -76,10 +76,10 @@ export const paymentFailedEmailTemplate = (
               <tr>
                 <td style="padding: 30px 40px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; text-align: center;">
                   <p style="margin: 0 0 10px; color: #666666; font-size: 14px;">
-                    Need help? Contact us at <a href="mailto:support@notifyhub.com" style="color: #667eea; text-decoration: none;">support@notifyhub.com</a>
+                    Need help? Contact us at <a href="mailto:support@notifykit.dev" style="color: #667eea; text-decoration: none;">support@notifykit.dev</a>
                   </p>
                   <p style="margin: 0; color: #999999; font-size: 12px;">
-                    © ${new Date().getFullYear()} NotifyHub. All rights reserved.
+                    © ${new Date().getFullYear()} NotifyKit. All rights reserved.
                   </p>
                 </td>
               </tr>

@@ -84,7 +84,7 @@ export const emailChangeSuccessTemplate = (newEmail: string): string => {
     <body>
       <div class="container">
         <div class="header">
-          <h1 class="logo">NotifyHub</h1>
+          <h1 class="logo">NotifyKit</h1>
         </div>
         
         <div class="content">
@@ -101,17 +101,17 @@ export const emailChangeSuccessTemplate = (newEmail: string): string => {
           </div>
           
           <p class="text">
-            Use this email address for all future logins to NotifyHub.
+            Use this email address for all future logins to NotifyKit.
           </p>
           
           <div class="warning">
             <strong> Security Notice:</strong> If you didn't make this change, 
-            contact support immediately at <strong>support@notifyhub.com</strong>
+            contact support immediately at <strong>support@notifykit.dev</strong>
           </div>
         </div>
         
         <div class="footer">
-          <p>© ${new Date().getFullYear()} NotifyHub. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NotifyKit. All rights reserved.</p>
         </div>
       </div>
     </body>

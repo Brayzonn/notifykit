@@ -5,7 +5,7 @@ export const welcomeEmailTemplate = (name: string): string => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Welcome to NotifyHub</title>
+      <title>Welcome to NotifyKit</title>
       <style>
         body {
           margin: 0;
@@ -99,11 +99,11 @@ export const welcomeEmailTemplate = (name: string): string => {
     <body>
       <div class="container">
         <div class="header">
-          <h1 class="logo">NotifyHub</h1>
+          <h1 class="logo">NotifyKit</h1>
         </div>
         
         <div class="content">
-          <h2 class="title">Welcome to NotifyHub, ${name}</h2>
+          <h2 class="title">Welcome to NotifyKit, ${name}</h2>
           
           <p class="text">
             Your account has been successfully created. You're now ready to send 
@@ -111,7 +111,7 @@ export const welcomeEmailTemplate = (name: string): string => {
           </p>
           
           <div style="text-align: center;">
-            <a href="https://notifyhub.com/dashboard" class="button">
+            <a href="https://notifykit.dev/dashboard" class="button">
               Get Started
             </a>
           </div>
@@ -141,16 +141,16 @@ export const welcomeEmailTemplate = (name: string): string => {
           
           <p class="text">
             Need help getting started? Check out our 
-            <a href="https://docs.notifyhub.com" style="color: #000000; text-decoration: none; font-weight: 600;">documentation</a> 
+            <a href="https://docs.notifykit.dev" style="color: #000000; text-decoration: none; font-weight: 600;">documentation</a> 
             or reach out to our support team.
           </p>
         </div>
         
         <div class="footer">
-          <p>© ${new Date().getFullYear()} NotifyHub. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NotifyKit. All rights reserved.</p>
           <p>
-            <a href="https://notifyhub.com">Website</a> | 
-            <a href="https://docs.notifyhub.com">Documentation</a>
+            <a href="https://notifykit.dev">Website</a> | 
+            <a href="https://docs.notifykit.dev">Documentation</a>
           </p>
         </div>
       </div>
