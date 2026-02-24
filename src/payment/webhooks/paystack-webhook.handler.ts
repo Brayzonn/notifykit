@@ -238,6 +238,13 @@ export class PaystackWebhookHandler {
       return;
     }
 
+    if (customer.providerSubscriptionId === subscriptionCode) {
+      this.logger.log(
+        `Subscription already linked for customer ${customer.email}, skipping`,
+      );
+      return;
+    }
+
     if (!data.next_payment_date) {
       this.logger.warn('No next_payment_date in subscription.create event');
       return;
