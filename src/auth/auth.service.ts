@@ -257,6 +257,8 @@ export class AuthService {
       data: { password: hashedPassword },
     });
 
+    await this.redis.del(`user:${user.id}`);
+
     await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 
     await this.redis.del(`reset-password:${email}`);
@@ -461,27 +463,6 @@ export class AuthService {
 
     this.logger.warn(
       `Customer ${customer.email} downgraded from ${originalPlan} to FREE. Next reset: ${resetDate.toISOString()}`,
-    );
-  }
-
-  /**
-   * Reset customer usage for new billing cycle
-   */
-  async resetMonthlyUsage(customerId: string): Promise<void> {
-    const resetDate = new Date();
-    resetDate.setDate(resetDate.getDate() + 30); // 30 days from now
-
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        usageCount: 0,
-        usageResetAt: resetDate,
-        billingCycleStartAt: new Date(),
-      },
-    });
-
-    this.logger.log(
-      `Reset usage for customer ${customerId}. Next reset: ${resetDate.toISOString()}`,
     );
   }
 

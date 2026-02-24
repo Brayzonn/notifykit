@@ -120,6 +120,8 @@ export class UserService {
       },
     });
 
+    await this.redis.del(`user:${userId}`);
+
     const { password, ...userWithoutPassword } = user as UserProfile & {
       password?: string;
     };
@@ -173,6 +175,8 @@ export class UserService {
       data: { password: hashedPassword },
     });
 
+    await this.redis.del(`user:${userId}`);
+
     return { message: 'Password changed successfully' };
   }
 
@@ -191,7 +195,6 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    // For email auth users
     if (user.provider === AuthProvider.EMAIL) {
       if (!dto.password) {
         throw new BadRequestException('Password is required');
@@ -208,7 +211,6 @@ export class UserService {
       }
     }
 
-    // Check if new email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.newEmail },
     });
@@ -390,6 +392,8 @@ export class UserService {
       },
     });
 
+    await this.redis.del(`user:${userId}`);
+
     await this.prisma.customer.update({
       where: { userId },
       data: { email: data.newEmail },
@@ -435,6 +439,7 @@ export class UserService {
         deletedAt: new Date(),
       },
     });
+    await this.redis.del(`user:${userId}`);
 
     // Deactivate customer
     await this.prisma.customer.update({
