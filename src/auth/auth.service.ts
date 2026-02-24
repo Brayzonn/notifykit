@@ -296,7 +296,6 @@ export class AuthService {
     });
 
     let user: User;
-    let isNewUser = false;
 
     if (existingUser) {
       user = await this.prisma.user.update({
@@ -319,7 +318,6 @@ export class AuthService {
           emailVerified: true,
         },
       });
-      isNewUser = true;
     }
 
     await this.createCustomerForUser(user);
@@ -424,49 +422,6 @@ export class AuthService {
    */
 
   /**
-   * downgrade customer to free plan
-   */
-  async downgradeToFreePlan(
-    customerId: string,
-    reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED',
-  ): Promise<void> {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { plan: true, email: true },
-    });
-
-    if (!customer) {
-      throw new Error('Customer not found');
-    }
-
-    const originalPlan = customer.plan;
-    const now = new Date();
-
-    const resetDate = new Date(now);
-    resetDate.setDate(resetDate.getDate() + 30);
-
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        plan: CustomerPlan.FREE,
-        monthlyLimit: getPlanLimit(CustomerPlan.FREE),
-        usageCount: 0,
-        usageResetAt: resetDate,
-        billingCycleStartAt: now,
-        previousPlan: originalPlan,
-        downgradedAt: now,
-        subscriptionStatus: SubscriptionStatus.EXPIRED,
-      },
-    });
-
-    //do later-------send user downgrade email--------------------------------------
-
-    this.logger.warn(
-      `Customer ${customer.email} downgraded from ${originalPlan} to FREE. Next reset: ${resetDate.toISOString()}`,
-    );
-  }
-
-  /**
    * Get usage stats for a customer
    */
   async getUsageStats(customerId: string): Promise<{
@@ -502,16 +457,6 @@ export class AuthService {
       billingCycleStartAt: customer.billingCycleStartAt,
       percentageUsed: Math.round(percentageUsed * 100) / 100,
     };
-  }
-
-  /**
-   * Increment usage counter
-   */
-  async incrementUsage(customerId: string): Promise<void> {
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: { usageCount: { increment: 1 } },
-    });
   }
 
   /**

@@ -12,11 +12,13 @@ import { EmailModule } from '@/email/email.module';
 import { AuthController } from './auth.controller';
 import { GithubStrategy } from './strategies/github.strategy';
 import { UserRateLimitGuard } from './guards/user-rate-limit.guard';
+import { BillingModule } from '@/billing/billing.module';
 
 @Module({
   imports: [
     RedisModule,
     EmailModule,
+    BillingModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({

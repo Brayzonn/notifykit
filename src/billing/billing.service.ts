@@ -8,6 +8,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentService } from '@/payment/payment.service';
 import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
+import { getPlanLimit } from '@/common/constants/plans.constants';
 import {
   CancelSubscriptionResponse,
   CreateCheckoutResponse,
@@ -258,5 +259,79 @@ export class BillingService {
     };
 
     return planHierarchy[targetPlan] < planHierarchy[currentPlan];
+  }
+
+  /**
+   * downgrade customer to free plan
+   */
+  async downgradeToFreePlan(
+    customerId: string,
+    reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED',
+  ): Promise<void> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { plan: true, email: true },
+    });
+
+    if (!customer) {
+      throw new Error('Customer not found');
+    }
+
+    const originalPlan = customer.plan;
+    const now = new Date();
+
+    const resetDate = new Date(now);
+    resetDate.setDate(resetDate.getDate() + 30);
+
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        plan: CustomerPlan.FREE,
+        monthlyLimit: getPlanLimit(CustomerPlan.FREE),
+        usageCount: 0,
+        usageResetAt: resetDate,
+        billingCycleStartAt: now,
+        previousPlan: originalPlan,
+        downgradedAt: now,
+        subscriptionStatus: SubscriptionStatus.EXPIRED,
+      },
+    });
+
+    //do later-------send user downgrade email--------------------------------------
+
+    this.logger.warn(
+      `Customer ${customer.email} downgraded from ${originalPlan} to FREE. Next reset: ${resetDate.toISOString()}`,
+    );
+  }
+
+  /**
+   * Reset customer usage for new billing cycle
+   */
+  async resetMonthlyUsage(customerId: string): Promise<void> {
+    const resetDate = new Date();
+    resetDate.setDate(resetDate.getDate() + 30); // 30 days from now
+
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        usageCount: 0,
+        usageResetAt: resetDate,
+        billingCycleStartAt: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `Reset usage for customer ${customerId}. Next reset: ${resetDate.toISOString()}`,
+    );
+  }
+
+  /**
+   * Increment usage counter
+   */
+  async incrementUsage(customerId: string): Promise<void> {
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { usageCount: { increment: 1 } },
+    });
   }
 }
