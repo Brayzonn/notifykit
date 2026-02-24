@@ -157,6 +157,35 @@ export class UserController {
 
   /**
    * ================================
+   * SENDGRID KEY MANAGEMENT
+   * ================================
+   */
+
+  @Post('sendgrid-key')
+  @HttpCode(HttpStatus.OK)
+  async saveSendgridKey(
+    @User() user: AuthenticatedUser,
+    @Body('apiKey') apiKey: string,
+  ) {
+    if (!apiKey) {
+      throw new BadRequestException('SendGrid API key is required');
+    }
+    return await this.userService.saveCustomerSendgridKey(user.id, apiKey);
+  }
+
+  @Get('sendgrid-key')
+  async getSendgridKey(@User() user: AuthenticatedUser) {
+    return await this.userService.getCustomerSendgridKey(user.id);
+  }
+
+  @Delete('sendgrid-key')
+  @HttpCode(HttpStatus.OK)
+  async removeSendgridKey(@User() user: AuthenticatedUser) {
+    return await this.userService.removeCustomerSendgridKey(user.id);
+  }
+
+  /**
+   * ================================
    * USAGE
    * ================================
    */
