@@ -7,6 +7,7 @@ import { QUEUE_NAMES } from '@/queues/queue.constants';
 import { EmailJobData, QueueService } from '@/queues/queue.service';
 import { SendGridService } from '@/sendgrid/sendgrid.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { EncryptionService } from '@/common/encryption/encryption.service';
 
 @Processor(QUEUE_NAMES.EMAIL, { concurrency: 5 })
 export class EmailWorkerProcessor extends WorkerHost {
@@ -18,6 +19,7 @@ export class EmailWorkerProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
     private readonly configService: ConfigService,
+    private readonly encryptionService: EncryptionService,
   ) {
     super();
     this.defaultFromEmail = this.configService.get<string>(
@@ -41,7 +43,12 @@ export class EmailWorkerProcessor extends WorkerHost {
     try {
       const customer = await this.prisma.customer.findUnique({
         where: { id: customerId },
-        select: { sendingDomain: true, domainVerified: true, plan: true },
+        select: {
+          sendingDomain: true,
+          domainVerified: true,
+          plan: true,
+          sendgridApiKey: true,
+        },
       });
 
       if (!customer) {
@@ -59,12 +66,15 @@ export class EmailWorkerProcessor extends WorkerHost {
         },
       });
 
-      const response = await this.sendGridService.sendEmail({
-        to,
-        subject,
-        body,
-        from: fromAddress,
-      });
+      const decryptedKey = customer.sendgridApiKey
+        ? this.encryptionService.decrypt(customer.sendgridApiKey)
+        : undefined;
+
+      const response = await this.sendGridService.sendEmail(
+        { to, subject, body, from: fromAddress },
+        decryptedKey,
+        customer.plan,
+      );
 
       await this.prisma.job.update({
         where: { id: jobId },

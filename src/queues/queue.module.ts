@@ -6,11 +6,13 @@ import { QueueService } from './queue.service';
 import { SendGridModule } from '@/sendgrid/sendgrid.module';
 import { EmailWorkerProcessor } from './processors/email-worker.processor';
 import { WebhookWorkerProcessor } from './processors/webhook-worker.processor';
+import { EncryptionModule } from '@/common/encryption/encryption.module';
 
 @Module({
   imports: [
     HttpModule,
     SendGridModule,
+    EncryptionModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
