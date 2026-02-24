@@ -174,11 +174,11 @@ export class BillingService {
   async handleSubscriptionActivated(
     customerId: string,
     subscriptionData: {
-      providerSubscriptionId: string;
+      providerSubscriptionId: string | null;
       providerCustomerId: string;
       plan: CustomerPlan;
       paymentProvider: string;
-      nextBillingDate: Date;
+      nextBillingDate: Date | null;
     },
   ) {
     const now = new Date();
@@ -196,7 +196,9 @@ export class BillingService {
       data: {
         plan: subscriptionData.plan,
         monthlyLimit: PLAN_LIMITS[subscriptionData.plan].monthlyLimit,
-        usageResetAt: subscriptionData.nextBillingDate,
+        usageResetAt:
+          subscriptionData.nextBillingDate ??
+          new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
         billingCycleStartAt: now,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         paymentProvider: subscriptionData.paymentProvider as any,
