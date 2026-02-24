@@ -34,6 +34,11 @@ export class QuotaGuard implements CanActivate {
       );
     }
 
+    const isEmailRequest = request.url.includes('/email');
+    if (isEmailRequest && customer.plan !== CustomerPlan.FREE) {
+      return true;
+    }
+
     const now = new Date();
 
     // Handle billing cycle reset
