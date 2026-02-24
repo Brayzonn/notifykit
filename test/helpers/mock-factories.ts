@@ -56,6 +56,7 @@ export const createMockCustomer = (
     apiKey: 'nh_test_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
     apiKeyHash:
       'hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
+    apiKeyLastFour: 'abcd',
     plan: CustomerPlan.FREE,
     monthlyLimit: 1000,
     usageCount: 0,
