@@ -7,6 +7,7 @@ import { SendGridModule } from '@/sendgrid/sendgrid.module';
 import { RedisModule } from '@/redis/redis.module';
 import { EmailModule } from '@/email/email.module';
 import { NotificationsModule } from '@/notifications/notifications.module';
+import { EncryptionModule } from '@/common/encryption/encryption.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { NotificationsModule } from '@/notifications/notifications.module';
     SendGridModule,
     RedisModule,
     EmailModule,
+    EncryptionModule,
     NotificationsModule,
   ],
   controllers: [UserController],

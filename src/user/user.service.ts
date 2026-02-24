@@ -9,6 +9,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
+import { EncryptionService } from '@/common/encryption/encryption.service';
+import axios from 'axios';
 import {
   AuthProvider,
   CustomerPlan,
@@ -50,6 +52,7 @@ export class UserService {
     private readonly redis: RedisService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   /**
@@ -548,7 +551,7 @@ export class UserService {
   }
 
   /**
-   * Regenerate API key
+   * Regenerate users API key
    */
   async regenerateApiKey(
     userId: string,
@@ -591,6 +594,100 @@ export class UserService {
       message:
         "API key generated successfully. Save it securely - you won't see it again.",
     };
+  }
+
+  /**
+   * ================================
+   * SENDGRID KEY MANAGEMENT
+   * ================================
+   */
+
+  async saveCustomerSendgridKey(
+    userId: string,
+    apiKey: string,
+  ): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      throw new BadRequestException(
+        'SendGrid API key is only available for paid plans',
+      );
+    }
+
+    const isValid = await this.validateCustomerSendgridKey(apiKey);
+    if (!isValid) {
+      throw new BadRequestException('Invalid SendGrid API key');
+    }
+
+    const encryptedKey = this.encryptionService.encrypt(apiKey);
+
+    await this.prisma.customer.update({
+      where: { userId },
+      data: {
+        sendgridApiKey: encryptedKey,
+        sendgridKeyAddedAt: new Date(),
+      },
+    });
+
+    return { message: 'SendGrid API key saved successfully' };
+  }
+
+  async getCustomerSendgridKey(
+    userId: string,
+  ): Promise<{ hasKey: boolean; addedAt: Date | null }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        sendgridApiKey: true,
+        sendgridKeyAddedAt: true,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return {
+      hasKey: !!customer.sendgridApiKey,
+      addedAt: customer.sendgridKeyAddedAt,
+    };
+  }
+
+  async removeCustomerSendgridKey(userId: string): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    await this.prisma.customer.update({
+      where: { userId },
+      data: {
+        sendgridApiKey: null,
+        sendgridKeyAddedAt: null,
+      },
+    });
+
+    return { message: 'SendGrid API key removed successfully' };
+  }
+
+  private async validateCustomerSendgridKey(apiKey: string): Promise<boolean> {
+    try {
+      const response = await axios.get('https://api.sendgrid.com/v3/scopes', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      return response.status === 200;
+    } catch {
+      return false;
+    }
   }
 
   /**
