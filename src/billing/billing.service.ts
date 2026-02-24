@@ -37,20 +37,33 @@ export class BillingService {
       throw new NotFoundException('Customer not found');
     }
 
-    if (
-      customer.plan === targetPlan &&
-      customer.subscriptionStatus !== SubscriptionStatus.CANCELLED
-    ) {
+    if (customer.plan === targetPlan) {
       throw new BadRequestException('Already on this plan');
     }
 
-    if (this.isDowngrade(customer.plan, targetPlan)) {
-      const message =
-        customer.subscriptionStatus === SubscriptionStatus.CANCELLED
-          ? 'Please wait until your current subscription expires before subscribing to a lower plan'
-          : 'Please cancel current subscription to downgrade';
+    if (
+      customer.subscriptionStatus === SubscriptionStatus.CANCELLED &&
+      customer.subscriptionEndDate &&
+      customer.subscriptionEndDate < new Date()
+    ) {
+      await this.downgradeToFreePlan(customer.id, 'SUBSCRIPTION_EXPIRED');
+      customer.plan = CustomerPlan.FREE;
+      customer.subscriptionStatus = SubscriptionStatus.EXPIRED;
+    }
 
-      throw new BadRequestException(message);
+    if (this.isDowngrade(customer.plan, targetPlan)) {
+      const canDowngrade =
+        customer.subscriptionStatus === SubscriptionStatus.EXPIRED ||
+        customer.subscriptionStatus === SubscriptionStatus.PAST_DUE;
+
+      if (!canDowngrade) {
+        const message =
+          customer.subscriptionStatus === SubscriptionStatus.CANCELLED
+            ? 'Please wait until your current subscription expires before subscribing to a lower plan'
+            : 'Please cancel current subscription to downgrade';
+
+        throw new BadRequestException(message);
+      }
     }
 
     const checkoutUrl = await this.paymentService.createCheckoutSession({
