@@ -135,6 +135,9 @@ model Customer {
   nextBillingDate        DateTime?           @map("next_billing_date")
   paymentMetadata        Json?               @map("payment_metadata")
 
+  sendgridApiKey         String?   @map("sendgrid_api_key")
+  sendgridKeyAddedAt     DateTime? @map("sendgrid_key_added_at")
+
   previousPlan CustomerPlan? @map("previous_plan")
   downgradedAt DateTime?     @map("downgraded_at")
 
