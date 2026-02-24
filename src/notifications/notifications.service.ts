@@ -1,10 +1,15 @@
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queues/queue.service';
 import { QUEUE_PRIORITIES } from '../queues/queue.constants';
 import { SendEmailDto } from './dto/send-email.dto';
 import { SendWebhookDto } from './dto/send-webhook.dto';
-import { JobType, JobStatus } from '@prisma/client';
+import { JobType, JobStatus, CustomerPlan } from '@prisma/client';
 import { toApiStatus } from '@/common/utils/enum.util';
 import {
   JobResponse,
@@ -44,6 +49,21 @@ export class NotificationsService {
           existingJobId: existing.id,
         });
       }
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { plan: true, sendgridApiKey: true },
+    });
+
+    if (!customer) {
+      throw new Error(`Customer not found: ${customerId}`);
+    }
+
+    if (customer.plan !== CustomerPlan.FREE && !customer.sendgridApiKey) {
+      throw new BadRequestException(
+        'Please add your SendGrid API key in settings before sending emails.',
+      );
     }
 
     const job = await this.prisma.job.create({
@@ -265,6 +285,19 @@ export class NotificationsService {
 
     if (!job) {
       return null;
+    }
+
+    if (job.type === JobType.EMAIL) {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { plan: true, sendgridApiKey: true },
+      });
+
+      if (customer?.plan !== CustomerPlan.FREE && !customer?.sendgridApiKey) {
+        throw new BadRequestException(
+          'Please add your SendGrid API key in settings before retrying email jobs.',
+        );
+      }
     }
 
     await this.prisma.job.update({
