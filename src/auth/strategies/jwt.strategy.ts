@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { JwtPayload } from '@/auth/dto/auth.dto';
+import { CustomerPlan } from '@prisma/client';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -26,6 +27,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return this.redis.remember(cacheKey, 300, async () => {
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
+        include: {
+          customer: true,
+        },
       });
 
       if (!user) throw new UnauthorizedException();
@@ -37,6 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: user.email,
         name: user.name,
         role: user.role,
+        plan: user.customer?.plan || CustomerPlan.FREE,
       };
     });
   }
