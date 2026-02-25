@@ -10,7 +10,6 @@ import { Request } from 'express';
 import { RedisService } from '../../redis/redis.service';
 import { AuthenticatedCustomer } from '../interfaces/api-guard.interface';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
-import { CustomerPlan } from '@prisma/client';
 
 interface CustomerRequest extends Request {
   customer: AuthenticatedCustomer;
@@ -19,6 +18,7 @@ interface CustomerRequest extends Request {
 @Injectable()
 export class CustomerRateLimitGuard implements CanActivate {
   private readonly logger = new Logger(CustomerRateLimitGuard.name);
+  private readonly windowSeconds = 60;
 
   constructor(private readonly redis: RedisService) {}
 
@@ -40,7 +40,6 @@ export class CustomerRateLimitGuard implements CanActivate {
 
     if (!isAllowed) {
       this.logger.warn(`Rate limit exceeded for customer: ${customerId}`);
-
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
@@ -61,21 +60,26 @@ export class CustomerRateLimitGuard implements CanActivate {
     limit: number,
   ): Promise<boolean> {
     const key = `rate_limit:${customerId}:minute`;
-    const ttl = 60;
+
+    const script = `
+      local current = redis.call("INCR", KEYS[1])
+      if current == 1 then
+        redis.call("EXPIRE", KEYS[1], ARGV[1])
+      end
+      return current
+    `;
 
     try {
-      const currentCount = await this.redis.get(key);
-      const count = currentCount ? parseInt(currentCount, 10) : 0;
+      const client = this.redis.getClient();
+      const count = await client.eval(
+        script,
+        1,
+        key,
+        this.windowSeconds.toString(),
+      );
 
-      if (count >= limit) {
+      if (Number(count) > limit) {
         return false;
-      }
-
-      if (count === 0) {
-        await this.redis.set(key, '1', ttl);
-      } else {
-        const client = this.redis.getClient();
-        await client.incr(key);
       }
 
       return true;
@@ -83,27 +87,5 @@ export class CustomerRateLimitGuard implements CanActivate {
       this.logger.error(`Rate limit check failed: ${error.message}`);
       return true;
     }
-  }
-
-  async getRemainingRequests(
-    customerId: string,
-    plan: CustomerPlan,
-  ): Promise<{ remaining: number; limit: number; resetIn: number }> {
-    const key = `rate_limit:${customerId}:minute`;
-    const limit = PLAN_LIMITS[plan].rateLimit;
-
-    const currentCount = await this.redis.get(key);
-    const count = currentCount ? parseInt(currentCount, 10) : 0;
-    const remaining = Math.max(0, limit - count);
-
-    const client = this.redis.getClient();
-    const ttl = await client.ttl(key);
-    const resetIn = ttl > 0 ? ttl : 60;
-
-    return {
-      remaining,
-      limit,
-      resetIn,
-    };
   }
 }
