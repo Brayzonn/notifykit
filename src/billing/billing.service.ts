@@ -15,6 +15,7 @@ import {
   InvoicesResponse,
   SubscriptionDetailsResponse,
 } from '@/billing/interfaces/billing.interface';
+import { RedisService } from '@/redis/redis.service';
 
 @Injectable()
 export class BillingService {
@@ -23,6 +24,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentService: PaymentService,
+    private readonly redis: RedisService,
   ) {}
 
   async createUpgradeCheckout(
@@ -208,6 +210,8 @@ export class BillingService {
         lastPaymentDate: now,
       },
     });
+
+    await this.redis.del(`user:${currentCustomer.userId}`);
   }
 
   async handleSubscriptionCancelled(subscriptionId: string) {
