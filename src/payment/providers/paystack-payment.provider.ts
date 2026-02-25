@@ -225,7 +225,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
 
       return transactions.map((tx: any) => ({
         id: tx.reference,
-        amount: tx.amount / 100,
+        amount: tx.amount,
         currency: tx.currency,
         status: tx.status,
         date: new Date(tx.paid_at || tx.created_at),
