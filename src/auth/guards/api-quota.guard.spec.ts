@@ -6,15 +6,21 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { QuotaGuard } from './api-quota.guard';
-import { AuthService } from '../auth.service';
+import { BillingService } from '@/billing/billing.service';
 import { createMockAuthenticatedCustomer } from '../../../test/helpers/mock-factories';
 import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
 
+type MockedBillingService = {
+  incrementUsage: jest.Mock;
+  resetMonthlyUsage: jest.Mock;
+  downgradeToFreePlan: jest.Mock;
+};
+
 describe('QuotaGuard', () => {
   let guard: QuotaGuard;
-  let authService: jest.Mocked<AuthService>;
+  let authService: MockedBillingService;
 
-  const mockAuthService = {
+  const mockAuthService: MockedBillingService = {
     incrementUsage: jest.fn(),
     resetMonthlyUsage: jest.fn(),
     downgradeToFreePlan: jest.fn(),
@@ -23,7 +29,7 @@ describe('QuotaGuard', () => {
   const createMockExecutionContext = (request: any): ExecutionContext => {
     return {
       switchToHttp: jest.fn().mockReturnValue({
-        getRequest: jest.fn().mockReturnValue(request),
+        getRequest: jest.fn().mockReturnValue({ url: '/notification', ...request }),
         getResponse: jest.fn(),
       }),
       getHandler: jest.fn(),
@@ -35,12 +41,12 @@ describe('QuotaGuard', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QuotaGuard,
-        { provide: AuthService, useValue: mockAuthService },
+        { provide: BillingService, useValue: mockAuthService },
       ],
     }).compile();
 
     guard = module.get<QuotaGuard>(QuotaGuard);
-    authService = module.get(AuthService);
+    authService = module.get(BillingService);
   });
 
   afterEach(() => {
