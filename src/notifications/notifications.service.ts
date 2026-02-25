@@ -20,6 +20,7 @@ import {
   EmailPayloadData,
   WebhookPayloadData,
 } from '@/notifications/interfaces/notification.interface';
+import { planUsesOwnApiKey } from '@/common/constants/plans.constants';
 
 @Injectable()
 export class NotificationsService {
@@ -293,9 +294,13 @@ export class NotificationsService {
         select: { plan: true, sendgridApiKey: true },
       });
 
-      if (customer?.plan !== CustomerPlan.FREE && !customer?.sendgridApiKey) {
+      if (!customer) {
+        throw new Error(`Customer not found: ${customerId}`);
+      }
+
+      if (planUsesOwnApiKey(customer.plan) && !customer.sendgridApiKey) {
         throw new BadRequestException(
-          'Please add your SendGrid API key in settings before retrying email jobs.',
+          'Please add your SendGrid API key in settings before sending emails.',
         );
       }
     }
