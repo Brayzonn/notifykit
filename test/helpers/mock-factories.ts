@@ -57,6 +57,8 @@ export const createMockCustomer = (
     apiKeyHash:
       'hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
     apiKeyLastFour: 'abcd',
+    sendgridApiKey: null,
+    sendgridKeyAddedAt: null,
     plan: CustomerPlan.FREE,
     monthlyLimit: 1000,
     usageCount: 0,

@@ -42,6 +42,7 @@ export type MockedPrismaService = {
     updateMany: jest.Mock;
     delete: jest.Mock;
     deleteMany: jest.Mock;
+    count: jest.Mock;
   };
   deliveryLog: {
     create: jest.Mock;
@@ -88,6 +89,7 @@ export const createMockPrismaService = (): MockedPrismaService => ({
     updateMany: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
+    count: jest.fn(),
   },
   deliveryLog: {
     create: jest.fn(),
