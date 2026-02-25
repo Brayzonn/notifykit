@@ -640,7 +640,11 @@ export class UserService {
 
   async getCustomerSendgridKey(
     userId: string,
-  ): Promise<{ hasKey: boolean; addedAt: Date | null }> {
+  ): Promise<{
+    hasKey: boolean;
+    addedAt: Date | null;
+    lastFour: string | null;
+  }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: {
@@ -653,9 +657,16 @@ export class UserService {
       throw new NotFoundException('Customer not found');
     }
 
+    let lastFour: string | null = null;
+    if (customer.sendgridApiKey) {
+      const decrypted = this.encryptionService.decrypt(customer.sendgridApiKey);
+      lastFour = decrypted.slice(-4);
+    }
+
     return {
       hasKey: !!customer.sendgridApiKey,
       addedAt: customer.sendgridKeyAddedAt,
+      lastFour,
     };
   }
 
