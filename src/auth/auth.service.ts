@@ -67,6 +67,7 @@ export class AuthService {
 
     let user = await this.prisma.user.findUnique({
       where: { email: profile.email },
+      include: { customer: true },
     });
 
     if (!user) {
@@ -79,6 +80,7 @@ export class AuthService {
           emailVerified: true,
           ...(profile.avatar && { avatar: profile.avatar }),
         },
+        include: { customer: true },
       });
     } else if (user.provider === AuthProvider.EMAIL) {
       user = await this.prisma.user.update({
@@ -89,6 +91,7 @@ export class AuthService {
           ...(profile.avatar && { avatar: profile.avatar }),
           emailVerified: true,
         },
+        include: { customer: true },
       });
     }
 
@@ -320,7 +323,12 @@ export class AuthService {
       });
     }
 
-    await this.createCustomerForUser(user);
+    const userWithCustomer = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: { customer: true },
+    });
+
+    await this.createCustomerForUser(userWithCustomer!);
 
     await this.redis.del(`otp:${verifyOtpDto.email}`);
     await this.redis.del(`signup:${verifyOtpDto.email}`);
@@ -381,24 +389,41 @@ export class AuthService {
   async refreshToken(token: string): Promise<RefreshTokenResponse> {
     this.verifyRefreshToken(token);
 
-    const storedToken = await this.validateStoredRefreshToken(token);
-    const isExpiringSoon = this.isTokenExpiringSoon(storedToken.expiresAt);
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex')
+      .slice(0, 16);
+    const lockKey = `refresh_lock:${tokenHash}`;
+    const lockTtl = 10; // 10 seconds
 
-    if (isExpiringSoon) {
-      const newTokens = await this.rotateRefreshToken(storedToken);
+    const client = this.redis.getClient();
+    const acquired = await client.set(lockKey, '1', 'EX', lockTtl, 'NX');
 
-      return {
-        user: this.sanitizeUser(storedToken.user),
-        tokens: newTokens,
-      };
+    if (!acquired) {
+      throw new UnauthorizedException('Token refresh already in progress');
     }
 
-    const { accessToken } = await this.generateTokens(storedToken.user);
+    try {
+      const storedToken = await this.validateStoredRefreshToken(token);
+      const isExpiringSoon = this.isTokenExpiringSoon(storedToken.expiresAt);
 
-    return {
-      user: this.sanitizeUser(storedToken.user),
-      tokens: { accessToken },
-    };
+      if (isExpiringSoon) {
+        const newTokens = await this.rotateRefreshToken(storedToken);
+        return {
+          user: this.sanitizeUser(storedToken.user),
+          tokens: newTokens,
+        };
+      }
+
+      const { accessToken } = await this.generateTokens(storedToken.user);
+      return {
+        user: this.sanitizeUser(storedToken.user),
+        tokens: { accessToken },
+      };
+    } finally {
+      await client.del(lockKey);
+    }
   }
 
   /**
@@ -406,7 +431,8 @@ export class AuthService {
    */
   async logout(token: string): Promise<{ message: string }> {
     try {
-      await this.prisma.refreshToken.delete({ where: { token } });
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      await this.prisma.refreshToken.delete({ where: { token: tokenHash } });
       this.logger.log('User logged out successfully');
       return { message: 'Logged out successfully' };
     } catch (error) {
@@ -463,8 +489,9 @@ export class AuthService {
    * Validate and retrieve stored refresh token
    */
   private async validateStoredRefreshToken(token: string) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const storedToken = await this.prisma.refreshToken.findUnique({
-      where: { token },
+      where: { token: tokenHash },
       include: { user: true },
     });
 
@@ -489,10 +516,9 @@ export class AuthService {
    * Check if token is expiring soon (less than 1 day)
    */
   private isTokenExpiringSoon(expiresAt: Date): boolean {
-    const oneDayFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    return expiresAt < oneDayFromNow;
+    const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    return expiresAt < threeDaysFromNow;
   }
-
   /**
    * Rotate expiring refresh token and generate new tokens
    */
@@ -554,10 +580,15 @@ export class AuthService {
       );
     }
 
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
     await this.prisma.refreshToken.create({
       data: {
         userId,
-        token: refreshToken,
+        token: tokenHash,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
@@ -599,8 +630,11 @@ export class AuthService {
    * Create customer record for new user
    */
   private async createCustomerForUser(
-    user: User,
+    user: User & { customer?: Customer | null },
   ): Promise<{ customer: Customer }> {
+    if (user.customer) {
+      return { customer: user.customer };
+    }
     const existingCustomer = await this.prisma.customer.findUnique({
       where: { userId: user.id },
     });
@@ -618,7 +652,7 @@ export class AuthService {
         plan: CustomerPlan.FREE,
         monthlyLimit: getPlanLimit(CustomerPlan.FREE),
         usageCount: 0,
-        usageResetAt: new Date(),
+        usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         isActive: true,
       },
     });
