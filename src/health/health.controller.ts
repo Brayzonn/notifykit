@@ -7,9 +7,9 @@ import {
   PrismaHealthIndicator,
   HealthIndicatorResult,
 } from '@nestjs/terminus';
-
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
+import { Public } from '@/auth/decorators/public.decorator';
 
 @Controller('health')
 export class HealthController {
@@ -56,6 +56,7 @@ export class HealthController {
   }
 
   @Get('simple')
+  @Public()
   simpleCheck() {
     return {
       status: 'ok',
