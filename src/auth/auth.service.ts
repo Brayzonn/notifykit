@@ -17,13 +17,7 @@ import {
   ResendOtpDto,
   JwtPayload,
 } from '@/auth/dto/auth.dto';
-import {
-  User,
-  AuthProvider,
-  Customer,
-  CustomerPlan,
-  SubscriptionStatus,
-} from '@prisma/client';
+import { User, AuthProvider, Customer, CustomerPlan } from '@prisma/client';
 import {
   AuthResponse,
   AuthTokens,
@@ -33,6 +27,7 @@ import {
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
 import { getPlanLimit } from '@/common/constants/plans.constants';
+import { RefreshTokenWithUser } from './types/auth-service.types';
 
 @Injectable()
 export class AuthService {
@@ -496,6 +491,23 @@ export class AuthService {
     });
 
     if (!storedToken) {
+      const payload = this.jwtService.decode(token) as JwtPayload;
+
+      if (payload?.sub) {
+        const activeTokens = await this.prisma.refreshToken.count({
+          where: { userId: payload.sub },
+        });
+
+        if (activeTokens > 0) {
+          this.logger.warn(
+            `Possible refresh token reuse detected for user: ${payload.sub}`,
+          );
+          await this.prisma.refreshToken.deleteMany({
+            where: { userId: payload.sub },
+          });
+          await this.redis.del(`user:${payload.sub}`);
+        }
+      }
       throw new UnauthorizedException('Refresh token not found');
     }
 
@@ -513,7 +525,7 @@ export class AuthService {
   }
 
   /**
-   * Check if token is expiring soon (less than 1 day)
+   * Check if token is expiring soon (less than 3 day)
    */
   private isTokenExpiringSoon(expiresAt: Date): boolean {
     const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
@@ -522,7 +534,9 @@ export class AuthService {
   /**
    * Rotate expiring refresh token and generate new tokens
    */
-  private async rotateRefreshToken(storedToken: any): Promise<AuthTokens> {
+  private async rotateRefreshToken(
+    storedToken: RefreshTokenWithUser,
+  ): Promise<AuthTokens> {
     const newTokens = await this.generateTokens(storedToken.user);
 
     await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
@@ -530,6 +544,7 @@ export class AuthService {
     await this.createRefreshTokenWithLimit(
       storedToken.user.id,
       newTokens.refreshToken,
+      storedToken.familyId,
     );
 
     return newTokens;
@@ -541,6 +556,7 @@ export class AuthService {
   private async createRefreshTokenWithLimit(
     userId: string,
     refreshToken: string,
+    familyId?: string,
   ): Promise<void> {
     await this.prisma.refreshToken.deleteMany({
       where: {
@@ -589,6 +605,7 @@ export class AuthService {
       data: {
         userId,
         token: tokenHash,
+        familyId: familyId ?? crypto.randomUUID(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
