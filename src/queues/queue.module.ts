@@ -7,12 +7,14 @@ import { SendGridModule } from '@/sendgrid/sendgrid.module';
 import { EmailWorkerProcessor } from './processors/email-worker.processor';
 import { WebhookWorkerProcessor } from './processors/webhook-worker.processor';
 import { EncryptionModule } from '@/common/encryption/encryption.module';
+import { CommonModule } from '@/common/common.module';
 
 @Module({
   imports: [
     HttpModule,
     SendGridModule,
     EncryptionModule,
+    CommonModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
