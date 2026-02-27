@@ -8,6 +8,7 @@ import { EmailJobData, QueueService } from '@/queues/queue.service';
 import { SendGridService } from '@/sendgrid/sendgrid.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
+import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
 
 @Processor(QUEUE_NAMES.EMAIL, { concurrency: 5 })
 export class EmailWorkerProcessor extends WorkerHost {
@@ -20,6 +21,7 @@ export class EmailWorkerProcessor extends WorkerHost {
     private readonly queueService: QueueService,
     private readonly configService: ConfigService,
     private readonly encryptionService: EncryptionService,
+    private readonly featureGate: FeatureGateService,
   ) {
     super();
     this.defaultFromEmail = this.configService.get<string>(
@@ -53,6 +55,12 @@ export class EmailWorkerProcessor extends WorkerHost {
 
       if (!customer) {
         throw new Error(`Customer not found: ${customerId}`);
+      }
+
+      this.featureGate.assertCanSendEmailFromDomain(customer);
+
+      if (customer.sendingDomain) {
+        this.featureGate.assertCanUseCustomDomain(customer);
       }
 
       const fromAddress = this.determineFromAddress(from, customer);
