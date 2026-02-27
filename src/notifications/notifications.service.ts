@@ -21,6 +21,7 @@ import {
   WebhookPayloadData,
 } from '@/notifications/interfaces/notification.interface';
 import { planUsesOwnApiKey } from '@/common/constants/plans.constants';
+import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
 
 @Injectable()
 export class NotificationsService {
@@ -29,6 +30,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
+    private readonly featureGate: FeatureGateService,
   ) {}
 
   /**
@@ -54,18 +56,19 @@ export class NotificationsService {
 
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      select: { plan: true, sendgridApiKey: true },
+      select: {
+        plan: true,
+        sendgridApiKey: true,
+        sendingDomain: true,
+        domainVerified: true,
+      },
     });
 
     if (!customer) {
       throw new Error(`Customer not found: ${customerId}`);
     }
-
-    if (customer.plan !== CustomerPlan.FREE && !customer.sendgridApiKey) {
-      throw new BadRequestException(
-        'Please add your SendGrid API key in settings before sending emails.',
-      );
-    }
+    this.featureGate.assertCanSendEmail(customer);
+    this.featureGate.assertCanSendEmailFromDomain(customer);
 
     const job = await this.prisma.job.create({
       data: {
@@ -291,18 +294,19 @@ export class NotificationsService {
     if (job.type === JobType.EMAIL) {
       const customer = await this.prisma.customer.findUnique({
         where: { id: customerId },
-        select: { plan: true, sendgridApiKey: true },
+        select: {
+          plan: true,
+          sendgridApiKey: true,
+          sendingDomain: true,
+          domainVerified: true,
+        },
       });
 
       if (!customer) {
         throw new Error(`Customer not found: ${customerId}`);
       }
 
-      if (planUsesOwnApiKey(customer.plan) && !customer.sendgridApiKey) {
-        throw new BadRequestException(
-          'Please add your SendGrid API key in settings before sending emails.',
-        );
-      }
+      this.featureGate.assertCanSendEmail(customer);
     }
 
     await this.prisma.job.update({
