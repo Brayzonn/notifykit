@@ -157,18 +157,20 @@ export class EmailWorkerProcessor extends WorkerHost {
         : this.defaultFromEmail;
     }
 
-    const fromDomain = requestedFrom.split('@')[1];
-    const expectedDomain = `em.${customer.sendingDomain}`;
+    const [localPart, fromDomain] = requestedFrom.split('@');
 
-    if (fromDomain === customer.sendingDomain && customer.domainVerified) {
-      throw new Error(
-        `Cannot send from ${requestedFrom}. Use em.${customer.sendingDomain} instead (e.g., support@em.${customer.sendingDomain})`,
-      );
+    if (fromDomain === 'notifykit.dev') {
+      if (requestedFrom !== this.defaultFromEmail) {
+        throw new Error(
+          `Cannot send from ${requestedFrom}. Only ${this.defaultFromEmail} is allowed.`,
+        );
+      }
+      return requestedFrom;
     }
 
     if (
-      (fromDomain === expectedDomain ||
-        fromDomain === customer.sendingDomain) &&
+      (fromDomain === customer.sendingDomain ||
+        fromDomain === `em.${customer.sendingDomain}`) &&
       !customer.domainVerified
     ) {
       throw new Error(
@@ -176,16 +178,20 @@ export class EmailWorkerProcessor extends WorkerHost {
       );
     }
 
-    //  Restrict NotifyKit domain to only verified addresses
-    if (fromDomain === 'notifykit.dev') {
-      if (requestedFrom !== this.defaultFromEmail) {
-        throw new Error(
-          `Cannot send from ${requestedFrom}. Only ${this.defaultFromEmail} is allowed for NotifyKit domain.`,
-        );
-      }
+    if (fromDomain === customer.sendingDomain && customer.domainVerified) {
+      return `${localPart}@em.${customer.sendingDomain}`;
     }
 
-    return requestedFrom;
+    if (
+      fromDomain === `em.${customer.sendingDomain}` &&
+      customer.domainVerified
+    ) {
+      return requestedFrom;
+    }
+
+    throw new Error(
+      `Cannot send from ${requestedFrom}. Use your verified domain ${customer.sendingDomain} instead.`,
+    );
   }
 
   @OnWorkerEvent('active')
