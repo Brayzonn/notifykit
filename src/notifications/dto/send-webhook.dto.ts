@@ -11,16 +11,16 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class SendWebhookDto {
   @ApiProperty({
     example: 'https://api.example.com/webhook',
-    description: 'Webhook destination URL'
+    description: 'Webhook destination URL',
   })
-  @IsUrl()
+  @IsUrl({ protocols: ['https'], require_protocol: true })
   @IsNotEmpty()
   url: string;
 
   @ApiPropertyOptional({
     example: 'POST',
     description: 'HTTP method (default: POST)',
-    default: 'POST'
+    default: 'POST',
   })
   @IsString()
   @IsOptional()
@@ -28,15 +28,18 @@ export class SendWebhookDto {
 
   @ApiPropertyOptional({
     example: { 'Content-Type': 'application/json', 'X-Custom-Header': 'value' },
-    description: 'Custom HTTP headers'
+    description: 'Custom HTTP headers',
   })
   @IsObject()
   @IsOptional()
   headers?: Record<string, string>;
 
   @ApiProperty({
-    example: { event: 'user.created', data: { id: 123, email: 'user@example.com' } },
-    description: 'Webhook payload data'
+    example: {
+      event: 'user.created',
+      data: { id: 123, email: 'user@example.com' },
+    },
+    description: 'Webhook payload data',
   })
   @IsObject()
   @IsNotEmpty()
@@ -46,7 +49,7 @@ export class SendWebhookDto {
     example: 5,
     enum: [1, 5, 10],
     description: 'Priority level (1=high, 5=normal, 10=low)',
-    default: 5
+    default: 5,
   })
   @IsIn([1, 5, 10])
   @IsOptional()
@@ -54,7 +57,7 @@ export class SendWebhookDto {
 
   @ApiPropertyOptional({
     example: 'unique-key-456',
-    description: 'Idempotency key to prevent duplicate sends'
+    description: 'Idempotency key to prevent duplicate sends',
   })
   @IsString()
   @IsOptional()
