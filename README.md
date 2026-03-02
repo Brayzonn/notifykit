@@ -78,10 +78,16 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_INDIE_PRICE_ID=price_...
 STRIPE_STARTUP_PRICE_ID=price_...
 
+# Paystack
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxx
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxx
+PAYSTACK_INDIE_PLAN_ID=PLN_xxxxxxxxxxxxx
+PAYSTACK_STARTUP_PLAN_ID=PLN_xxxxxxxxxxxxx
+
 # SendGrid
 SENDGRID_API_KEY=SG....
-SENDGRID_FROM_EMAIL=noreply@notifykit.dev
-SENDGRID_FROM_NAME=NotifyKit
+SENDGRID_FROM_EMAIL=
+SENDGRID_FROM_NAME=
 
 # Database
 DATABASE_URL=postgresql://notifykit:localdev123@localhost:5432/notifykit
@@ -258,19 +264,19 @@ GET /api/v1/health
 
 ### Admin (ADMIN role required)
 
-| Method | Endpoint                              | Description                          |
-| ------ | ------------------------------------- | ------------------------------------ |
-| GET    | `/api/v1/admin/users`                 | List all users (paginated)           |
-| GET    | `/api/v1/admin/users/:id`             | Get user details                     |
-| PATCH  | `/api/v1/admin/users/:id`             | Update user                          |
-| DELETE | `/api/v1/admin/users/:id`             | Soft delete user                     |
-| GET    | `/api/v1/admin/customers`             | List all customers (paginated)       |
-| GET    | `/api/v1/admin/customers/:id`         | Get customer with jobs summary       |
-| PATCH  | `/api/v1/admin/customers/:id/plan`    | Update customer plan                 |
-| PATCH  | `/api/v1/admin/customers/:id/usage-reset` | Reset customer usage             |
-| GET    | `/api/v1/admin/jobs`                  | List all jobs (paginated)            |
-| DELETE | `/api/v1/admin/jobs/:id`              | Hard delete job                      |
-| GET    | `/api/v1/admin/stats`                 | Get system-wide statistics           |
+| Method | Endpoint                                  | Description                    |
+| ------ | ----------------------------------------- | ------------------------------ |
+| GET    | `/api/v1/admin/users`                     | List all users (paginated)     |
+| GET    | `/api/v1/admin/users/:id`                 | Get user details               |
+| PATCH  | `/api/v1/admin/users/:id`                 | Update user                    |
+| DELETE | `/api/v1/admin/users/:id`                 | Soft delete user               |
+| GET    | `/api/v1/admin/customers`                 | List all customers (paginated) |
+| GET    | `/api/v1/admin/customers/:id`             | Get customer with jobs summary |
+| PATCH  | `/api/v1/admin/customers/:id/plan`        | Update customer plan           |
+| PATCH  | `/api/v1/admin/customers/:id/usage-reset` | Reset customer usage           |
+| GET    | `/api/v1/admin/jobs`                      | List all jobs (paginated)      |
+| DELETE | `/api/v1/admin/jobs/:id`                  | Hard delete job                |
+| GET    | `/api/v1/admin/stats`                     | Get system-wide statistics     |
 
 ### Health
 
@@ -299,6 +305,7 @@ This project includes a comprehensive Jest test suite with 150+ tests covering:
 - **E2E Tests** (21 scenarios): Complete auth flow, password reset, API integration
 
 Run tests with:
+
 ```bash
 # All unit tests
 npm run test
