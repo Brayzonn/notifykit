@@ -58,6 +58,9 @@ CORS_ORIGIN=*
 ALLOWED_DOMAIN=*
 FRONTEND_URL=http://localhost:3001
 
+#Encryption
+ENCRYPTION_KEY=
+
 # JWT
 JWT_SECRET=your-jwt-secret
 JWT_REFRESH_SECRET=your-refresh-secret
