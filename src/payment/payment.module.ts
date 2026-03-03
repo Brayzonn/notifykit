@@ -10,6 +10,7 @@ import { EmailModule } from '@/email/email.module';
 import { StripePaymentProvider } from './providers/stripe-payment.provider';
 import { PaystackPaymentProvider } from './providers/paystack-payment.provider';
 import { PaymentProviderFactory } from './providers/payment-provider.factory';
+import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PaymentProviderFactory } from './providers/payment-provider.factory';
     EmailModule,
     HttpModule,
     forwardRef(() => BillingModule),
+    RateLimitModule,
   ],
   controllers: [PaymentController],
   providers: [
