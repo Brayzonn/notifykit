@@ -439,4 +439,4 @@ See [TEST_SUMMARY.md](./TEST_SUMMARY.md) for detailed test documentation.
 
 ## License
 
-MIT
+[MIT](./LICENSE) © 2026 Eyinda Bright
