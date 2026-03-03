@@ -8,6 +8,7 @@ import { RedisModule } from '@/redis/redis.module';
 import { EmailModule } from '@/email/email.module';
 import { NotificationsModule } from '@/notifications/notifications.module';
 import { EncryptionModule } from '@/common/encryption/encryption.module';
+import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { EncryptionModule } from '@/common/encryption/encryption.module';
     EmailModule,
     EncryptionModule,
     NotificationsModule,
+    RateLimitModule,
   ],
   controllers: [UserController],
   providers: [UserService, EmailService],
