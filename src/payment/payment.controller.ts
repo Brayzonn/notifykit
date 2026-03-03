@@ -66,7 +66,8 @@ export class PaymentController {
     return this.paystackWebhookHandler.handle(req.rawBody, signature);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @IpRateLimit(60)
+  @UseGuards(JwtAuthGuard, IpRateLimitGuard)
   @Get('methods')
   async getPaymentMethods(@User() user: AuthenticatedUser) {
     return this.paymentService.getPaymentMethods(user.id);

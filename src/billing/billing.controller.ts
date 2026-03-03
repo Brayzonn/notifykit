@@ -9,13 +9,16 @@ import {
 } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
+import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
+import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { AuthenticatedUser } from '@/common/interfaces/authenticated-user.interface';
 import { UpgradePlanDto } from './dto/upgrade-plan.dto';
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 
 @Controller('billing')
-@UseGuards(JwtAuthGuard)
+@IpRateLimit(60)
+@UseGuards(JwtAuthGuard, IpRateLimitGuard)
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 

@@ -25,6 +25,8 @@ import {
 } from '@/user/dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
+import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
+import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { UserRole } from '@prisma/client';
@@ -33,7 +35,8 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { RequestDomainDto } from './dto/RequestDomain.dto';
 
 @Controller('user')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@IpRateLimit(120)
+@UseGuards(JwtAuthGuard, RolesGuard, IpRateLimitGuard)
 @Roles(UserRole.USER)
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -83,6 +86,7 @@ export class UserController {
 
   @Post('email/verify-new/:token')
   @Public()
+  @IpRateLimit(20)
   @HttpCode(HttpStatus.OK)
   async verifyNewEmail(@Param('token') token: string) {
     return await this.userService.verifyNewEmail(token);
@@ -90,6 +94,7 @@ export class UserController {
 
   @Post('email/confirm-old/:token')
   @Public()
+  @IpRateLimit(20)
   @HttpCode(HttpStatus.OK)
   async confirmOldEmail(@Param('token') token: string) {
     return await this.userService.confirmOldEmail(token);
@@ -97,6 +102,7 @@ export class UserController {
 
   @Post('email/cancel/:token')
   @Public()
+  @IpRateLimit(20)
   @HttpCode(HttpStatus.OK)
   async cancelEmailChange(@Param('token') token: string) {
     return await this.userService.cancelEmailChange(token);

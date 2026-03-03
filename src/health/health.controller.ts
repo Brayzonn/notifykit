@@ -25,6 +25,8 @@ export class HealthController {
   ) {}
 
   @Get()
+  @IpRateLimit(20)
+  @UseGuards(IpRateLimitGuard)
   @HealthCheck()
   check() {
     return this.health.check([

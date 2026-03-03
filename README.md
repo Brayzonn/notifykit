@@ -361,44 +361,47 @@ GET /api/v1/health
 
 ## Rate Limiting
 
-All endpoints are rate limited. Two guard types are in use:
+All routes have rate limiting. Two guard types are in use:
 
-- **`IpRateLimitGuard`** — IP-based, applied to public/unauthenticated endpoints. Keyed by `{client-ip}:{handler}` in Redis. Reads the limit from the `@IpRateLimit()` decorator on each route.
-- **`UserRateLimitGuard`** — identity-based, applied to JWT-authenticated dashboard endpoints. Keyed by `{userId}` in Redis. Limit is determined by the user's plan.
+- **`IpRateLimitGuard`** — IP-based. Keyed by `{client-ip}:{handler}` in Redis. Reads the limit from the `@IpRateLimit()` decorator on the handler or controller.
+- **`CustomerRateLimitGuard`** — identity-based, applied to API key routes (`/notifications/*`). Keyed by customer ID. Limit is determined by the customer's plan.
 
-Both guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second window. On Redis failure both guards fail open (allow the request) and log an error.
+All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second window. On Redis failure all guards fail open (allow the request) and log an error.
 
 ### Rate limit table
 
-| Endpoint(s) | Guard | Limit | Key |
-| --- | --- | --- | --- |
-| `GET /ping`, `GET /info` | `IpRateLimitGuard` | 60 req/min | IP |
-| `GET /health/simple` | `IpRateLimitGuard` | 30 req/min | IP |
-| `POST /auth/signup` | `IpRateLimitGuard` | 5 req/min | IP |
-| `POST /auth/signin` | `IpRateLimitGuard` | 10 req/min | IP |
-| `POST /auth/verify-otp` | `IpRateLimitGuard` | 5 req/min | IP |
-| `POST /auth/resend-otp` | `IpRateLimitGuard` | 3 req/min | IP |
-| `POST /auth/refresh-token` | `IpRateLimitGuard` | 30 req/min | IP |
-| `POST /auth/reset-password/request` | `IpRateLimitGuard` | 5 req/min | IP |
-| `POST /auth/reset-password/confirm` | `IpRateLimitGuard` | 10 req/min | IP |
-| `GET /auth/github`, `GET /auth/github/callback` | `IpRateLimitGuard` | 20 req/min | IP |
-| `POST /payment/stripe/webhook` | `IpRateLimitGuard` | 60 req/min | IP |
-| `POST /payment/paystack/webhook` | `IpRateLimitGuard` | 60 req/min | IP |
-| `POST /user/email/verify-new/:token` | `IpRateLimitGuard` | 20 req/min | IP |
-| `POST /user/email/confirm-old/:token` | `IpRateLimitGuard` | 20 req/min | IP |
-| `POST /user/email/cancel/:token` | `IpRateLimitGuard` | 20 req/min | IP |
-| All `/user/*` JWT routes | `UserRateLimitGuard` | Plan-based | User ID |
-| All `/billing/*` routes | `UserRateLimitGuard` | Plan-based | User ID |
-| All `/admin/*` routes | `IpRateLimitGuard` | 300 req/min | IP |
-| All `/notifications/*` routes | `CustomerRateLimitGuard` | Plan-based | Customer ID |
+| Endpoint(s)                                     | Guard                    | Limit       | Key         |
+| ----------------------------------------------- | ------------------------ | ----------- | ----------- |
+| `GET /ping`, `GET /info`                        | `IpRateLimitGuard`       | 60 req/min  | IP          |
+| `GET /health`                                   | `IpRateLimitGuard`       | 20 req/min  | IP          |
+| `GET /health/simple`                            | `IpRateLimitGuard`       | 30 req/min  | IP          |
+| `POST /auth/signup`                             | `IpRateLimitGuard`       | 5 req/min   | IP          |
+| `POST /auth/signin`                             | `IpRateLimitGuard`       | 10 req/min  | IP          |
+| `POST /auth/verify-otp`                         | `IpRateLimitGuard`       | 5 req/min   | IP          |
+| `POST /auth/resend-otp`                         | `IpRateLimitGuard`       | 3 req/min   | IP          |
+| `POST /auth/refresh-token`                      | `IpRateLimitGuard`       | 30 req/min  | IP          |
+| `POST /auth/reset-password/request`             | `IpRateLimitGuard`       | 5 req/min   | IP          |
+| `POST /auth/reset-password/confirm`             | `IpRateLimitGuard`       | 10 req/min  | IP          |
+| `GET /auth/github`, `GET /auth/github/callback` | `IpRateLimitGuard`       | 20 req/min  | IP          |
+| `POST /auth/logout`                             | `IpRateLimitGuard`       | 20 req/min  | IP          |
+| `POST /payment/stripe/webhook`                  | `IpRateLimitGuard`       | 60 req/min  | IP          |
+| `POST /payment/paystack/webhook`                | `IpRateLimitGuard`       | 60 req/min  | IP          |
+| `POST /user/email/verify-new/:token`            | `IpRateLimitGuard`       | 20 req/min  | IP          |
+| `POST /user/email/confirm-old/:token`           | `IpRateLimitGuard`       | 20 req/min  | IP          |
+| `POST /user/email/cancel/:token`                | `IpRateLimitGuard`       | 20 req/min  | IP          |
+| All `/user/*` JWT routes                        | `IpRateLimitGuard`       | 120 req/min | IP          |
+| All `/billing/*` routes                         | `IpRateLimitGuard`       | 60 req/min  | IP          |
+| `GET /payment/methods`                          | `IpRateLimitGuard`       | 60 req/min  | IP          |
+| All `/admin/*` routes                           | `IpRateLimitGuard`       | 300 req/min | IP          |
+| All `/notifications/*` routes                   | `CustomerRateLimitGuard` | Plan-based  | Customer ID |
 
-### Plan-based limits (req/min)
+### Plan-based limits (req/min) — `/notifications/*`
 
-| Plan | `/user/*` & `/billing/*` | `/notifications/*` |
-| --- | --- | --- |
-| FREE | 5 | 5 |
-| INDIE | 50 | 50 |
-| STARTUP | 200 | 200 |
+| Plan    | `/notifications/*` |
+| ------- | ------------------ |
+| FREE    | 5                  |
+| INDIE   | 50                 |
+| STARTUP | 200                |
 
 > **Behind a proxy:** `IpRateLimitGuard` reads `X-Forwarded-For` (first hop) before falling back to `req.ip`. Ensure your proxy sets this header correctly to avoid all traffic being keyed to a single IP.
 

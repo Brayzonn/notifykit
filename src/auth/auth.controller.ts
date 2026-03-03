@@ -201,6 +201,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @IpRateLimit(20)
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async logout(
