@@ -24,12 +24,13 @@ import { Public } from '@/auth/decorators/public.decorator';
 
 @Public()
 @Controller('notifications')
-@UseGuards(ApiKeyGuard, CustomerRateLimitGuard, QuotaGuard)
+@UseGuards(ApiKeyGuard, CustomerRateLimitGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Post('email')
   @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(QuotaGuard)
   async sendEmail(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: SendEmailDto,
@@ -39,6 +40,7 @@ export class NotificationsController {
 
   @Post('webhook')
   @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(QuotaGuard)
   async sendWebhook(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: SendWebhookDto,
