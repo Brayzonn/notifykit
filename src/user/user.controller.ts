@@ -31,12 +31,9 @@ import { UserRole } from '@prisma/client';
 import { AuthenticatedUser } from '@/common/interfaces/authenticated-user.interface';
 import { Public } from '@/auth/decorators/public.decorator';
 import { RequestDomainDto } from './dto/RequestDomain.dto';
-import { UserRateLimitGuard } from '@/auth/guards/user-rate-limit.guard';
-import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
-import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 
 @Controller('user')
-@UseGuards(JwtAuthGuard, RolesGuard, UserRateLimitGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.USER)
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -86,8 +83,6 @@ export class UserController {
 
   @Post('email/verify-new/:token')
   @Public()
-  @IpRateLimit(20)
-  @UseGuards(IpRateLimitGuard)
   @HttpCode(HttpStatus.OK)
   async verifyNewEmail(@Param('token') token: string) {
     return await this.userService.verifyNewEmail(token);
@@ -95,8 +90,6 @@ export class UserController {
 
   @Post('email/confirm-old/:token')
   @Public()
-  @IpRateLimit(20)
-  @UseGuards(IpRateLimitGuard)
   @HttpCode(HttpStatus.OK)
   async confirmOldEmail(@Param('token') token: string) {
     return await this.userService.confirmOldEmail(token);
@@ -104,8 +97,6 @@ export class UserController {
 
   @Post('email/cancel/:token')
   @Public()
-  @IpRateLimit(20)
-  @UseGuards(IpRateLimitGuard)
   @HttpCode(HttpStatus.OK)
   async cancelEmailChange(@Param('token') token: string) {
     return await this.userService.cancelEmailChange(token);

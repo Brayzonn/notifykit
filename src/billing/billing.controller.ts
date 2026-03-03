@@ -13,10 +13,9 @@ import { User } from '@/common/decorators/user.decorator';
 import { AuthenticatedUser } from '@/common/interfaces/authenticated-user.interface';
 import { UpgradePlanDto } from './dto/upgrade-plan.dto';
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
-import { UserRateLimitGuard } from '@/auth/guards/user-rate-limit.guard';
 
 @Controller('billing')
-@UseGuards(JwtAuthGuard, UserRateLimitGuard)
+@UseGuards(JwtAuthGuard)
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 

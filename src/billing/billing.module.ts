@@ -4,10 +4,9 @@ import { BillingService } from './billing.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { PaymentModule } from '@/payment/payment.module';
 import { RedisModule } from '@/redis/redis.module';
-import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 
 @Module({
-  imports: [PrismaModule, RedisModule, forwardRef(() => PaymentModule), RateLimitModule],
+  imports: [PrismaModule, RedisModule, forwardRef(() => PaymentModule)],
   controllers: [BillingController],
   providers: [BillingService],
   exports: [BillingService],
