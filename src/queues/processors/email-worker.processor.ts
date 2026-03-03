@@ -168,6 +168,10 @@ export class EmailWorkerProcessor extends WorkerHost {
       return requestedFrom;
     }
 
+    if (!customer.sendingDomain) {
+      return this.defaultFromEmail;
+    }
+
     if (
       (fromDomain === customer.sendingDomain ||
         fromDomain === `em.${customer.sendingDomain}`) &&
