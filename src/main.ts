@@ -26,6 +26,7 @@ async function bootstrap() {
   logger.log(`Environment: ${nodeEnv}`);
   logger.log(`Starting application on port ${port}`);
 
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   setupRequestSizeLimit(app, configService);
   setupCookies(app, configService);
 
