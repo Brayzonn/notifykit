@@ -3,6 +3,7 @@ export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   error?: string;
+  retryAfter?: number;
   timestamp: string;
 }
 
@@ -16,11 +17,12 @@ export class ResponseUtil {
     };
   }
 
-  static error(error: string, message?: string): ApiResponse {
+  static error(error: string, message?: string, retryAfter?: number): ApiResponse {
     return {
       success: false,
       error,
       message,
+      ...(retryAfter !== undefined && { retryAfter }),
       timestamp: new Date().toISOString(),
     };
   }

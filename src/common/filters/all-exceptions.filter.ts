@@ -16,6 +16,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
+    let retryAfter: number | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -31,6 +32,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         } else if (typeof responseObj.error === 'string') {
           message = responseObj.error;
         }
+
+        if (status === HttpStatus.TOO_MANY_REQUESTS && typeof responseObj.retryAfter === 'number') {
+          retryAfter = responseObj.retryAfter;
+        }
       } else if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       }
@@ -40,6 +45,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    response.status(status).json(ResponseUtil.error(message));
+    response.status(status).json(ResponseUtil.error(message, undefined, retryAfter));
   }
 }
