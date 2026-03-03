@@ -60,7 +60,12 @@ export class SendGridService {
       );
 
       this.logger.log(`Email sent successfully to ${to}`);
-      return { statusCode: response.status };
+      return {
+        statusCode: response.status,
+        message: 'Email accepted for delivery',
+        to,
+        subject,
+      };
     } catch (error) {
       this.logger.error(
         'SendGrid error:',
