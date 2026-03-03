@@ -174,7 +174,9 @@ export class EmailWorkerProcessor extends WorkerHost {
     }
 
     if (!customer.sendingDomain) {
-      return this.defaultFromEmail;
+      throw new Error(
+        `Custom from address is not allowed. Upgrade your plan to use a custom domain.`,
+      );
     }
 
     if (
