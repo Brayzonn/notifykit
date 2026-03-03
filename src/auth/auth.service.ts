@@ -65,6 +65,8 @@ export class AuthService {
       include: { customer: true },
     });
 
+    let isNewUser = false;
+
     if (!user) {
       user = await this.prisma.user.create({
         data: {
@@ -77,6 +79,7 @@ export class AuthService {
         },
         include: { customer: true },
       });
+      isNewUser = true;
     } else if (user.provider === AuthProvider.EMAIL) {
       user = await this.prisma.user.update({
         where: { id: user.id },
@@ -97,6 +100,14 @@ export class AuthService {
     }
 
     await this.createCustomerForUser(user);
+
+    if (isNewUser) {
+      this.emailService
+        .sendWelcomeEmail({ email: user.email, name: user.name })
+        .catch((err) =>
+          this.logger.error('Failed to send welcome email', err?.message),
+        );
+    }
 
     const tokens = await this.generateTokens(user);
 
@@ -327,6 +338,12 @@ export class AuthService {
 
     await this.redis.del(`otp:${verifyOtpDto.email}`);
     await this.redis.del(`signup:${verifyOtpDto.email}`);
+
+    this.emailService
+      .sendWelcomeEmail({ email: user.email, name: user.name })
+      .catch((err) =>
+        this.logger.error('Failed to send welcome email', err?.message),
+      );
 
     const tokens = await this.generateTokens(user);
 
