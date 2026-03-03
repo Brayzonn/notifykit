@@ -11,14 +11,15 @@ import { AuthService } from './auth.service';
 import { EmailModule } from '@/email/email.module';
 import { AuthController } from './auth.controller';
 import { GithubStrategy } from './strategies/github.strategy';
-import { UserRateLimitGuard } from './guards/user-rate-limit.guard';
 import { BillingModule } from '@/billing/billing.module';
+import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 
 @Module({
   imports: [
     RedisModule,
     EmailModule,
     BillingModule,
+    RateLimitModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -32,7 +33,6 @@ import { BillingModule } from '@/billing/billing.module';
   providers: [
     ApiKeyGuard,
     CustomerRateLimitGuard,
-    UserRateLimitGuard,
     QuotaGuard,
     AuthService,
     JwtStrategy,
@@ -44,7 +44,6 @@ import { BillingModule } from '@/billing/billing.module';
     JwtAuthGuard,
     ApiKeyGuard,
     CustomerRateLimitGuard,
-    UserRateLimitGuard,
     QuotaGuard,
   ],
 })

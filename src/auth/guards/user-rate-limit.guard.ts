@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { RedisService } from '@/redis/redis.service';
 import { Request } from 'express';
 import { UserRole, CustomerPlan } from '@prisma/client';
@@ -25,9 +26,19 @@ export class UserRateLimitGuard implements CanActivate {
   private readonly logger = new Logger(UserRateLimitGuard.name);
   private readonly windowSeconds = 60;
 
-  constructor(private readonly redis: RedisService) {}
+  constructor(
+    private readonly redis: RedisService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) return true;
+
     const request = context.switchToHttp().getRequest<UserRequest>();
     const user = request.user;
 
