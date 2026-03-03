@@ -16,6 +16,68 @@ The backend API for [NotifyKit](https://notifykit.dev) — notification infrastr
 
 ---
 
+## Project Structure
+
+```
+src/
+├── main.ts                               # Entry point — global pipes, filters, interceptors
+├── app.module.ts                         # Root module
+├── app.controller.ts                     # GET /ping, GET /info
+│
+├── auth/                                 # Authentication & all guards
+│   ├── decorators/
+│   │   ├── current-customer.decorator.ts # Extracts customer from request (API key routes)
+│   │   ├── ip-rate-limit.decorator.ts    # @IpRateLimit(limit, windowSeconds)
+│   │   └── public.decorator.ts           # @Public() — bypasses global JwtAuthGuard
+│   ├── guards/
+│   │   ├── api-key.guard.ts              # Validates nh_[64hex] API keys
+│   │   ├── api-quota.guard.ts            # Monthly notification quota enforcement
+│   │   ├── customer-rate-limit.guard.ts  # Per-customer req/min (API key routes)
+│   │   ├── ip-rate-limit.guard.ts        # Per-IP req/min (public routes)
+│   │   ├── jwt-auth.guard.ts             # JWT validation (registered globally)
+│   │   ├── roles.guard.ts                # Role-based access (registered globally)
+│   │   └── user-rate-limit.guard.ts      # Per-user req/min (JWT dashboard routes)
+│   ├── strategies/
+│   │   ├── github.strategy.ts            # GitHub OAuth
+│   │   └── jwt.strategy.ts               # JWT — attaches user + plan to request
+│   ├── auth.controller.ts
+│   ├── auth.module.ts
+│   └── auth.service.ts
+│
+├── common/
+│   ├── constants/
+│   │   └── plans.constants.ts            # Plan limits — monthly quota, req/min, retention
+│   ├── decorators/
+│   │   ├── roles.decorator.ts
+│   │   └── user.decorator.ts
+│   ├── encryption/
+│   │   └── encryption.service.ts         # AES encryption for stored SendGrid keys
+│   ├── filters/
+│   │   └── all-exceptions.filter.ts      # Global exception → { success, error, timestamp }
+│   ├── interceptors/
+│   │   └── response.interceptor.ts       # Wraps responses → { success, data, timestamp }
+│   ├── middleware/
+│   │   └── activity-logger.middleware.ts
+│   ├── rate-limit/
+│   │   └── rate-limit.module.ts          # Provides IpRateLimitGuard + UserRateLimitGuard
+│   └── utils/
+│
+├── admin/                                # Admin-only endpoints (ADMIN role)
+├── billing/                              # Plan upgrades, subscriptions, invoices
+├── config/                               # Cookie, CORS, validation, request-size config
+├── email/                                # Internal email dispatch + HTML templates
+├── health/                               # GET /health, GET /health/simple
+├── notifications/                        # Customer-facing API — send email & webhook
+├── payment/                              # Stripe & Paystack providers + webhook handlers
+├── prisma/                               # PrismaService
+├── queues/                               # BullMQ workers — email & webhook processors
+├── redis/                                # RedisService (ioredis wrapper + remember helper)
+├── sendgrid/                             # SendGrid client + domain verification service
+└── user/                                 # Profile, API key, jobs history, domain management
+```
+
+---
+
 ## Prerequisites
 
 - Node.js 18+
@@ -294,6 +356,51 @@ GET /api/v1/health
 | ------ | ---------------------------------- | ------------------------ |
 | POST   | `/api/v1/payment/stripe/webhook`   | Stripe webhook handler   |
 | POST   | `/api/v1/payment/paystack/webhook` | Paystack webhook handler |
+
+---
+
+## Rate Limiting
+
+All endpoints are rate limited. Two guard types are in use:
+
+- **`IpRateLimitGuard`** — IP-based, applied to public/unauthenticated endpoints. Keyed by `{client-ip}:{handler}` in Redis. Reads the limit from the `@IpRateLimit()` decorator on each route.
+- **`UserRateLimitGuard`** — identity-based, applied to JWT-authenticated dashboard endpoints. Keyed by `{userId}` in Redis. Limit is determined by the user's plan.
+
+Both guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second window. On Redis failure both guards fail open (allow the request) and log an error.
+
+### Rate limit table
+
+| Endpoint(s) | Guard | Limit | Key |
+| --- | --- | --- | --- |
+| `GET /ping`, `GET /info` | `IpRateLimitGuard` | 60 req/min | IP |
+| `GET /health/simple` | `IpRateLimitGuard` | 30 req/min | IP |
+| `POST /auth/signup` | `IpRateLimitGuard` | 5 req/min | IP |
+| `POST /auth/signin` | `IpRateLimitGuard` | 10 req/min | IP |
+| `POST /auth/verify-otp` | `IpRateLimitGuard` | 5 req/min | IP |
+| `POST /auth/resend-otp` | `IpRateLimitGuard` | 3 req/min | IP |
+| `POST /auth/refresh-token` | `IpRateLimitGuard` | 30 req/min | IP |
+| `POST /auth/reset-password/request` | `IpRateLimitGuard` | 5 req/min | IP |
+| `POST /auth/reset-password/confirm` | `IpRateLimitGuard` | 10 req/min | IP |
+| `GET /auth/github`, `GET /auth/github/callback` | `IpRateLimitGuard` | 20 req/min | IP |
+| `POST /payment/stripe/webhook` | `IpRateLimitGuard` | 60 req/min | IP |
+| `POST /payment/paystack/webhook` | `IpRateLimitGuard` | 60 req/min | IP |
+| `POST /user/email/verify-new/:token` | `IpRateLimitGuard` | 20 req/min | IP |
+| `POST /user/email/confirm-old/:token` | `IpRateLimitGuard` | 20 req/min | IP |
+| `POST /user/email/cancel/:token` | `IpRateLimitGuard` | 20 req/min | IP |
+| All `/user/*` JWT routes | `UserRateLimitGuard` | Plan-based | User ID |
+| All `/billing/*` routes | `UserRateLimitGuard` | Plan-based | User ID |
+| All `/admin/*` routes | `IpRateLimitGuard` | 300 req/min | IP |
+| All `/notifications/*` routes | `CustomerRateLimitGuard` | Plan-based | Customer ID |
+
+### Plan-based limits (req/min)
+
+| Plan | `/user/*` & `/billing/*` | `/notifications/*` |
+| --- | --- | --- |
+| FREE | 5 | 5 |
+| INDIE | 50 | 50 |
+| STARTUP | 200 | 200 |
+
+> **Behind a proxy:** `IpRateLimitGuard` reads `X-Forwarded-For` (first hop) before falling back to `req.ip`. Ensure your proxy sets this header correctly to avoid all traffic being keyed to a single IP.
 
 ---
 
