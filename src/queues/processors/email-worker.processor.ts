@@ -135,12 +135,17 @@ export class EmailWorkerProcessor extends WorkerHost {
         },
       });
 
+      await this.prisma.job.update({
+        where: { id: jobId },
+        data: {
+          attempts: nextAttempt,
+          status: nextAttempt >= 3 ? JobStatus.FAILED : JobStatus.PENDING,
+          errorMessage: nextAttempt >= 3 ? errorMessage : undefined,
+        },
+      });
+
       if (nextAttempt >= 3) {
         await this.queueService.moveToDeadLetterQueue(job.data, errorMessage);
-        await this.prisma.job.update({
-          where: { id: jobId },
-          data: { status: JobStatus.FAILED, errorMessage },
-        });
       }
 
       throw error;
