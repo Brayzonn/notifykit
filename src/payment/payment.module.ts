@@ -11,6 +11,8 @@ import { StripePaymentProvider } from './providers/stripe-payment.provider';
 import { PaystackPaymentProvider } from './providers/paystack-payment.provider';
 import { PaymentProviderFactory } from './providers/payment-provider.factory';
 import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
+import { StripeSignatureGuard } from './guards/stripe-signature.guard';
+import { PaystackSignatureGuard } from './guards/paystack-signature.guard';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
     StripePaymentProvider,
     PaystackPaymentProvider,
     PaymentProviderFactory,
+    StripeSignatureGuard,
+    PaystackSignatureGuard,
   ],
   exports: [PaymentService],
 })

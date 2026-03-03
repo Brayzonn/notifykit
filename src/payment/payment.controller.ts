@@ -20,6 +20,8 @@ import { StripeWebhookHandler } from './webhooks/stripe-webhook.handler';
 import { PaystackWebhookHandler } from './webhooks/paystack-webhook.handler';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
+import { StripeSignatureGuard } from './guards/stripe-signature.guard';
+import { PaystackSignatureGuard } from './guards/paystack-signature.guard';
 
 @Controller('payment')
 export class PaymentController {
@@ -31,7 +33,7 @@ export class PaymentController {
 
   @Public()
   @IpRateLimit(60)
-  @UseGuards(IpRateLimitGuard)
+  @UseGuards(StripeSignatureGuard, IpRateLimitGuard)
   @Post('stripe/webhook')
   @HttpCode(HttpStatus.OK)
   async handleStripeWebhook(
@@ -46,7 +48,7 @@ export class PaymentController {
 
   @Public()
   @IpRateLimit(60)
-  @UseGuards(IpRateLimitGuard)
+  @UseGuards(PaystackSignatureGuard, IpRateLimitGuard)
   @Post('paystack/webhook')
   @HttpCode(HttpStatus.OK)
   async handlePaystackWebhook(
