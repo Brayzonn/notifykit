@@ -27,8 +27,11 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { AuthGuard } from '@nestjs/passport';
 import { GithubProfile } from '@/auth/interfaces/auth.interface';
 import { access } from 'fs';
+import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
+import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 
 @Controller('auth')
+@UseGuards(IpRateLimitGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -36,6 +39,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @IpRateLimit(5)
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
   async signup(@Body() signupDto: SignupDto) {
@@ -44,11 +48,13 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(20)
   @Get('github')
   @UseGuards(AuthGuard('github'))
   async githubAuth() {}
 
   @Public()
+  @IpRateLimit(20)
   @Get('github/callback')
   @UseGuards(AuthGuard('github'))
   async githubAuthCallback(@Req() req: Request, @Res() res: Response) {
@@ -94,6 +100,7 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(10)
   @Post('signin')
   @HttpCode(HttpStatus.OK)
   async signin(
@@ -115,6 +122,7 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(5)
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
   async verifyOtp(
@@ -136,6 +144,7 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(3)
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
   async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
@@ -145,6 +154,7 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(30)
   @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
   async refreshToken(
@@ -171,6 +181,7 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(5)
   @Post('reset-password/request')
   @HttpCode(HttpStatus.OK)
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
@@ -178,6 +189,7 @@ export class AuthController {
   }
 
   @Public()
+  @IpRateLimit(10)
   @Post('reset-password/confirm')
   @HttpCode(HttpStatus.OK)
   async confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
