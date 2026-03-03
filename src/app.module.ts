@@ -16,6 +16,7 @@ import { UserModule } from './user/user.module';
 import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { AdminModule } from './admin/admin.module';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AdminModule } from './admin/admin.module';
     BillingModule,
     PaymentModule,
     AdminModule,
+    RateLimitModule,
   ],
   controllers: [AppController],
   providers: [

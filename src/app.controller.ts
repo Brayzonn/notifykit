@@ -1,7 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { Public } from './auth/decorators/public.decorator';
+import { IpRateLimitGuard } from './auth/guards/ip-rate-limit.guard';
+import { IpRateLimit } from './auth/decorators/ip-rate-limit.decorator';
 
 @Public()
+@IpRateLimit(60)
+@UseGuards(IpRateLimitGuard)
 @Controller('')
 export class AppController {
   @Get('ping')

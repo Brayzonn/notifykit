@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import {
   HealthCheckService,
   HealthCheck,
@@ -10,6 +10,8 @@ import {
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { Public } from '@/auth/decorators/public.decorator';
+import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
+import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 
 @Controller('health')
 export class HealthController {
@@ -57,6 +59,8 @@ export class HealthController {
 
   @Get('simple')
   @Public()
+  @IpRateLimit(30)
+  @UseGuards(IpRateLimitGuard)
   simpleCheck() {
     return {
       status: 'ok',
