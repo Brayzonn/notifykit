@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
@@ -95,7 +95,7 @@ export class SendGridDomainService {
       this.logger.error(
         `SendGrid domain authentication failed: ${error.message}`,
       );
-      throw new Error(
+      throw new BadGatewayException(
         `Failed to authenticate domain: ${error.response?.data?.errors?.[0]?.message || error.message}`,
       );
     }
@@ -129,7 +129,7 @@ export class SendGridDomainService {
       };
     } catch (error) {
       this.logger.error(`SendGrid domain validation failed: ${error.message}`);
-      throw new Error(
+      throw new BadGatewayException(
         `Failed to validate domain: ${error.response?.data?.errors?.[0]?.message || error.message}`,
       );
     }
