@@ -32,7 +32,7 @@ export class PaymentController {
   ) {}
 
   @Public()
-  @IpRateLimit(60)
+  @IpRateLimit(300)
   @UseGuards(StripeSignatureGuard, IpRateLimitGuard)
   @Post('stripe/webhook')
   @HttpCode(HttpStatus.OK)
@@ -47,7 +47,7 @@ export class PaymentController {
   }
 
   @Public()
-  @IpRateLimit(60)
+  @IpRateLimit(300)
   @UseGuards(PaystackSignatureGuard, IpRateLimitGuard)
   @Post('paystack/webhook')
   @HttpCode(HttpStatus.OK)

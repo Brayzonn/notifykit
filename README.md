@@ -384,8 +384,8 @@ All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second windo
 | `POST /auth/reset-password/confirm`             | `IpRateLimitGuard`       | 10 req/min  | IP          |
 | `GET /auth/github`, `GET /auth/github/callback` | `IpRateLimitGuard`       | 20 req/min  | IP          |
 | `POST /auth/logout`                             | `IpRateLimitGuard`       | 20 req/min  | IP          |
-| `POST /payment/stripe/webhook`                  | `IpRateLimitGuard`       | 60 req/min  | IP          |
-| `POST /payment/paystack/webhook`                | `IpRateLimitGuard`       | 60 req/min  | IP          |
+| `POST /payment/stripe/webhook`                  | `IpRateLimitGuard`       | 300 req/min | IP          |
+| `POST /payment/paystack/webhook`                | `IpRateLimitGuard`       | 300 req/min | IP          |
 | `POST /user/email/verify-new/:token`            | `IpRateLimitGuard`       | 20 req/min  | IP          |
 | `POST /user/email/confirm-old/:token`           | `IpRateLimitGuard`       | 20 req/min  | IP          |
 | `POST /user/email/cancel/:token`                | `IpRateLimitGuard`       | 20 req/min  | IP          |
