@@ -54,7 +54,7 @@ export class QueueService {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
+          delay: 120000,
         },
       });
 
@@ -83,7 +83,7 @@ export class QueueService {
         attempts: 3,
         backoff: {
           type: 'exponential',
-          delay: 2000,
+          delay: 120000,
         },
       });
 

@@ -22,9 +22,8 @@ export const RETRY_CONFIG = {
   MAX_ATTEMPTS: 3,
   DELAYS: {
     ATTEMPT_1: 0,
-    ATTEMPT_2: 2000,
-    ATTEMPT_3: 4000,
-    ATTEMPT_4: 8000,
+    ATTEMPT_2: 120000,
+    ATTEMPT_3: 240000,
   },
 } as const;
 
