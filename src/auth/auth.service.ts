@@ -60,6 +60,8 @@ export class AuthService {
       );
     }
 
+    profile.email = profile.email.toLowerCase().trim();
+
     let user = await this.prisma.user.findUnique({
       where: { email: profile.email },
       include: { customer: true },
@@ -123,6 +125,8 @@ export class AuthService {
    * Signup - Store signup dataand send OTP
    */
   async signup(signupDto: SignupDto): Promise<{ email: string }> {
+    signupDto.email = signupDto.email.toLowerCase().trim();
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email: signupDto.email },
     });
@@ -170,6 +174,8 @@ export class AuthService {
    * Signin - Authenticate user
    */
   async signin(signinDto: SigninDto): Promise<AuthResponse> {
+    signinDto.email = signinDto.email.toLowerCase().trim();
+
     const user = await this.prisma.user.findUnique({
       where: { email: signinDto.email },
     });
@@ -209,6 +215,8 @@ export class AuthService {
    * Request password reset - Generate OTP and send email
    */
   async requestPasswordReset(email: string): Promise<{ message: string }> {
+    email = email.toLowerCase().trim();
+
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user || !user.emailVerified || user.deletedAt) {
@@ -247,6 +255,8 @@ export class AuthService {
     otp: string,
     newPassword: string,
   ): Promise<{ message: string }> {
+    email = email.toLowerCase().trim();
+
     const storedOtp = await this.redis.get(`reset-password:${email}`);
 
     if (!storedOtp || storedOtp !== otp) {
@@ -280,6 +290,8 @@ export class AuthService {
    * Verify OTP - Create user and complete signup process
    */
   async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<AuthResponse> {
+    verifyOtpDto.email = verifyOtpDto.email.toLowerCase().trim();
+
     const storedOtp = await this.redis.get(`otp:${verifyOtpDto.email}`);
 
     if (!storedOtp) {
@@ -359,6 +371,8 @@ export class AuthService {
    * Resend OTP
    */
   async resendOtp(resendOtpDto: ResendOtpDto): Promise<{ expiresIn: number }> {
+    resendOtpDto.email = resendOtpDto.email.toLowerCase().trim();
+
     const signupDataStr = await this.redis.get(`signup:${resendOtpDto.email}`);
 
     if (!signupDataStr) {
