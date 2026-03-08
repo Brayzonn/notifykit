@@ -70,12 +70,17 @@ export class NotificationsService {
     this.featureGate.assertCanSendEmail(customer);
     this.featureGate.assertCanSendEmailFromDomain(customer);
 
+    const priority =
+      customer.plan === CustomerPlan.FREE
+        ? QUEUE_PRIORITIES.LOW
+        : dto.priority || QUEUE_PRIORITIES.NORMAL;
+
     const job = await this.prisma.job.create({
       data: {
         customerId,
         type: JobType.EMAIL,
         status: JobStatus.PENDING,
-        priority: dto.priority || QUEUE_PRIORITIES.NORMAL,
+        priority,
         payload: {
           to: dto.to,
           subject: dto.subject,
@@ -97,7 +102,7 @@ export class NotificationsService {
         body: dto.body,
         from: dto.from,
       },
-      dto.priority || QUEUE_PRIORITIES.NORMAL,
+      priority,
     );
 
     this.logger.log(`Email job created and queued: ${job.id}`);
@@ -136,12 +141,22 @@ export class NotificationsService {
       }
     }
 
+    const webhookCustomer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { plan: true },
+    });
+
+    const webhookPriority =
+      webhookCustomer?.plan === CustomerPlan.FREE
+        ? QUEUE_PRIORITIES.LOW
+        : dto.priority || QUEUE_PRIORITIES.NORMAL;
+
     const job = await this.prisma.job.create({
       data: {
         customerId,
         type: JobType.WEBHOOK,
         status: JobStatus.PENDING,
-        priority: dto.priority || QUEUE_PRIORITIES.NORMAL,
+        priority: webhookPriority,
         payload: {
           url: dto.url,
           method: dto.method || 'POST',
@@ -163,7 +178,7 @@ export class NotificationsService {
         headers: dto.headers,
         payload: dto.payload,
       },
-      dto.priority || QUEUE_PRIORITIES.NORMAL,
+      webhookPriority,
     );
 
     this.logger.log(`Webhook job created and queued: ${job.id}`);
