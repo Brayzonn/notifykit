@@ -9,7 +9,6 @@ import {
 } from '@nestjs/terminus';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
-import { Public } from '@/auth/decorators/public.decorator';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 
@@ -60,7 +59,6 @@ export class HealthController {
   }
 
   @Get('simple')
-  @Public()
   @IpRateLimit(30)
   @UseGuards(IpRateLimitGuard)
   simpleCheck() {
