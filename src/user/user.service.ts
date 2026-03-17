@@ -36,6 +36,7 @@ import {
   ApiKeyResponse,
   RegenerateApiKeyResponse,
   Job,
+  JobDetailsResponse,
   JobsHistoryResponse,
 } from './interfaces/user.interface';
 import { SendGridDomainService } from '@/sendgrid/sendgrid-domain.service';
@@ -690,6 +691,105 @@ export class UserService {
     return { message: 'SendGrid API key removed successfully' };
   }
 
+  /**
+   * ================================
+   * SENDGRID WEBHOOK KEY MANAGEMENT
+   * ================================
+   */
+
+  async saveSendgridWebhookKey(
+    userId: string,
+    webhookKey: string,
+  ): Promise<{ message: string; webhookUrl: string }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      throw new BadRequestException(
+        'SendGrid webhook key is only available for paid plans',
+      );
+    }
+
+    await this.prisma.customer.update({
+      where: { userId },
+      data: {
+        sendgridWebhookKey: webhookKey,
+        sendgridWebhookKeyAddedAt: new Date(),
+      },
+    });
+
+    const webhookUrl = this.buildWebhookUrl(customer.id);
+
+    return {
+      message: 'SendGrid webhook verification key saved successfully',
+      webhookUrl,
+    };
+  }
+
+  async getSendgridWebhookKey(userId: string): Promise<{
+    hasKey: boolean;
+    addedAt: Date | null;
+    webhookUrl: string | null;
+  }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        plan: true,
+        sendgridWebhookKey: true,
+        sendgridWebhookKeyAddedAt: true,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      return { hasKey: false, addedAt: null, webhookUrl: null };
+    }
+
+    return {
+      hasKey: !!customer.sendgridWebhookKey,
+      addedAt: customer.sendgridWebhookKeyAddedAt,
+      webhookUrl: this.buildWebhookUrl(customer.id),
+    };
+  }
+
+  async removeSendgridWebhookKey(userId: string): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    await this.prisma.customer.update({
+      where: { userId },
+      data: {
+        sendgridWebhookKey: null,
+        sendgridWebhookKeyAddedAt: null,
+      },
+    });
+
+    return { message: 'SendGrid webhook verification key removed successfully' };
+  }
+
+  private buildWebhookUrl(customerId: string): string {
+    const baseUrl = this.configService.get<string>(
+      'BACKEND_URL',
+      'https://api.notifykit.dev',
+    );
+    return `${baseUrl}/api/v1/webhooks/sendgrid/${customerId}`;
+  }
+
   private async validateCustomerSendgridKey(apiKey: string): Promise<boolean> {
     try {
       const response = await axios.get('https://api.sendgrid.com/v3/scopes', {
@@ -790,6 +890,14 @@ export class UserService {
             orderBy: { createdAt: 'desc' },
             take: 1,
           },
+          emailEvents: {
+            orderBy: { occurredAt: 'desc' },
+            take: 1,
+            select: {
+              event: true,
+              occurredAt: true,
+            },
+          },
         },
       }),
       this.prisma.job.count({ where }),
@@ -809,7 +917,7 @@ export class UserService {
   /**
    * Get single job details
    */
-  async getJobDetails(userId: string, jobId: string): Promise<Job> {
+  async getJobDetails(userId: string, jobId: string): Promise<JobDetailsResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: { id: true },
@@ -827,6 +935,16 @@ export class UserService {
       include: {
         deliveryLogs: {
           orderBy: { createdAt: 'desc' },
+        },
+        emailEvents: {
+          orderBy: { occurredAt: 'desc' },
+          select: {
+            id: true,
+            event: true,
+            email: true,
+            occurredAt: true,
+            metadata: true,
+          },
         },
       },
     });
@@ -897,14 +1015,13 @@ export class UserService {
     const existingDomain = await this.prisma.customer.findFirst({
       where: {
         sendingDomain: domain,
-        domainVerified: true,
         userId: { not: userId },
       },
     });
 
     if (existingDomain) {
       throw new BadRequestException(
-        'This domain is already verified by another customer',
+        'This domain is already registered by another customer',
       );
     }
 

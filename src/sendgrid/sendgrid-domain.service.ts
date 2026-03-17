@@ -38,8 +38,33 @@ export class SendGridDomainService {
     this.apiKey = this.configService.get<string>('SENDGRID_API_KEY') || '';
   }
 
+  private extractDnsRecords(
+    data: DomainAuthenticationResponse,
+  ): Array<{ type: string; host: string; value: string }> {
+    return [
+      {
+        type: data.dns.mail_cname.type,
+        host: data.dns.mail_cname.host,
+        value: data.dns.mail_cname.data,
+      },
+      {
+        type: data.dns.dkim1.type,
+        host: data.dns.dkim1.host,
+        value: data.dns.dkim1.data,
+      },
+      {
+        type: data.dns.dkim2.type,
+        host: data.dns.dkim2.host,
+        value: data.dns.dkim2.data,
+      },
+    ];
+  }
+
   /**
-   * Authenticate a domain in SendGrid
+   * Authenticate a domain in SendGrid.
+   * If the domain + subdomain already exists in SendGrid (e.g. from a
+   * previous attempt that failed before saving to DB), fetch the existing
+   * record and return it instead of erroring.
    */
   async authenticateDomain(domain: string): Promise<{
     domainId: number;
@@ -64,39 +89,74 @@ export class SendGridDomainService {
         },
       );
 
-      const data = response.data;
-
-      const dnsRecords = [
-        {
-          type: data.dns.mail_cname.type,
-          host: data.dns.mail_cname.host,
-          value: data.dns.mail_cname.data,
-        },
-        {
-          type: data.dns.dkim1.type,
-          host: data.dns.dkim1.host,
-          value: data.dns.dkim1.data,
-        },
-        {
-          type: data.dns.dkim2.type,
-          host: data.dns.dkim2.host,
-          value: data.dns.dkim2.data,
-        },
-      ];
-
       this.logger.log(`Domain authentication initiated for: ${domain}`);
 
       return {
-        domainId: data.id,
-        dnsRecords,
-        valid: data.valid,
+        domainId: response.data.id,
+        dnsRecords: this.extractDnsRecords(response.data),
+        valid: response.data.valid,
       };
     } catch (error) {
+      const sgMessage: string =
+        error.response?.data?.errors?.[0]?.message || '';
+
+      if (
+        error.response?.status === 400 &&
+        sgMessage.toLowerCase().includes('already exists')
+      ) {
+        this.logger.warn(
+          `Domain em.${domain} already exists in SendGrid — fetching existing record`,
+        );
+        return this.findExistingDomain(domain);
+      }
+
       this.logger.error(
         `SendGrid domain authentication failed: ${error.message}`,
       );
       throw new BadGatewayException(
-        `Failed to authenticate domain: ${error.response?.data?.errors?.[0]?.message || error.message}`,
+        `Failed to authenticate domain: ${sgMessage || error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Look up an existing authenticated domain in SendGrid by domain name.
+   */
+  private async findExistingDomain(domain: string): Promise<{
+    domainId: number;
+    dnsRecords: Array<{ type: string; host: string; value: string }>;
+    valid: boolean;
+  }> {
+    try {
+      const response = await axios.get<DomainAuthenticationResponse[]>(
+        `${this.baseUrl}/whitelabel/domains`,
+        {
+          params: { domain },
+          headers: { Authorization: `Bearer ${this.apiKey}` },
+        },
+      );
+
+      const existing = response.data.find(
+        (d) => d.domain === domain && d.subdomain === 'em',
+      );
+
+      if (!existing) {
+        throw new BadGatewayException(
+          `Domain em.${domain} exists in SendGrid but could not be retrieved`,
+        );
+      }
+
+      this.logger.log(`Retrieved existing SendGrid domain record for: ${domain}`);
+
+      return {
+        domainId: existing.id,
+        dnsRecords: this.extractDnsRecords(existing),
+        valid: existing.valid,
+      };
+    } catch (error) {
+      if (error instanceof BadGatewayException) throw error;
+      throw new BadGatewayException(
+        `Failed to retrieve existing domain: ${error.message}`,
       );
     }
   }
