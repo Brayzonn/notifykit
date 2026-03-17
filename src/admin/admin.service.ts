@@ -443,6 +443,74 @@ export class AdminService {
 
   /**
    * ================================
+   * DOMAIN MANAGEMENT
+   * ================================
+   */
+
+  async getDomains(query: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    verified?: boolean;
+  }) {
+    const { page = 1, limit = 20, search, verified } = query;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      sendingDomain: { not: null },
+    };
+
+    if (search) {
+      where.OR = [
+        { sendingDomain: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (verified !== undefined) {
+      where.domainVerified = verified;
+    }
+
+    const [domains, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { domainRequestedAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          plan: true,
+          sendingDomain: true,
+          domainVerified: true,
+          sendgridDomainId: true,
+          domainRequestedAt: true,
+          domainVerifiedAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      this.prisma.customer.count({ where }),
+    ]);
+
+    return {
+      data: domains,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * ================================
    * STATISTICS
    * ================================
    */

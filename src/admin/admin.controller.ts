@@ -177,6 +177,32 @@ export class AdminController {
 
   /**
    * ================================
+   * DOMAIN MANAGEMENT ENDPOINTS
+   * ================================
+   */
+
+  @Get('domains')
+  @ApiOperation({ summary: 'Get all customers with registered sending domains' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated list of customers with domains',
+  })
+  async getDomains(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+    @Query('verified') verified?: string,
+  ) {
+    return await this.adminService.getDomains({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      search,
+      verified: verified !== undefined ? verified === 'true' : undefined,
+    });
+  }
+
+  /**
+   * ================================
    * STATISTICS ENDPOINTS
    * ================================
    */
