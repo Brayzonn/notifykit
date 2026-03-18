@@ -680,11 +680,29 @@ export class UserService {
       throw new NotFoundException('Customer not found');
     }
 
+    if (customer.sendgridDomainId && customer.sendgridApiKey) {
+      const decryptedKey = this.encryptionService.decrypt(customer.sendgridApiKey);
+      try {
+        await this.sendGridDomainService.deleteDomain(
+          parseInt(customer.sendgridDomainId),
+          decryptedKey,
+        );
+      } catch (error) {
+        this.logger.warn(`Failed to delete domain from SendGrid during key removal: ${error.message}`);
+      }
+    }
+
     await this.prisma.customer.update({
       where: { userId },
       data: {
         sendgridApiKey: null,
         sendgridKeyAddedAt: null,
+        sendingDomain: null,
+        domainVerified: false,
+        sendgridDomainId: null,
+        domainDnsRecords: Prisma.JsonNull,
+        domainRequestedAt: null,
+        domainVerifiedAt: null,
       },
     });
 
