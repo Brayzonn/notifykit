@@ -992,6 +992,7 @@ export class UserService {
       select: {
         plan: true,
         sendgridDomainId: true,
+        sendgridApiKey: true,
       },
     });
 
@@ -1002,6 +1003,12 @@ export class UserService {
     if (customer.plan === CustomerPlan.FREE) {
       throw new BadRequestException(
         'Custom domain is only available for paid plans (Indie, Startup)',
+      );
+    }
+
+    if (!customer.sendgridApiKey) {
+      throw new BadRequestException(
+        'Please add your SendGrid API key before setting up a custom domain.',
       );
     }
 
@@ -1025,10 +1032,13 @@ export class UserService {
       );
     }
 
+    const decryptedKey = this.encryptionService.decrypt(customer.sendgridApiKey);
+
     if (customer.sendgridDomainId) {
       try {
         await this.sendGridDomainService.deleteDomain(
           parseInt(customer.sendgridDomainId),
+          decryptedKey,
         );
       } catch (error) {
         this.logger.warn(`Failed to delete old domain: ${error.message}`);
@@ -1036,7 +1046,7 @@ export class UserService {
     }
 
     const { domainId, dnsRecords, valid } =
-      await this.sendGridDomainService.authenticateDomain(domain);
+      await this.sendGridDomainService.authenticateDomain(domain, decryptedKey);
 
     await this.prisma.customer.update({
       where: { userId },
@@ -1088,6 +1098,7 @@ export class UserService {
         sendingDomain: true,
         domainVerified: true,
         sendgridDomainId: true,
+        sendgridApiKey: true,
       },
     });
 
@@ -1101,9 +1112,14 @@ export class UserService {
       );
     }
 
+    const decryptedKey = customer.sendgridApiKey
+      ? this.encryptionService.decrypt(customer.sendgridApiKey)
+      : undefined;
+
     const { valid, validationResults } =
       await this.sendGridDomainService.validateDomain(
         parseInt(customer.sendgridDomainId),
+        decryptedKey,
       );
 
     if (valid && !customer.domainVerified) {
@@ -1179,9 +1195,13 @@ export class UserService {
     }
 
     if (customer.sendgridDomainId) {
+      const decryptedKey = customer.sendgridApiKey
+        ? this.encryptionService.decrypt(customer.sendgridApiKey)
+        : undefined;
       try {
         await this.sendGridDomainService.deleteDomain(
           parseInt(customer.sendgridDomainId),
+          decryptedKey,
         );
       } catch (error) {
         this.logger.warn(

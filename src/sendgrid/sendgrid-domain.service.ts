@@ -38,6 +38,10 @@ export class SendGridDomainService {
     this.apiKey = this.configService.get<string>('SENDGRID_API_KEY') || '';
   }
 
+  private resolveKey(override?: string): string {
+    return override || this.apiKey;
+  }
+
   private extractDnsRecords(
     data: DomainAuthenticationResponse,
   ): Array<{ type: string; host: string; value: string }> {
@@ -66,7 +70,7 @@ export class SendGridDomainService {
    * previous attempt that failed before saving to DB), fetch the existing
    * record and return it instead of erroring.
    */
-  async authenticateDomain(domain: string): Promise<{
+  async authenticateDomain(domain: string, apiKey?: string): Promise<{
     domainId: number;
     dnsRecords: Array<{ type: string; host: string; value: string }>;
     valid: boolean;
@@ -83,7 +87,7 @@ export class SendGridDomainService {
         },
         {
           headers: {
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${this.resolveKey(apiKey)}`,
             'Content-Type': 'application/json',
           },
         },
@@ -107,7 +111,7 @@ export class SendGridDomainService {
         this.logger.warn(
           `Domain em.${domain} already exists in SendGrid — fetching existing record`,
         );
-        return this.findExistingDomain(domain);
+        return this.findExistingDomain(domain, apiKey);
       }
 
       this.logger.error(
@@ -122,7 +126,7 @@ export class SendGridDomainService {
   /**
    * Look up an existing authenticated domain in SendGrid by domain name.
    */
-  private async findExistingDomain(domain: string): Promise<{
+  private async findExistingDomain(domain: string, apiKey?: string): Promise<{
     domainId: number;
     dnsRecords: Array<{ type: string; host: string; value: string }>;
     valid: boolean;
@@ -132,7 +136,7 @@ export class SendGridDomainService {
         `${this.baseUrl}/whitelabel/domains`,
         {
           params: { domain },
-          headers: { Authorization: `Bearer ${this.apiKey}` },
+          headers: { Authorization: `Bearer ${this.resolveKey(apiKey)}` },
         },
       );
 
@@ -164,7 +168,7 @@ export class SendGridDomainService {
   /**
    * Validate domain DNS records
    */
-  async validateDomain(domainId: number): Promise<{
+  async validateDomain(domainId: number, apiKey?: string): Promise<{
     valid: boolean;
     validationResults: any;
   }> {
@@ -174,7 +178,7 @@ export class SendGridDomainService {
         {},
         {
           headers: {
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${this.resolveKey(apiKey)}`,
           },
         },
       );
@@ -219,11 +223,11 @@ export class SendGridDomainService {
   /**
    * Delete domain authentication
    */
-  async deleteDomain(domainId: number) {
+  async deleteDomain(domainId: number, apiKey?: string) {
     try {
       await axios.delete(`${this.baseUrl}/whitelabel/domains/${domainId}`, {
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.resolveKey(apiKey)}`,
         },
       });
 
