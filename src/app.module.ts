@@ -17,6 +17,7 @@ import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { AdminModule } from './admin/admin.module';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
+import { SendgridEventsModule } from './sendgrid-events/sendgrid-events.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RateLimitModule } from './common/rate-limit/rate-limit.module';
     PaymentModule,
     AdminModule,
     RateLimitModule,
+    SendgridEventsModule,
   ],
   controllers: [AppController],
   providers: [
