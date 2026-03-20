@@ -79,7 +79,7 @@ export class EmailWorkerProcessor extends WorkerHost {
         : undefined;
 
       const response = await this.sendGridService.sendEmail(
-        { to, subject, body, from: fromAddress },
+        { to, subject, body, from: fromAddress, jobId },
         decryptedKey,
         customer.plan,
       );

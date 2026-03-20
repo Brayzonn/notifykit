@@ -8,6 +8,7 @@ export interface SendEmailParams {
   subject: string;
   body: string;
   from?: string;
+  jobId?: string;
 }
 
 @Injectable()
@@ -27,7 +28,7 @@ export class SendGridService {
     apiKey?: string,
     plan?: CustomerPlan,
   ): Promise<any> {
-    const { to, subject, body, from } = params;
+    const { to, subject, body, from, jobId } = params;
 
     const isPaidPlan = plan && plan !== CustomerPlan.FREE;
     if (isPaidPlan && !apiKey) {
@@ -50,6 +51,7 @@ export class SendGridService {
           from: { email: from || this.defaultFromEmail },
           subject,
           content: [{ type: 'text/html', value: body }],
+          ...(jobId ? { custom_args: { job_id: jobId } } : {}),
         },
         {
           headers: {
