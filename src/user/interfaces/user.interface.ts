@@ -5,6 +5,7 @@
 import {
   CustomerPlan,
   DeliveryStatus,
+  EmailEventType,
   JobStatus,
   JobType,
 } from '@prisma/client';
@@ -171,8 +172,17 @@ export interface JobsHistoryResponse {
  * JOB DETAILS (SINGLE JOB)
  * ===================================================== */
 
+export interface JobEmailEvent {
+  id: string;
+  event: EmailEventType;
+  email: string;
+  occurredAt: Date;
+  metadata: any;
+}
+
 export interface JobDetailsResponse extends Job {
   deliveryLogs: JobDeliveryLog[];
+  emailEvents: JobEmailEvent[];
 }
 
 /* =====================================================

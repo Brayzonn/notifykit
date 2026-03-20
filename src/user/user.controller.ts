@@ -192,6 +192,35 @@ export class UserController {
 
   /**
    * ================================
+   * SENDGRID WEBHOOK KEY MANAGEMENT
+   * ================================
+   */
+
+  @Post('sendgrid-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async saveSendgridWebhookKey(
+    @User() user: AuthenticatedUser,
+    @Body('webhookKey') webhookKey: string,
+  ) {
+    if (!webhookKey) {
+      throw new BadRequestException('webhookKey is required');
+    }
+    return await this.userService.saveSendgridWebhookKey(user.id, webhookKey);
+  }
+
+  @Get('sendgrid-webhook-key')
+  async getSendgridWebhookKey(@User() user: AuthenticatedUser) {
+    return await this.userService.getSendgridWebhookKey(user.id);
+  }
+
+  @Delete('sendgrid-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async removeSendgridWebhookKey(@User() user: AuthenticatedUser) {
+    return await this.userService.removeSendgridWebhookKey(user.id);
+  }
+
+  /**
+   * ================================
    * USAGE
    * ================================
    */
