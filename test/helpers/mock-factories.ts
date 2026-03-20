@@ -59,6 +59,8 @@ export const createMockCustomer = (
     apiKeyLastFour: 'abcd',
     sendgridApiKey: null,
     sendgridKeyAddedAt: null,
+    sendgridWebhookKey: null,
+    sendgridWebhookKeyAddedAt: null,
     plan: CustomerPlan.FREE,
     monthlyLimit: 1000,
     usageCount: 0,
@@ -97,6 +99,7 @@ export const createMockRefreshToken = (
   id: 'token-123',
   userId,
   token: 'mock.refresh.token',
+  familyId: 'family-123',
   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
   createdAt: new Date(),
   ...overrides,
