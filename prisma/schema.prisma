@@ -62,6 +62,16 @@ enum DeliveryStatus {
   FAILED
 }
 
+enum EmailEventType {
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  SPAM_REPORT
+  UNSUBSCRIBED
+  DEFERRED
+}
+
 // ============================================
 // USER MODEL 
 // ============================================
@@ -139,6 +149,9 @@ model Customer {
   sendgridApiKey         String?   @map("sendgrid_api_key")
   sendgridKeyAddedAt     DateTime? @map("sendgrid_key_added_at")
 
+  sendgridWebhookKey        String?   @map("sendgrid_webhook_key")
+  sendgridWebhookKeyAddedAt DateTime? @map("sendgrid_webhook_key_added_at")
+
   previousPlan CustomerPlan? @map("previous_plan")
   downgradedAt DateTime?     @map("downgraded_at")
 
@@ -182,6 +195,7 @@ model Job {
 
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   deliveryLogs DeliveryLog[]
+  emailEvents  EmailEvent[]
 
   @@unique([customerId, idempotencyKey])
   @@index([customerId])
@@ -209,4 +223,26 @@ model DeliveryLog {
   @@index([jobId])
   @@index([createdAt(sort: Desc)])
   @@map("delivery_logs")
+}
+
+// ============================================
+// EMAIL EVENT MODEL (SendGrid event tracking)
+// ============================================
+
+model EmailEvent {
+  id         String         @id @default(uuid()) @db.Uuid
+  jobId      String         @map("job_id") @db.Uuid
+  event      EmailEventType
+  email      String
+  sgEventId  String?        @unique @map("sg_event_id")
+  metadata   Json?
+  occurredAt DateTime       @map("occurred_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([event])
+  @@index([occurredAt(sort: Desc)])
+  @@map("email_events")
 }
