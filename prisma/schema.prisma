@@ -183,7 +183,7 @@ model Job {
   type           JobType
   status         JobStatus @default(PENDING)
   priority       Int       @default(5)
-  payload        Json
+  payload        Json?
   attempts       Int       @default(0)
   maxAttempts    Int       @default(3) @map("max_attempts")
   errorMessage   String?   @map("error_message")

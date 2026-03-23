@@ -2,7 +2,7 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DeliveryStatus, JobStatus } from '@prisma/client';
+import { DeliveryStatus, JobStatus, Prisma } from '@prisma/client';
 import { QUEUE_NAMES } from '@/queues/queue.constants';
 import { EmailJobData, QueueService } from '@/queues/queue.service';
 import { SendGridService } from '@/sendgrid/sendgrid.service';
@@ -86,7 +86,7 @@ export class EmailWorkerProcessor extends WorkerHost {
 
       await this.prisma.job.update({
         where: { id: jobId },
-        data: { status: JobStatus.COMPLETED, completedAt: new Date() },
+        data: { status: JobStatus.COMPLETED, completedAt: new Date(), payload: Prisma.DbNull },
       });
 
       await this.prisma.deliveryLog.create({

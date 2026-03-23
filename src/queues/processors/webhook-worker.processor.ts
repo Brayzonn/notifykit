@@ -1,7 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { JobStatus, DeliveryStatus } from '@prisma/client';
+import { JobStatus, DeliveryStatus, Prisma } from '@prisma/client';
 import { QUEUE_NAMES } from '../queue.constants';
 import { WebhookJobData, QueueService } from '../queue.service';
 import { HttpService } from '@nestjs/axios';
@@ -66,6 +66,7 @@ export class WebhookWorkerProcessor extends WorkerHost {
         data: {
           status: JobStatus.COMPLETED,
           completedAt: new Date(),
+          payload: Prisma.DbNull,
         },
       });
 
