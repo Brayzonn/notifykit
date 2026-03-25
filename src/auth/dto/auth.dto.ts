@@ -53,11 +53,13 @@ export class SignupDto {
   @ApiProperty({ example: 'John Doe', minLength: 2 })
   @IsString()
   @MinLength(2)
+  @Matches(/^[\p{L}\p{N}\p{P}\p{Z}]+$/u, { message: 'name must not contain emojis or special symbols' })
   name: string;
 
   @ApiProperty({ example: 'Acme Corp', required: false })
   @IsOptional()
   @IsString()
+  @Matches(/^[\p{L}\p{N}\p{P}\p{Z}]+$/u, { message: 'company must not contain emojis or special symbols' })
   company?: string;
 }
 
