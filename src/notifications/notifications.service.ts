@@ -58,16 +58,16 @@ export class NotificationsService {
       where: { id: customerId },
       select: {
         plan: true,
-        sendgridApiKey: true,
         sendingDomain: true,
         domainVerified: true,
+        _count: { select: { emailProviders: true } },
       },
     });
 
     if (!customer) {
       throw new Error(`Customer not found: ${customerId}`);
     }
-    this.featureGate.assertCanSendEmail(customer);
+    this.featureGate.assertCanSendEmail({ ...customer, emailProviderCount: customer._count.emailProviders });
     this.featureGate.assertCanSendEmailFromDomain(customer);
 
     const priority =
@@ -311,9 +311,9 @@ export class NotificationsService {
         where: { id: customerId },
         select: {
           plan: true,
-          sendgridApiKey: true,
           sendingDomain: true,
           domainVerified: true,
+          _count: { select: { emailProviders: true } },
         },
       });
 
@@ -321,7 +321,8 @@ export class NotificationsService {
         throw new Error(`Customer not found: ${customerId}`);
       }
 
-      this.featureGate.assertCanSendEmail(customer);
+      this.featureGate.assertCanSendEmail({ ...customer, emailProviderCount: customer._count.emailProviders });
+      this.featureGate.assertCanSendEmailFromDomain(customer);
     }
 
     await this.prisma.job.update({

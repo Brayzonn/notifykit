@@ -1,11 +1,11 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { Logger } from '@nestjs/common';
+import { Job, UnrecoverableError } from 'bullmq';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DeliveryStatus, JobStatus, Prisma } from '@prisma/client';
+import { CustomerPlan, DeliveryStatus, JobStatus, Prisma } from '@prisma/client';
 import { QUEUE_NAMES } from '@/queues/queue.constants';
 import { EmailJobData, QueueService } from '@/queues/queue.service';
-import { SendGridService } from '@/sendgrid/sendgrid.service';
+import { EmailProviderFactory, ProviderConfig } from '@/email-providers/email-provider.factory';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
@@ -16,7 +16,7 @@ export class EmailWorkerProcessor extends WorkerHost {
   private readonly defaultFromEmail: string;
 
   constructor(
-    private readonly sendGridService: SendGridService,
+    private readonly emailProviderFactory: EmailProviderFactory,
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
     private readonly configService: ConfigService,
@@ -49,12 +49,24 @@ export class EmailWorkerProcessor extends WorkerHost {
           sendingDomain: true,
           domainVerified: true,
           plan: true,
-          sendgridApiKey: true,
+          emailProviders: {
+            orderBy: { priority: 'asc' },
+            select: { provider: true, apiKey: true, priority: true },
+          },
         },
       });
 
       if (!customer) {
-        throw new Error(`Customer not found: ${customerId}`);
+        throw new UnrecoverableError(`Customer not found: ${customerId}`);
+      }
+
+      if (
+        customer.plan !== CustomerPlan.FREE &&
+        customer.emailProviders.length === 0
+      ) {
+        throw new UnrecoverableError(
+          'No email provider configured. Please add an API key in Settings.',
+        );
       }
 
       this.featureGate.assertCanSendEmailFromDomain(customer);
@@ -74,15 +86,39 @@ export class EmailWorkerProcessor extends WorkerHost {
         },
       });
 
-      const decryptedKey = customer.sendgridApiKey
-        ? this.encryptionService.decrypt(customer.sendgridApiKey)
-        : undefined;
-
-      const response = await this.sendGridService.sendEmail(
-        { to, subject, body, from: fromAddress, jobId },
-        decryptedKey,
-        customer.plan,
+      const decryptedProviders: ProviderConfig[] = customer.emailProviders.map(
+        (p) => ({
+          provider: p.provider,
+          apiKey: this.encryptionService.decrypt(p.apiKey),
+          priority: p.priority,
+        }),
       );
+
+      const resolvedProviders = this.emailProviderFactory.resolveAll(
+        customer.plan,
+        decryptedProviders,
+      );
+
+      let response: any;
+      let lastError: Error | undefined;
+
+      for (const { provider, apiKey } of resolvedProviders) {
+        try {
+          response = await provider.sendEmail(
+            { to, subject, body, from: fromAddress, jobId },
+            apiKey,
+          );
+          lastError = undefined;
+          break;
+        } catch (err) {
+          this.logger.warn(
+            `Provider failed for job ${jobId}, trying next: ${err.message}`,
+          );
+          lastError = err;
+        }
+      }
+
+      if (lastError) throw lastError;
 
       await this.prisma.job.update({
         where: { id: jobId },
@@ -101,6 +137,22 @@ export class EmailWorkerProcessor extends WorkerHost {
       this.logger.log(`Email sent successfully from ${fromAddress}: ${jobId}`);
       return { success: true };
     } catch (error) {
+      if (error instanceof UnrecoverableError) {
+        this.logger.error(`Email job permanently failed: ${jobId} - ${error.message}`);
+        await this.prisma.job.update({
+          where: { id: jobId },
+          data: { status: JobStatus.FAILED, errorMessage: error.message, attempts: nextAttempt },
+        });
+        await this.prisma.deliveryLog.create({
+          data: { jobId, attempt: nextAttempt, status: DeliveryStatus.FAILED, errorMessage: error.message },
+        });
+        throw error;
+      }
+
+      if (error instanceof ForbiddenException) {
+        throw new UnrecoverableError(error.message);
+      }
+
       this.logger.error(`Email job failed: ${jobId} - ${error.message}`);
 
       let errorMessage = error.message;
@@ -108,7 +160,6 @@ export class EmailWorkerProcessor extends WorkerHost {
         const status = error.response.status;
         const data = error.response.data;
 
-        // Check for nested error message structures
         if (
           data?.errors &&
           Array.isArray(data.errors) &&
@@ -166,7 +217,7 @@ export class EmailWorkerProcessor extends WorkerHost {
 
     if (fromDomain === 'notifykit.dev') {
       if (requestedFrom !== this.defaultFromEmail) {
-        throw new Error(
+        throw new UnrecoverableError(
           `Cannot send from ${requestedFrom}. Only ${this.defaultFromEmail} is allowed.`,
         );
       }
@@ -174,7 +225,7 @@ export class EmailWorkerProcessor extends WorkerHost {
     }
 
     if (!customer.sendingDomain) {
-      throw new Error(
+      throw new UnrecoverableError(
         `Custom from address is not allowed. Upgrade your plan to use a custom domain.`,
       );
     }
@@ -184,7 +235,7 @@ export class EmailWorkerProcessor extends WorkerHost {
         fromDomain === `em.${customer.sendingDomain}`) &&
       !customer.domainVerified
     ) {
-      throw new Error(
+      throw new UnrecoverableError(
         `Cannot send from ${requestedFrom}. Domain ${customer.sendingDomain} is not verified.`,
       );
     }
@@ -200,7 +251,7 @@ export class EmailWorkerProcessor extends WorkerHost {
       return requestedFrom;
     }
 
-    throw new Error(
+    throw new UnrecoverableError(
       `Cannot send from ${requestedFrom}. Use your verified domain ${customer.sendingDomain} instead.`,
     );
   }
