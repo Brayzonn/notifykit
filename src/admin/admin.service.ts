@@ -456,46 +456,49 @@ export class AdminService {
     const { page = 1, limit = 20, search, verified } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      sendingDomain: { not: null },
-    };
+    const where: any = {};
 
     if (search) {
       where.OR = [
-        { sendingDomain: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
+        { domain: { contains: search, mode: 'insensitive' } },
+        { customer: { email: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
     if (verified !== undefined) {
-      where.domainVerified = verified;
+      where.verified = verified;
     }
 
     const [domains, total] = await Promise.all([
-      this.prisma.customer.findMany({
+      this.prisma.customerSendingDomain.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { domainRequestedAt: 'desc' },
+        orderBy: { requestedAt: 'desc' },
         select: {
           id: true,
-          email: true,
-          plan: true,
-          sendingDomain: true,
-          domainVerified: true,
-          sendgridDomainId: true,
-          domainRequestedAt: true,
-          domainVerifiedAt: true,
-          user: {
+          domain: true,
+          provider: true,
+          verified: true,
+          requestedAt: true,
+          verifiedAt: true,
+          customer: {
             select: {
               id: true,
-              name: true,
               email: true,
+              plan: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
             },
           },
         },
       }),
-      this.prisma.customer.count({ where }),
+      this.prisma.customerSendingDomain.count({ where }),
     ]);
 
     return {
