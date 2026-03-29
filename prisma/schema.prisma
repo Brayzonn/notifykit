@@ -29,6 +29,11 @@ enum CustomerPlan {
   STARTUP
 }
 
+enum EmailProviderType {
+  SENDGRID
+  RESEND
+}
+
 enum PaymentProvider {
   STRIPE
   PADDLE
@@ -146,24 +151,13 @@ model Customer {
   nextBillingDate        DateTime?           @map("next_billing_date")
   paymentMetadata        Json?               @map("payment_metadata")
 
-  sendgridApiKey         String?   @map("sendgrid_api_key")
-  sendgridKeyAddedAt     DateTime? @map("sendgrid_key_added_at")
-
-  sendgridWebhookKey        String?   @map("sendgrid_webhook_key")
-  sendgridWebhookKeyAddedAt DateTime? @map("sendgrid_webhook_key_added_at")
-
   previousPlan CustomerPlan? @map("previous_plan")
   downgradedAt DateTime?     @map("downgraded_at")
 
-  sendingDomain     String?   @map("sending_domain")
-  domainVerified    Boolean   @default(false) @map("domain_verified")
-  sendgridDomainId  String?   @unique @map("sendgrid_domain_id")
-  domainDnsRecords  Json?     @map("domain_dns_records")
-  domainRequestedAt DateTime? @map("domain_requested_at")
-  domainVerifiedAt  DateTime? @map("domain_verified_at")
-
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobs Job[]
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs           Job[]
+  emailProviders CustomerEmailProvider[]
+  sendingDomains CustomerSendingDomain[]
 
   @@index([apiKeyHash])
   @@index([email])
@@ -172,6 +166,49 @@ model Customer {
   @@index([providerSubscriptionId])
   @@index([paymentProvider])
   @@map("customers")
+}
+
+// ============================================
+// EMAIL PROVIDER MODEL
+// ============================================
+
+model CustomerEmailProvider {
+  id                  String            @id @default(uuid()) @db.Uuid
+  customerId          String            @map("customer_id") @db.Uuid
+  provider            EmailProviderType
+  apiKey              String            @map("api_key")
+  webhookSecret       String?           @map("webhook_secret")
+  webhookSecretAddedAt DateTime?        @map("webhook_secret_added_at")
+  priority            Int               @default(1)
+  addedAt             DateTime          @default(now()) @map("added_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, provider])
+  @@index([customerId, priority])
+  @@map("customer_email_providers")
+}
+
+// ============================================
+// SENDING DOMAIN MODEL
+// ============================================
+
+model CustomerSendingDomain {
+  id               String            @id @default(uuid()) @db.Uuid
+  customerId       String            @map("customer_id") @db.Uuid
+  domain           String
+  provider         EmailProviderType
+  providerDomainId String?           @map("provider_domain_id")
+  dnsRecords       Json?             @map("dns_records")
+  verified         Boolean           @default(false)
+  requestedAt      DateTime          @map("requested_at")
+  verifiedAt       DateTime?         @map("verified_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, domain, provider])
+  @@index([customerId])
+  @@map("customer_sending_domains")
 }
 
 // ============================================
@@ -226,18 +263,19 @@ model DeliveryLog {
 }
 
 // ============================================
-// EMAIL EVENT MODEL (SendGrid event tracking)
+// EMAIL EVENT MODEL
 // ============================================
 
 model EmailEvent {
-  id         String         @id @default(uuid()) @db.Uuid
-  jobId      String         @map("job_id") @db.Uuid
+  id         String            @id @default(uuid()) @db.Uuid
+  jobId      String            @map("job_id") @db.Uuid
   event      EmailEventType
   email      String
-  sgEventId  String?        @unique @map("sg_event_id")
+  provider   EmailProviderType? @map("provider")
+  eventId    String?            @unique @map("event_id")
   metadata   Json?
-  occurredAt DateTime       @map("occurred_at")
-  createdAt  DateTime       @default(now()) @map("created_at")
+  occurredAt DateTime           @map("occurred_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
 
   job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
