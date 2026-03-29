@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '@/queues/queue.service';
+import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
 import { createMockCustomer } from '../../test/helpers/mock-factories';
 import {
   createMockPrismaService,
@@ -66,6 +67,7 @@ describe('NotificationsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
+        FeatureGateService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: QueueService, useValue: mockQueueService },
       ],
@@ -129,35 +131,39 @@ describe('NotificationsService', () => {
       );
     });
 
-    it('should throw BadRequestException for INDIE plan without a SendGrid API key', async () => {
+    it('should throw ForbiddenException for INDIE plan with no email providers configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, sendgridApiKey: null }),
+        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 0 } }),
       );
 
       await expect(service.sendEmail('customer-123', emailDto)).rejects.toThrow(
-        BadRequestException,
+        'Please add an email provider API key in Settings before sending emails.',
       );
     });
 
-    it('should throw BadRequestException for STARTUP plan without a SendGrid API key', async () => {
+    it('should throw ForbiddenException for STARTUP plan with no email providers configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.STARTUP, sendgridApiKey: null }),
+        createMockCustomer({ plan: CustomerPlan.STARTUP, _count: { emailProviders: 0 } }),
       );
 
       await expect(service.sendEmail('customer-123', emailDto)).rejects.toThrow(
-        BadRequestException,
+        'Please add an email provider API key in Settings before sending emails.',
       );
     });
 
-    it('should allow FREE plan to proceed without a SendGrid API key', async () => {
+    it('should allow FREE plan to proceed without any email providers configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.FREE, sendgridApiKey: null }),
+        createMockCustomer({ plan: CustomerPlan.FREE, _count: { emailProviders: 0 } }),
       );
 
       await expect(service.sendEmail('customer-123', emailDto)).resolves.toBeDefined();
     });
 
     it('should create the job in Prisma with the correct fields', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 1 }, sendingDomains: [{ domain: 'mail.example.com', provider: 'SENDGRID' as any, verified: true, requestedAt: new Date(), verifiedAt: new Date() }] }),
+      );
+
       await service.sendEmail('customer-123', emailDto);
 
       expect(prisma.job.create).toHaveBeenCalledWith({
@@ -180,6 +186,9 @@ describe('NotificationsService', () => {
 
     it('should queue the email job via QueueService', async () => {
       const job = makeJob({ id: 'job-abc' });
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 1 }, sendingDomains: [{ domain: 'mail.example.com', provider: 'SENDGRID' as any, verified: true, requestedAt: new Date(), verifiedAt: new Date() }] }),
+      );
       prisma.job.create.mockResolvedValue(job);
 
       await service.sendEmail('customer-123', emailDto);
@@ -198,6 +207,10 @@ describe('NotificationsService', () => {
     });
 
     it('should use the custom priority when provided', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 1 }, sendingDomains: [{ domain: 'mail.example.com', provider: 'SENDGRID' as any, verified: true, requestedAt: new Date(), verifiedAt: new Date() }] }),
+      );
+
       await service.sendEmail('customer-123', {
         ...emailDto,
         priority: QUEUE_PRIORITIES.CRITICAL,
@@ -434,14 +447,14 @@ describe('NotificationsService', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw BadRequestException when retrying an EMAIL job on a paid plan without a SendGrid key', async () => {
+    it('should throw ForbiddenException when retrying an EMAIL job on a paid plan with no email providers configured', async () => {
       prisma.job.findFirst.mockResolvedValue(failedEmailJob);
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, sendgridApiKey: null }),
+        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 0 } }),
       );
 
       await expect(service.retryJob('customer-123', 'job-failed')).rejects.toThrow(
-        BadRequestException,
+        'Please add an email provider API key in Settings before sending emails.',
       );
     });
 

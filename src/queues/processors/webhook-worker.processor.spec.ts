@@ -4,7 +4,7 @@ import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '../queue.service';
 import { Job } from 'bullmq';
-import { JobStatus, DeliveryStatus, JobType } from '@prisma/client';
+import { JobStatus, DeliveryStatus, JobType, Prisma } from '@prisma/client';
 import { of, throwError } from 'rxjs';
 import { AxiosError, AxiosResponse } from 'axios';
 import {
@@ -172,6 +172,7 @@ describe('WebhookWorkerProcessor', () => {
         data: {
           status: JobStatus.COMPLETED,
           completedAt: expect.any(Date),
+          payload: Prisma.DbNull,
         },
       });
     });

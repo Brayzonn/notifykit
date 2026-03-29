@@ -9,6 +9,7 @@ import { UserService } from './user.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { NotificationsService } from '@/notifications/notifications.service';
 import { SendGridDomainService } from '@/sendgrid/sendgrid-domain.service';
+import { ResendDomainService } from '@/email-providers/resend-domain.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
@@ -19,7 +20,7 @@ import {
   type MockedPrismaService,
   type MockedRedisService,
 } from '../../test/helpers/test-utils';
-import { AuthProvider, CustomerPlan } from '@prisma/client';
+import { AuthProvider, CustomerPlan, EmailProviderType } from '@prisma/client';
 import axios from 'axios';
 
 jest.mock('argon2');
@@ -52,6 +53,7 @@ describe('UserService', () => {
   let redis: MockedRedisService;
   let emailService: Record<string, jest.Mock>;
   let sendGridDomainService: Record<string, jest.Mock>;
+  let resendDomainService: Record<string, jest.Mock>;
   let encryptionService: Record<string, jest.Mock>;
   let configService: { get: jest.Mock };
 
@@ -64,6 +66,12 @@ describe('UserService', () => {
   };
 
   const mockSendGridDomainService = {
+    authenticateDomain: jest.fn(),
+    validateDomain: jest.fn(),
+    deleteDomain: jest.fn(),
+  };
+
+  const mockResendDomainService = {
     authenticateDomain: jest.fn(),
     validateDomain: jest.fn(),
     deleteDomain: jest.fn(),
@@ -88,6 +96,7 @@ describe('UserService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: SendGridDomainService, useValue: mockSendGridDomainService },
+        { provide: ResendDomainService, useValue: mockResendDomainService },
         { provide: RedisService, useValue: mockRedisService },
         { provide: EmailService, useValue: mockEmailService },
         { provide: ConfigService, useValue: mockConfigService },
@@ -100,6 +109,7 @@ describe('UserService', () => {
     redis = module.get(RedisService);
     emailService = module.get(EmailService);
     sendGridDomainService = module.get(SendGridDomainService);
+    resendDomainService = module.get(ResendDomainService);
     encryptionService = module.get(EncryptionService);
     configService = module.get(ConfigService);
 
@@ -631,28 +641,28 @@ describe('UserService', () => {
     });
 
     it('should encrypt the key before saving', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE }),
-      );
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-123', plan: CustomerPlan.INDIE });
       mockedAxios.get.mockResolvedValue({ status: 200 });
+      prisma.customerEmailProvider.findUnique.mockResolvedValue(null);
+      prisma.customerEmailProvider.aggregate.mockResolvedValue({ _max: { priority: null } });
+      prisma.customerEmailProvider.upsert.mockResolvedValue({});
 
       await service.saveCustomerSendgridKey('user-123', API_KEY);
 
       expect(encryptionService.encrypt).toHaveBeenCalledWith(API_KEY);
-      expect(prisma.customer.update).toHaveBeenCalledWith({
-        where: { userId: 'user-123' },
-        data: {
-          sendgridApiKey: `enc:${API_KEY}`,
-          sendgridKeyAddedAt: expect.any(Date),
-        },
+      expect(prisma.customerEmailProvider.upsert).toHaveBeenCalledWith({
+        where: { customerId_provider: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID } },
+        create: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID, apiKey: `enc:${API_KEY}`, priority: 1 },
+        update: { apiKey: `enc:${API_KEY}` },
       });
     });
 
     it('should return a success message', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE }),
-      );
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-123', plan: CustomerPlan.INDIE });
       mockedAxios.get.mockResolvedValue({ status: 200 });
+      prisma.customerEmailProvider.findUnique.mockResolvedValue(null);
+      prisma.customerEmailProvider.aggregate.mockResolvedValue({ _max: { priority: null } });
+      prisma.customerEmailProvider.upsert.mockResolvedValue({});
 
       const result = await service.saveCustomerSendgridKey('user-123', API_KEY);
 
@@ -673,25 +683,25 @@ describe('UserService', () => {
 
     it('should return hasKey: true with addedAt when a key exists', async () => {
       const addedAt = new Date('2026-01-01');
-      prisma.customer.findUnique.mockResolvedValue({
-        sendgridApiKey: 'enc:SG.some_key',
-        sendgridKeyAddedAt: addedAt,
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-123' });
+      prisma.customerEmailProvider.findUnique.mockResolvedValue({
+        apiKey: 'enc:SG.some_key',
+        addedAt,
+        priority: 1,
       });
 
       const result = await service.getCustomerSendgridKey('user-123');
 
-      expect(result).toEqual({ hasKey: true, addedAt, lastFour: '_key' });
+      expect(result).toEqual({ hasKey: true, addedAt, lastFour: '_key', priority: 1 });
     });
 
     it('should return hasKey: false with null addedAt when no key exists', async () => {
-      prisma.customer.findUnique.mockResolvedValue({
-        sendgridApiKey: null,
-        sendgridKeyAddedAt: null,
-      });
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-123' });
+      prisma.customerEmailProvider.findUnique.mockResolvedValue(null);
 
       const result = await service.getCustomerSendgridKey('user-123');
 
-      expect(result).toEqual({ hasKey: false, addedAt: null, lastFour: null });
+      expect(result).toEqual({ hasKey: false, addedAt: null, lastFour: null, priority: null });
     });
   });
 
@@ -706,14 +716,20 @@ describe('UserService', () => {
       );
     });
 
-    it('should null out the key fields and return a success message', async () => {
-      prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
+    it('should delete email provider and sending domains then return a success message', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({ emailProviders: [], sendingDomains: [] }),
+      );
+      prisma.customerEmailProvider.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.customerSendingDomain.deleteMany.mockResolvedValue({ count: 0 });
 
       const result = await service.removeCustomerSendgridKey('user-123');
 
-      expect(prisma.customer.update).toHaveBeenCalledWith({
-        where: { userId: 'user-123' },
-        data: { sendgridApiKey: null, sendgridKeyAddedAt: null },
+      expect(prisma.customerEmailProvider.deleteMany).toHaveBeenCalledWith({
+        where: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID },
+      });
+      expect(prisma.customerSendingDomain.deleteMany).toHaveBeenCalledWith({
+        where: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID },
       });
       expect(result).toEqual({ message: 'SendGrid API key removed successfully' });
     });
@@ -735,9 +751,14 @@ describe('UserService', () => {
 
     beforeEach(() => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, sendgridDomainId: null }),
+        createMockCustomer({ plan: CustomerPlan.INDIE }),
       );
-      prisma.customer.findFirst.mockResolvedValue(null); // domain not taken
+      prisma.customerSendingDomain.findFirst.mockResolvedValue(null);
+      prisma.customerSendingDomain.findUnique.mockResolvedValue(null);
+      prisma.customerEmailProvider.findMany.mockResolvedValue([
+        { provider: EmailProviderType.SENDGRID, apiKey: 'enc:SG.valid_key', addedAt: new Date(), priority: 1 },
+      ]);
+      prisma.customerSendingDomain.upsert.mockResolvedValue({});
       mockSendGridDomainService.authenticateDomain.mockResolvedValue(mockAuthResult);
     });
 
@@ -766,37 +787,38 @@ describe('UserService', () => {
     });
 
     it('should throw BadRequestException when the domain is already verified by another customer', async () => {
-      prisma.customer.findFirst.mockResolvedValue(createMockCustomer()); // domain taken
+      prisma.customerSendingDomain.findFirst.mockResolvedValue({ id: 'other-domain-id' });
 
       await expect(service.requestDomainVerification('user-123', DOMAIN)).rejects.toThrow(
-        'This domain is already verified by another customer',
+        'This domain is already registered by another customer',
       );
     });
 
     it('should delete the old SendGrid domain before authenticating a new one', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, sendgridDomainId: '999' }),
-      );
+      prisma.customerSendingDomain.findUnique.mockResolvedValue({
+        id: 'existing-id',
+        providerDomainId: '999',
+      });
       mockSendGridDomainService.deleteDomain.mockResolvedValue(undefined);
 
       await service.requestDomainVerification('user-123', DOMAIN);
 
-      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(999);
+      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(999, 'SG.valid_key');
     });
 
-    it('should call authenticateDomain and save the result to DB', async () => {
+    it('should call authenticateDomain and upsert to CustomerSendingDomain', async () => {
       await service.requestDomainVerification('user-123', DOMAIN);
 
-      expect(sendGridDomainService.authenticateDomain).toHaveBeenCalledWith(DOMAIN);
-      expect(prisma.customer.update).toHaveBeenCalledWith({
-        where: { userId: 'user-123' },
-        data: expect.objectContaining({
-          sendingDomain: DOMAIN,
-          sendgridDomainId: '12345',
-          domainVerified: false,
-          domainRequestedAt: expect.any(Date),
+      expect(sendGridDomainService.authenticateDomain).toHaveBeenCalledWith(DOMAIN, 'SG.valid_key');
+      expect(prisma.customerSendingDomain.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            domain: DOMAIN,
+            providerDomainId: '12345',
+            verified: false,
+          }),
         }),
-      });
+      );
     });
 
     it('should return domain, status pending, and DNS records', async () => {
@@ -819,26 +841,23 @@ describe('UserService', () => {
     });
 
     it('should return status: false when no domain is configured', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ sendingDomain: null }),
-      );
+      prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
+      prisma.customerSendingDomain.findMany.mockResolvedValue([]);
 
       const result = await service.getDomainStatus('user-123');
 
       expect(result).toEqual({ status: false, message: 'No custom domain configured' });
     });
 
-    it('should return full domain info when a domain is configured', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({
-          sendingDomain: 'mail.example.com',
-          domainVerified: true,
-        }),
-      );
+    it('should return domain list when domains are configured', async () => {
+      prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
+      prisma.customerSendingDomain.findMany.mockResolvedValue([
+        { domain: 'mail.example.com', provider: 'SENDGRID', verified: true, dnsRecords: null, requestedAt: new Date(), verifiedAt: new Date() },
+      ]);
 
       const result = await service.getDomainStatus('user-123');
 
-      expect(result).toMatchObject({ domain: 'mail.example.com', verified: true, status: 'verified' });
+      expect(result).toMatchObject({ domains: expect.arrayContaining([expect.objectContaining({ domain: 'mail.example.com', verified: true })]) });
     });
   });
 
@@ -851,31 +870,33 @@ describe('UserService', () => {
       await expect(service.removeDomain('user-123')).rejects.toThrow(NotFoundException);
     });
 
-    it('should call deleteDomain when sendgridDomainId is set', async () => {
+    it('should call deleteDomain when providerDomainId is set on a SENDGRID domain', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ sendgridDomainId: '999' }),
+        createMockCustomer({ sendingDomains: [{ id: 'sd-1', provider: 'SENDGRID', providerDomainId: '999', domain: 'mail.example.com' }] as any }),
       );
+      prisma.customerEmailProvider.findMany.mockResolvedValue([
+        { provider: EmailProviderType.SENDGRID, apiKey: 'enc:SG.valid_key' },
+      ]);
+      prisma.customerSendingDomain.deleteMany.mockResolvedValue({ count: 1 });
       mockSendGridDomainService.deleteDomain.mockResolvedValue(undefined);
 
       await service.removeDomain('user-123');
 
-      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(999);
+      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(999, 'SG.valid_key');
     });
 
-    it('should clear all domain fields and return success', async () => {
-      prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
+    it('should delete all sending domains and return success', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({ sendingDomains: [] as any }),
+      );
+      prisma.customerEmailProvider.findMany.mockResolvedValue([]);
+      prisma.customerSendingDomain.deleteMany.mockResolvedValue({ count: 0 });
 
       const result = await service.removeDomain('user-123');
 
-      expect(prisma.customer.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            sendingDomain: null,
-            domainVerified: false,
-            sendgridDomainId: null,
-          }),
-        }),
-      );
+      expect(prisma.customerSendingDomain.deleteMany).toHaveBeenCalledWith({
+        where: { customerId: 'customer-123' },
+      });
       expect(result).toEqual({ message: 'Domain removed successfully' });
     });
   });

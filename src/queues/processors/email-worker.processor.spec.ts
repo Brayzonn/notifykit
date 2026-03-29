@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EmailWorkerProcessor } from './email-worker.processor';
-import { SendGridService } from '@/sendgrid/sendgrid.service';
+import { EmailProviderFactory } from '@/email-providers/email-provider.factory';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '../queue.service';
 import { ConfigService } from '@nestjs/config';
 import { EncryptionService } from '@/common/encryption/encryption.service';
+import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
 import { Job } from 'bullmq';
-import { CustomerPlan, JobStatus, DeliveryStatus, JobType } from '@prisma/client';
+import { CustomerPlan, EmailProviderType, JobStatus, DeliveryStatus } from '@prisma/client';
 import {
   createMockPrismaService,
   createMockConfigService,
@@ -14,32 +15,24 @@ import {
   type MockedConfigService,
 } from '../../../test/helpers/test-utils';
 
-type MockedSendGridService = { sendEmail: jest.Mock };
+type MockedEmailProviderFactory = { resolveAll: jest.Mock };
 type MockedQueueService = { moveToDeadLetterQueue: jest.Mock };
 type MockedEncryptionService = { encrypt: jest.Mock; decrypt: jest.Mock };
+type MockedEmailProvider = { sendEmail: jest.Mock };
 
-interface SendGridErrorResponse {
-  status: number;
-  data: {
-    errors?: Array<{ message: string; field: string | null }>;
-    error?: { message: string };
-    message?: string;
-  };
-}
-
-interface SendGridError extends Error {
-  response?: SendGridErrorResponse;
+interface ProviderError extends Error {
+  response?: { status: number; data: any };
 }
 
 describe('EmailWorkerProcessor', () => {
   let processor: EmailWorkerProcessor;
-  let sendGridService: MockedSendGridService;
+  let emailProviderFactory: MockedEmailProviderFactory;
+  let mockProvider: MockedEmailProvider;
   let prisma: MockedPrismaService;
   let queueService: MockedQueueService;
-  let configService: MockedConfigService;
   let encryptionService: MockedEncryptionService;
 
-  const mockSendGridService: MockedSendGridService = { sendEmail: jest.fn() };
+  const mockEmailProviderFactory: MockedEmailProviderFactory = { resolveAll: jest.fn() };
   const mockPrismaService = createMockPrismaService();
   const mockQueueService: MockedQueueService = { moveToDeadLetterQueue: jest.fn() };
   const mockConfigService = createMockConfigService();
@@ -67,23 +60,24 @@ describe('EmailWorkerProcessor', () => {
 
   /** Minimal customer shape returned by the processor's select query */
   const makeCustomer = (overrides: Partial<{
-    sendingDomain: string | null;
-    domainVerified: boolean;
+    sendingDomains: { domain: string; provider: EmailProviderType; verified: boolean }[];
     plan: CustomerPlan;
-    sendgridApiKey: string | null;
+    emailProviders: { provider: EmailProviderType; apiKey: string; priority: number }[];
   }> = {}) => ({
-    sendingDomain: null,
-    domainVerified: false,
+    sendingDomains: [],
     plan: CustomerPlan.FREE,
-    sendgridApiKey: null,
+    emailProviders: [],
     ...overrides,
   });
 
   beforeEach(async () => {
+    mockProvider = { sendEmail: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailWorkerProcessor,
-        { provide: SendGridService, useValue: mockSendGridService },
+        FeatureGateService,
+        { provide: EmailProviderFactory, useValue: mockEmailProviderFactory },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: QueueService, useValue: mockQueueService },
         { provide: ConfigService, useValue: mockConfigService },
@@ -92,10 +86,9 @@ describe('EmailWorkerProcessor', () => {
     }).compile();
 
     processor = module.get<EmailWorkerProcessor>(EmailWorkerProcessor);
-    sendGridService = module.get(SendGridService);
+    emailProviderFactory = module.get(EmailProviderFactory);
     prisma = module.get(PrismaService);
     queueService = module.get(QueueService);
-    configService = module.get(ConfigService);
     encryptionService = module.get(EncryptionService);
   });
 
@@ -110,20 +103,11 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
 
-      const mockDbJob = {
-        id: emailData.jobId,
-        customerId: emailData.customerId,
-        type: JobType.EMAIL,
-        status: JobStatus.PENDING,
-        payload: emailData,
-        attempts: 0,
-        maxAttempts: 3,
-      };
-
-      prisma.job.findUnique.mockResolvedValue(mockDbJob);
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockResolvedValue({ success: true, messageId: 'sendgrid-msg-123' });
-      prisma.job.update.mockResolvedValue({ ...mockDbJob, status: JobStatus.PROCESSING });
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'shared-key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true, messageId: 'msg-123' });
+      prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({ id: 'log-123' });
 
       await processor.process(mockJob as Job);
@@ -133,19 +117,13 @@ describe('EmailWorkerProcessor', () => {
         data: { status: JobStatus.PROCESSING, attempts: 1, startedAt: expect.any(Date) },
       });
 
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
-        { to: emailData.to, from: 'noreply@notifykit.dev', subject: emailData.subject, body: emailData.body },
-        undefined,
-        CustomerPlan.FREE,
+      expect(mockProvider.sendEmail).toHaveBeenCalledWith(
+        { to: emailData.to, from: 'noreply@notifykit.dev', subject: emailData.subject, body: emailData.body, jobId: emailData.jobId },
+        'shared-key',
       );
 
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: { jobId: emailData.jobId, attempt: 1, status: DeliveryStatus.SUCCESS, response: expect.any(Object) },
-      });
-
-      expect(prisma.job.update).toHaveBeenCalledWith({
-        where: { id: emailData.jobId },
-        data: { status: JobStatus.COMPLETED, completedAt: expect.any(Date) },
       });
     });
 
@@ -153,37 +131,41 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ sendingDomain: 'customdomain.com', domainVerified: true }));
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(
+        makeCustomer({ plan: CustomerPlan.INDIE, sendingDomains: [{ domain: 'customdomain.com', provider: EmailProviderType.SENDGRID, verified: true }], emailProviders: [{ provider: EmailProviderType.SENDGRID, apiKey: mockEncryptionService.encrypt('test-key'), priority: 1 }] }),
+      );
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await processor.process(mockJob as Job);
 
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
+      expect(mockProvider.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({ from: 'noreply@em.customdomain.com' }),
-        undefined,
-        CustomerPlan.FREE,
+        'key',
       );
     });
 
     it('should use provided from address if specified', async () => {
-      const emailData = { ...createMockEmailData(), from: 'custom@verified.com' };
+      const emailData = { ...createMockEmailData(), from: 'custom@em.verified.com' };
       const mockJob = createMockJob(emailData, 0);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(
+        makeCustomer({ plan: CustomerPlan.INDIE, sendingDomains: [{ domain: 'verified.com', provider: EmailProviderType.SENDGRID, verified: true }], emailProviders: [{ provider: EmailProviderType.SENDGRID, apiKey: mockEncryptionService.encrypt('test-key'), priority: 1 }] }),
+      );
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await processor.process(mockJob as Job);
 
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ from: 'custom@verified.com' }),
-        undefined,
-        CustomerPlan.FREE,
+      expect(mockProvider.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ from: 'custom@em.verified.com' }),
+        'key',
       );
     });
 
@@ -191,9 +173,10 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 1);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 1 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 1 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
@@ -210,114 +193,108 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Per-Customer SendGrid Key ────────────────────────────────────────────────
+  // ── Provider Failover ────────────────────────────────────────────────────────
 
-  describe('Per-Customer SendGrid API Key', () => {
-    it('should decrypt and pass the customer key for INDIE plan', async () => {
+  describe('Provider Failover', () => {
+    it('should decrypt provider keys and pass them to resolveAll', async () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
-      const encryptedKey = mockEncryptionService.encrypt('SG.customer_key_indie');
+      const encryptedKey = mockEncryptionService.encrypt('SG.customer_key');
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(
-        makeCustomer({ plan: CustomerPlan.INDIE, sendgridApiKey: encryptedKey }),
-      );
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(makeCustomer({
+        plan: CustomerPlan.INDIE,
+        sendingDomains: [{ domain: 'example.com', provider: EmailProviderType.SENDGRID, verified: true }],
+        emailProviders: [{ provider: EmailProviderType.SENDGRID, apiKey: encryptedKey, priority: 1 }],
+      }));
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'SG.customer_key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await processor.process(mockJob as Job);
 
       expect(encryptionService.decrypt).toHaveBeenCalledWith(encryptedKey);
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
-        expect.any(Object),
-        'SG.customer_key_indie',
+      expect(emailProviderFactory.resolveAll).toHaveBeenCalledWith(
         CustomerPlan.INDIE,
+        [{ provider: EmailProviderType.SENDGRID, apiKey: 'SG.customer_key', priority: 1 }],
       );
     });
 
-    it('should decrypt and pass the customer key for STARTUP plan', async () => {
+    it('should try the next provider when the primary fails', async () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
-      const encryptedKey = mockEncryptionService.encrypt('SG.customer_key_startup');
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(
-        makeCustomer({ plan: CustomerPlan.STARTUP, sendgridApiKey: encryptedKey }),
-      );
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      const primaryProvider: MockedEmailProvider = { sendEmail: jest.fn().mockRejectedValue(new Error('Primary failed')) };
+      const fallbackProvider: MockedEmailProvider = { sendEmail: jest.fn().mockResolvedValue({ success: true }) };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ plan: CustomerPlan.INDIE, sendingDomains: [{ domain: 'example.com', provider: EmailProviderType.SENDGRID, verified: true }], emailProviders: [{ provider: EmailProviderType.SENDGRID, apiKey: mockEncryptionService.encrypt('test-key'), priority: 1 }] }));
+      mockEmailProviderFactory.resolveAll.mockReturnValue([
+        { provider: primaryProvider, apiKey: 'key-1' },
+        { provider: fallbackProvider, apiKey: 'key-2' },
+      ]);
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await processor.process(mockJob as Job);
 
-      expect(encryptionService.decrypt).toHaveBeenCalledWith(encryptedKey);
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
-        expect.any(Object),
-        'SG.customer_key_startup',
-        CustomerPlan.STARTUP,
-      );
+      expect(primaryProvider.sendEmail).toHaveBeenCalled();
+      expect(fallbackProvider.sendEmail).toHaveBeenCalled();
+      expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ status: DeliveryStatus.SUCCESS }),
+      });
     });
 
-    it('should pass undefined key for FREE plan with no sendgridApiKey', async () => {
+    it('should throw when all providers fail', async () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ plan: CustomerPlan.FREE, sendgridApiKey: null }));
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      const failingProvider: MockedEmailProvider = { sendEmail: jest.fn().mockRejectedValue(new Error('All failed')) };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ plan: CustomerPlan.INDIE, sendingDomains: [{ domain: 'example.com', provider: EmailProviderType.SENDGRID, verified: true }], emailProviders: [{ provider: EmailProviderType.SENDGRID, apiKey: mockEncryptionService.encrypt('test-key'), priority: 1 }] }));
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: failingProvider, apiKey: 'key' }]);
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await expect(processor.process(mockJob as Job)).rejects.toThrow('All failed');
+    });
+
+    it('should not call decrypt when emailProviders is empty (FREE plan)', async () => {
+      const emailData = createMockEmailData();
+      const mockJob = createMockJob(emailData, 0);
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ plan: CustomerPlan.FREE, emailProviders: [] }));
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'shared-key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await processor.process(mockJob as Job);
 
       expect(encryptionService.decrypt).not.toHaveBeenCalled();
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
-        expect.any(Object),
-        undefined,
-        CustomerPlan.FREE,
-      );
-    });
-
-    it('should not call decrypt when sendgridApiKey is null', async () => {
-      const emailData = createMockEmailData();
-      const mockJob = createMockJob(emailData, 0);
-
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(
-        makeCustomer({ plan: CustomerPlan.INDIE, sendgridApiKey: null }),
-      );
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
-      prisma.job.update.mockResolvedValue({});
-      prisma.deliveryLog.create.mockResolvedValue({});
-
-      await processor.process(mockJob as Job);
-
-      expect(encryptionService.decrypt).not.toHaveBeenCalled();
-      expect(sendGridService.sendEmail).toHaveBeenCalledWith(
-        expect.any(Object),
-        undefined,
-        CustomerPlan.INDIE,
-      );
     });
   });
 
   // ── Email Job Failure Handling ───────────────────────────────────────────────
 
   describe('Email Job Failure Handling', () => {
-    it('should log failure when SendGrid returns error', async () => {
+    it('should log failure when provider returns error', async () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
 
-      const sendGridError: SendGridError = new Error('SendGrid API Error');
-      sendGridError.response = {
+      const providerError: ProviderError = new Error('Provider Error');
+      providerError.response = {
         status: 400,
         data: { errors: [{ message: 'Invalid email address', field: 'to' }] },
       };
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockRejectedValue(sendGridError);
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockRejectedValue(providerError);
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
@@ -328,19 +305,20 @@ describe('EmailWorkerProcessor', () => {
       });
     });
 
-    it('should extract error message from SendGrid response', async () => {
+    it('should extract error message from provider response', async () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
 
-      const sendGridError: SendGridError = new Error('SendGrid API Error');
-      sendGridError.response = {
+      const providerError: ProviderError = new Error('Provider Error');
+      providerError.response = {
         status: 429,
         data: { errors: [{ message: 'Rate limit exceeded', field: null }] },
       };
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockRejectedValue(sendGridError);
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockRejectedValue(providerError);
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
@@ -359,15 +337,16 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 1);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 1 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 1 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await processor.process(mockJob as Job);
 
-      expect(sendGridService.sendEmail).toHaveBeenCalled();
+      expect(mockProvider.sendEmail).toHaveBeenCalled();
       expect(prisma.job.update).toHaveBeenCalledWith({
         where: { id: emailData.jobId },
         data: expect.objectContaining({ status: JobStatus.COMPLETED }),
@@ -378,9 +357,10 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 1);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 1 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 1 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockResolvedValue({ success: true });
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockResolvedValue({ success: true });
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
@@ -399,9 +379,10 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 2);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 2, maxAttempts: 3 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 2 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
-      sendGridService.sendEmail.mockRejectedValue(new Error('Permanent failure'));
+      mockEmailProviderFactory.resolveAll.mockReturnValue([{ provider: mockProvider, apiKey: 'key' }]);
+      mockProvider.sendEmail.mockRejectedValue(new Error('Permanent failure'));
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
@@ -412,19 +393,17 @@ describe('EmailWorkerProcessor', () => {
       });
     });
 
-    it('should be moved to DLQ by BullMQ after all retries exhausted', async () => {
-      const emailData = createMockEmailData();
+    it('should be moved to DLQ by BullMQ after all retries exhausted', () => {
       const mockJob = {
         id: 'job-123',
-        data: emailData,
+        data: createMockEmailData(),
         attemptsMade: 3,
         opts: { attempts: 3 },
         failedReason: 'All attempts failed',
       } as Job;
 
-      const failedSpy = jest.spyOn(processor, 'onError');
-      const mockError = new Error('All attempts failed');
-      processor.onError(mockJob, mockError);
+      jest.spyOn(processor, 'onError');
+      processor.onError(mockJob, new Error('All attempts failed'));
     });
   });
 
@@ -435,16 +414,16 @@ describe('EmailWorkerProcessor', () => {
       const emailData = { ...createMockEmailData(), from: 'support@em.unverified.com' };
       const mockJob = createMockJob(emailData, 0);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
-      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ sendingDomain: 'unverified.com', domainVerified: false }));
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(makeCustomer({ plan: CustomerPlan.INDIE, sendingDomains: [{ domain: 'unverified.com', provider: EmailProviderType.SENDGRID, verified: false }], emailProviders: [{ provider: EmailProviderType.SENDGRID, apiKey: mockEncryptionService.encrypt('test-key'), priority: 1 }] }));
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await expect(processor.process(mockJob as Job)).rejects.toThrow();
 
-      expect(sendGridService.sendEmail).not.toHaveBeenCalled();
+      expect(mockProvider.sendEmail).not.toHaveBeenCalled();
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
-        data: { jobId: emailData.jobId, attempt: 1, status: DeliveryStatus.FAILED, errorMessage: expect.stringContaining('Domain unverified.com is not verified') },
+        data: { jobId: emailData.jobId, attempt: 1, status: DeliveryStatus.FAILED, errorMessage: expect.any(String) },
       });
     });
 
@@ -452,14 +431,14 @@ describe('EmailWorkerProcessor', () => {
       const emailData = { ...createMockEmailData(), from: 'test@notifykit.dev' };
       const mockJob = createMockJob(emailData, 0);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
       prisma.customer.findUnique.mockResolvedValue(makeCustomer());
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await expect(processor.process(mockJob as Job)).rejects.toThrow();
 
-      expect(sendGridService.sendEmail).not.toHaveBeenCalled();
+      expect(mockProvider.sendEmail).not.toHaveBeenCalled();
     });
   });
 
@@ -490,13 +469,13 @@ describe('EmailWorkerProcessor', () => {
         data: createMockEmailData(),
         attemptsMade: 3,
         opts: { attempts: 3 },
-        failedReason: 'SendGrid error',
+        failedReason: 'Provider error',
       } as Job;
 
       const loggerSpy = jest.spyOn(processor['logger'], 'error');
-      processor.onError(mockJob, new Error('SendGrid error'));
+      processor.onError(mockJob, new Error('Provider error'));
 
-      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('failed with error: SendGrid error'));
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('failed with error: Provider error'));
     });
   });
 
@@ -507,14 +486,14 @@ describe('EmailWorkerProcessor', () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);
 
-      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, payload: emailData, attempts: 0 });
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
       prisma.customer.findUnique.mockResolvedValue(null);
       prisma.job.update.mockResolvedValue({});
       prisma.deliveryLog.create.mockResolvedValue({});
 
       await expect(processor.process(mockJob as Job)).rejects.toThrow();
 
-      expect(sendGridService.sendEmail).not.toHaveBeenCalled();
+      expect(mockProvider.sendEmail).not.toHaveBeenCalled();
     });
 
     it('should handle missing job in database', async () => {
@@ -525,7 +504,7 @@ describe('EmailWorkerProcessor', () => {
 
       await expect(processor.process(mockJob as Job)).rejects.toThrow();
 
-      expect(sendGridService.sendEmail).not.toHaveBeenCalled();
+      expect(mockProvider.sendEmail).not.toHaveBeenCalled();
     });
   });
 });

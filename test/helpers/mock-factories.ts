@@ -1,10 +1,13 @@
 import {
   User,
   Customer,
+  CustomerEmailProvider,
+  CustomerSendingDomain,
   RefreshToken,
   UserRole,
   AuthProvider,
   CustomerPlan,
+  EmailProviderType,
   PaymentProvider,
   SubscriptionStatus,
 } from '@prisma/client';
@@ -37,6 +40,9 @@ export const createMockUser = (overrides?: Partial<User>): User => ({
  * Extended Customer type with relations for testing
  */
 export type CustomerWithRelations = Customer & {
+  emailProviders?: CustomerEmailProvider[];
+  sendingDomains?: Pick<CustomerSendingDomain, 'domain' | 'provider' | 'verified' | 'requestedAt' | 'verifiedAt'>[];
+  _count?: { emailProviders: number };
   user?: {
     id: string;
     deletedAt: Date | null;
@@ -57,10 +63,9 @@ export const createMockCustomer = (
     apiKeyHash:
       'hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
     apiKeyLastFour: 'abcd',
-    sendgridApiKey: null,
-    sendgridKeyAddedAt: null,
-    sendgridWebhookKey: null,
-    sendgridWebhookKeyAddedAt: null,
+    emailProviders: [],
+    sendingDomains: [],
+    _count: { emailProviders: 0 },
     plan: CustomerPlan.FREE,
     monthlyLimit: 1000,
     usageCount: 0,
@@ -77,17 +82,23 @@ export const createMockCustomer = (
     paymentMetadata: null,
     previousPlan: null,
     downgradedAt: null,
-    sendingDomain: null,
-    domainVerified: false,
-    sendgridDomainId: null,
-    domainDnsRecords: null,
-    domainRequestedAt: null,
-    domainVerifiedAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
   };
 };
+
+export const makeSendingDomain = (
+  domain: string,
+  provider: EmailProviderType = EmailProviderType.SENDGRID,
+  verified = true,
+): Pick<CustomerSendingDomain, 'domain' | 'provider' | 'verified' | 'requestedAt' | 'verifiedAt'> => ({
+  domain,
+  provider,
+  verified,
+  requestedAt: new Date(),
+  verifiedAt: verified ? new Date() : null,
+});
 
 /**
  * Create a mock RefreshToken object for testing

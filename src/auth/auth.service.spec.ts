@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -414,14 +415,15 @@ describe('AuthService', () => {
 
       await service.refreshToken(refreshToken);
 
+      const expectedHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
       expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
-        where: { token: refreshToken },
+        where: { token: expectedHash },
         include: { user: true },
       });
     });
 
     it('should return only new access token if > 24hrs remaining', async () => {
-      const futureExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+      const futureExpiry = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000); // 4 days (beyond the 3-day rotation threshold)
       jwtService.verify.mockReturnValue({
         sub: mockUser.id,
         email: mockUser.email,
@@ -551,8 +553,9 @@ describe('AuthService', () => {
 
       await service.logout(refreshToken);
 
+      const expectedHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
       expect(prisma.refreshToken.delete).toHaveBeenCalledWith({
-        where: { token: refreshToken },
+        where: { token: expectedHash },
       });
     });
 

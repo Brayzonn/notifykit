@@ -25,6 +25,23 @@ export type MockedPrismaService = {
     delete: jest.Mock;
     deleteMany: jest.Mock;
   };
+  customerEmailProvider: {
+    findUnique: jest.Mock;
+    findMany: jest.Mock;
+    upsert: jest.Mock;
+    updateMany: jest.Mock;
+    deleteMany: jest.Mock;
+    aggregate: jest.Mock;
+  };
+  customerSendingDomain: {
+    findUnique: jest.Mock;
+    findFirst: jest.Mock;
+    findMany: jest.Mock;
+    upsert: jest.Mock;
+    update: jest.Mock;
+    deleteMany: jest.Mock;
+    count: jest.Mock;
+  };
   refreshToken: {
     findUnique: jest.Mock;
     findMany: jest.Mock;
@@ -50,6 +67,7 @@ export type MockedPrismaService = {
     findFirst: jest.Mock;
   };
   $disconnect: jest.Mock;
+  $transaction: jest.Mock;
 };
 
 /**
@@ -71,6 +89,23 @@ export const createMockPrismaService = (): MockedPrismaService => ({
     update: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
+  },
+  customerEmailProvider: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    upsert: jest.fn(),
+    updateMany: jest.fn(),
+    deleteMany: jest.fn(),
+    aggregate: jest.fn(),
+  },
+  customerSendingDomain: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    upsert: jest.fn(),
+    update: jest.fn(),
+    deleteMany: jest.fn(),
+    count: jest.fn(),
   },
   refreshToken: {
     findUnique: jest.fn(),
@@ -97,6 +132,7 @@ export const createMockPrismaService = (): MockedPrismaService => ({
     findFirst: jest.fn(),
   },
   $disconnect: jest.fn(),
+  $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 });
 
 /**
@@ -122,6 +158,8 @@ export const createMockRedisService = (): MockedRedisService => ({
     incr: jest.fn(),
     expire: jest.fn(),
     ttl: jest.fn(),
+    set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
   })),
 });
 
