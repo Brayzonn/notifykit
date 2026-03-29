@@ -271,6 +271,14 @@ export class AdminService {
             verifiedAt: true,
           },
         },
+        emailProviders: {
+          select: {
+            provider: true,
+            addedAt: true,
+            priority: true,
+          },
+          orderBy: { priority: 'asc' },
+        },
       },
     });
 
