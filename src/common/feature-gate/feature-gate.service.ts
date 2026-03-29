@@ -3,20 +3,20 @@ import { CustomerPlan } from '@prisma/client';
 
 export type GateableCustomer = {
   plan: CustomerPlan;
-  sendgridApiKey?: string | null;
-  sendingDomain?: string | null;
-  domainVerified?: boolean;
+  emailProviderCount?: number;
+  hasDomain?: boolean;
+  hasVerifiedDomain?: boolean;
 };
 
 @Injectable()
 export class FeatureGateService {
   /**
-   * Paid plans must have a SendGrid key to send emails
+   * Paid plans must have at least one email provider configured
    */
   assertCanSendEmail(customer: GateableCustomer) {
-    if (customer.plan !== CustomerPlan.FREE && !customer.sendgridApiKey) {
+    if (customer.plan !== CustomerPlan.FREE && !customer.emailProviderCount) {
       throw new ForbiddenException(
-        'Please add your SendGrid API key in Settings before sending emails.',
+        'Please add an email provider API key in Settings before sending emails.',
       );
     }
   }
@@ -46,13 +46,13 @@ export class FeatureGateService {
   assertCanSendEmailFromDomain(customer: GateableCustomer) {
     if (customer.plan === CustomerPlan.FREE) return;
 
-    if (!customer.sendingDomain) {
+    if (!customer.hasDomain) {
       throw new ForbiddenException(
         'Paid plans must use a verified sending domain. Please add and verify your domain in Settings.',
       );
     }
 
-    if (!customer.domainVerified) {
+    if (!customer.hasVerifiedDomain) {
       throw new ForbiddenException(
         'Your sending domain is pending verification. Please complete domain verification in Settings.',
       );

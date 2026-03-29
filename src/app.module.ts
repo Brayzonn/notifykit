@@ -18,6 +18,7 @@ import { BillingModule } from './billing/billing.module';
 import { AdminModule } from './admin/admin.module';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { SendgridEventsModule } from './sendgrid-events/sendgrid-events.module';
+import { ResendEventsModule } from './resend-events/resend-events.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { SendgridEventsModule } from './sendgrid-events/sendgrid-events.module';
     AdminModule,
     RateLimitModule,
     SendgridEventsModule,
+    ResendEventsModule,
   ],
   controllers: [AppController],
   providers: [

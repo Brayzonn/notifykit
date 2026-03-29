@@ -46,9 +46,10 @@ export class EmailWorkerProcessor extends WorkerHost {
       const customer = await this.prisma.customer.findUnique({
         where: { id: customerId },
         select: {
-          sendingDomain: true,
-          domainVerified: true,
           plan: true,
+          sendingDomains: {
+            select: { domain: true, provider: true, verified: true },
+          },
           emailProviders: {
             orderBy: { priority: 'asc' },
             select: { provider: true, apiKey: true, priority: true },
@@ -69,13 +70,17 @@ export class EmailWorkerProcessor extends WorkerHost {
         );
       }
 
-      this.featureGate.assertCanSendEmailFromDomain(customer);
+      this.featureGate.assertCanSendEmailFromDomain({
+        plan: customer.plan,
+        hasDomain: customer.sendingDomains.length > 0,
+        hasVerifiedDomain: customer.sendingDomains.some((d) => d.verified),
+      });
 
-      if (customer.sendingDomain) {
+      if (customer.sendingDomains.length > 0) {
         this.featureGate.assertCanUseCustomDomain(customer);
       }
 
-      const fromAddress = this.determineFromAddress(from, customer);
+      const fromAddress = this.determineFromAddress(from, customer.sendingDomains);
 
       await this.prisma.job.update({
         where: { id: jobId },
@@ -150,6 +155,14 @@ export class EmailWorkerProcessor extends WorkerHost {
       }
 
       if (error instanceof ForbiddenException) {
+        this.logger.error(`Email job permanently failed: ${jobId} - ${error.message}`);
+        await this.prisma.job.update({
+          where: { id: jobId },
+          data: { status: JobStatus.FAILED, errorMessage: error.message, attempts: nextAttempt },
+        });
+        await this.prisma.deliveryLog.create({
+          data: { jobId, attempt: nextAttempt, status: DeliveryStatus.FAILED, errorMessage: error.message },
+        });
         throw new UnrecoverableError(error.message);
       }
 
@@ -205,11 +218,14 @@ export class EmailWorkerProcessor extends WorkerHost {
 
   private determineFromAddress(
     requestedFrom: string | undefined,
-    customer: { sendingDomain: string | null; domainVerified: boolean },
+    sendingDomains: Array<{ domain: string; provider: string; verified: boolean }>,
   ): string {
+    const verifiedDomains = sendingDomains.filter((d) => d.verified);
+
     if (!requestedFrom) {
-      return customer.domainVerified && customer.sendingDomain
-        ? `noreply@em.${customer.sendingDomain}`
+      const verifiedDomain = verifiedDomains[0]?.domain ?? null;
+      return verifiedDomain
+        ? `noreply@em.${verifiedDomain}`
         : this.defaultFromEmail;
     }
 
@@ -224,36 +240,38 @@ export class EmailWorkerProcessor extends WorkerHost {
       return requestedFrom;
     }
 
-    if (!customer.sendingDomain) {
+    if (verifiedDomains.length === 0) {
       throw new UnrecoverableError(
         `Custom from address is not allowed. Upgrade your plan to use a custom domain.`,
       );
     }
 
-    if (
-      (fromDomain === customer.sendingDomain ||
-        fromDomain === `em.${customer.sendingDomain}`) &&
-      !customer.domainVerified
-    ) {
+    const matchedDomain = verifiedDomains.find(
+      (d) => fromDomain === d.domain || fromDomain === `em.${d.domain}`,
+    );
+
+    const pendingDomain = sendingDomains.find(
+      (d) => !d.verified && (fromDomain === d.domain || fromDomain === `em.${d.domain}`),
+    );
+
+    if (pendingDomain && !matchedDomain) {
       throw new UnrecoverableError(
-        `Cannot send from ${requestedFrom}. Domain ${customer.sendingDomain} is not verified.`,
+        `Cannot send from ${requestedFrom}. Domain ${pendingDomain.domain} is not yet verified.`,
       );
     }
 
-    if (fromDomain === customer.sendingDomain && customer.domainVerified) {
-      return `${localPart}@em.${customer.sendingDomain}`;
+    if (!matchedDomain) {
+      const verifiedList = verifiedDomains.map((d) => d.domain).join(', ');
+      throw new UnrecoverableError(
+        `Cannot send from ${requestedFrom}. Use one of your verified domains: ${verifiedList}.`,
+      );
     }
 
-    if (
-      fromDomain === `em.${customer.sendingDomain}` &&
-      customer.domainVerified
-    ) {
-      return requestedFrom;
+    if (fromDomain === matchedDomain.domain) {
+      return `${localPart}@em.${matchedDomain.domain}`;
     }
 
-    throw new UnrecoverableError(
-      `Cannot send from ${requestedFrom}. Use your verified domain ${customer.sendingDomain} instead.`,
-    );
+    return requestedFrom;
   }
 
   @OnWorkerEvent('active')

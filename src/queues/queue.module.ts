@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { QueueService } from './queue.service';
-import { SendGridModule } from '@/sendgrid/sendgrid.module';
+import { EmailProvidersModule } from '@/email-providers/email-providers.module';
 import { EmailWorkerProcessor } from './processors/email-worker.processor';
 import { WebhookWorkerProcessor } from './processors/webhook-worker.processor';
 import { EncryptionModule } from '@/common/encryption/encryption.module';
@@ -12,7 +12,7 @@ import { CommonModule } from '@/common/common.module';
 @Module({
   imports: [
     HttpModule,
-    SendGridModule,
+    EmailProvidersModule,
     EncryptionModule,
     CommonModule,
     BullModule.forRootAsync({
