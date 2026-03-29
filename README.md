@@ -10,7 +10,7 @@ The backend API for [NotifyKit](https://notifykit.dev) — notification infrastr
 - **Database**: PostgreSQL + Prisma ORM
 - **Cache/Queue**: Redis
 - **Auth**: JWT (access + refresh tokens), GitHub OAuth
-- **Email**: SendGrid
+- **Email**: SendGrid, Resend (provider-agnostic, BYOK)
 - **Payments**: Multi-provider (Stripe, Paystack, with extensible architecture)
 - **Containerization**: Docker
 
@@ -72,7 +72,9 @@ src/
 ├── prisma/                               # PrismaService
 ├── queues/                               # BullMQ workers — email & webhook processors
 ├── redis/                                # RedisService (ioredis wrapper + remember helper)
+├── email-providers/                      # Provider-agnostic email — SendGrid & Resend services + factory
 ├── sendgrid/                             # SendGrid client + domain verification service
+├── resend-events/                        # Resend webhook event ingestion + signature verification
 └── user/                                 # Profile, API key, jobs history, domain management
 ```
 
@@ -82,7 +84,7 @@ src/
 
 - Node.js 18+
 - Docker & Docker Compose
-- A SendGrid account
+- A SendGrid account and/or a Resend account
 - A Stripe account
 
 ---
@@ -149,10 +151,14 @@ PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxx
 PAYSTACK_INDIE_PLAN_ID=PLN_xxxxxxxxxxxxx
 PAYSTACK_STARTUP_PLAN_ID=PLN_xxxxxxxxxxxxx
 
-# SendGrid
+# SendGrid (platform shared key — used for Free plan and as fallback)
 SENDGRID_API_KEY=SG....
 SENDGRID_FROM_EMAIL=
 SENDGRID_FROM_NAME=
+
+# Resend (platform shared key — used as fallback when SendGrid is unavailable)
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=
 
 # Database
 DATABASE_URL=postgresql://notifykit:localdev123@localhost:5432/notifykit
@@ -301,6 +307,13 @@ GET /api/v1/health
 | GET    | `/api/v1/user/jobs`                 | List jobs                   |
 | GET    | `/api/v1/user/jobs/:id`             | Get job details             |
 | POST   | `/api/v1/user/jobs/:id/retry`       | Retry job                   |
+| GET    | `/api/v1/user/sendgrid/key`         | Get SendGrid key status     |
+| POST   | `/api/v1/user/sendgrid/key`         | Save SendGrid API key       |
+| DELETE | `/api/v1/user/sendgrid/key`         | Remove SendGrid API key     |
+| GET    | `/api/v1/user/resend/key`           | Get Resend key status       |
+| POST   | `/api/v1/user/resend/key`           | Save Resend API key         |
+| DELETE | `/api/v1/user/resend/key`           | Remove Resend API key       |
+| GET    | `/api/v1/user/email-providers`      | List configured providers   |
 | POST   | `/api/v1/user/domain/request`       | Request domain verification |
 | POST   | `/api/v1/user/domain/verify`        | Verify domain               |
 | GET    | `/api/v1/user/domain/status`        | Get domain status           |
@@ -341,6 +354,7 @@ GET /api/v1/health
 | PATCH  | `/api/v1/admin/customers/:id/usage-reset` | Reset customer usage           |
 | GET    | `/api/v1/admin/jobs`                      | List all jobs (paginated)      |
 | DELETE | `/api/v1/admin/jobs/:id`                  | Hard delete job                |
+| GET    | `/api/v1/admin/domains`                   | List all sending domains       |
 | GET    | `/api/v1/admin/stats`                     | Get system-wide statistics     |
 
 ### Health
