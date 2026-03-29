@@ -262,6 +262,15 @@ export class AdminService {
           orderBy: { createdAt: 'desc' },
           take: 10,
         },
+        sendingDomains: {
+          select: {
+            domain: true,
+            provider: true,
+            verified: true,
+            requestedAt: true,
+            verifiedAt: true,
+          },
+        },
       },
     });
 
