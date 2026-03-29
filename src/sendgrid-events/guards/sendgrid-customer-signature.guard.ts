@@ -10,6 +10,7 @@ import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { EventWebhook } from '@sendgrid/eventwebhook';
 import { PrismaService } from '@/prisma/prisma.service';
+import { EmailProviderType } from '@prisma/client';
 
 @Injectable()
 export class SendgridCustomerSignatureGuard implements CanActivate {
@@ -26,14 +27,19 @@ export class SendgridCustomerSignatureGuard implements CanActivate {
 
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      select: { sendgridWebhookKey: true },
+      select: { id: true },
     });
 
     if (!customer) {
       throw new UnauthorizedException('Unknown customer');
     }
 
-    const webhookKey = customer.sendgridWebhookKey ?? null;
+    const providerRecord = await this.prisma.customerEmailProvider.findUnique({
+      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.SENDGRID } },
+      select: { webhookSecret: true },
+    });
+
+    const webhookKey = providerRecord?.webhookSecret ?? null;
 
     if (!webhookKey) {
       throw new NotFoundException();

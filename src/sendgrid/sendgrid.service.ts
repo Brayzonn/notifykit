@@ -1,18 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { CustomerPlan } from '@prisma/client';
-
-export interface SendEmailParams {
-  to: string;
-  subject: string;
-  body: string;
-  from?: string;
-  jobId?: string;
-}
+import { IEmailProvider, SendEmailParams } from '@/email-providers/email-provider.interface';
 
 @Injectable()
-export class SendGridService {
+export class SendGridService implements IEmailProvider {
   private readonly logger = new Logger(SendGridService.name);
   private readonly defaultFromEmail: string;
 
@@ -23,21 +15,10 @@ export class SendGridService {
     );
   }
 
-  async sendEmail(
-    params: SendEmailParams,
-    apiKey?: string,
-    plan?: CustomerPlan,
-  ): Promise<any> {
+  async sendEmail(params: SendEmailParams, apiKey: string): Promise<any> {
     const { to, subject, body, from, jobId } = params;
 
-    const isPaidPlan = plan && plan !== CustomerPlan.FREE;
-    if (isPaidPlan && !apiKey) {
-      throw new Error(
-        'SendGrid API key required for paid plans. Please add your SendGrid API key in settings.',
-      );
-    }
-
-    const key = apiKey ?? this.configService.get<string>('SENDGRID_API_KEY');
+    const key = apiKey;
 
     if (!key) {
       throw new Error('No SendGrid API key available');

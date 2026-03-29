@@ -62,12 +62,12 @@ export class SendgridEventsService {
 
       try {
         await this.prisma.emailEvent.upsert({
-          where: { sgEventId: resolvedSgEventId },
+          where: { eventId: resolvedSgEventId },
           create: {
             jobId,
             event: eventType,
             email,
-            sgEventId: resolvedSgEventId,
+            eventId: resolvedSgEventId,
             metadata: Object.keys(rest).length
               ? (rest as Prisma.InputJsonObject)
               : undefined,
