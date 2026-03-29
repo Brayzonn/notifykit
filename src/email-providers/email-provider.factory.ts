@@ -25,20 +25,20 @@ export class EmailProviderFactory {
   ) {}
 
   resolveAll(plan: CustomerPlan, providers: ProviderConfig[]): ResolvedProvider[] {
-    // FREE plan uses shared platform keys — SendGrid first, Resend as fallback
     if (plan === CustomerPlan.FREE) {
+      const resolved: ResolvedProvider[] = [];
       const sendGridKey = this.configService.get<string>('SENDGRID_API_KEY');
-      if (!sendGridKey) {
-        throw new Error('No shared SendGrid API key configured');
+      if (sendGridKey) {
+        resolved.push({ provider: this.sendGridService, apiKey: sendGridKey });
       }
-      const providers: ResolvedProvider[] = [
-        { provider: this.sendGridService, apiKey: sendGridKey },
-      ];
       const resendKey = this.configService.get<string>('RESEND_API_KEY');
       if (resendKey) {
-        providers.push({ provider: this.resendService, apiKey: resendKey });
+        resolved.push({ provider: this.resendService, apiKey: resendKey });
       }
-      return providers;
+      if (!resolved.length) {
+        throw new Error('No shared email provider configured');
+      }
+      return resolved;
     }
 
     if (!providers.length) {
