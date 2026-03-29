@@ -192,6 +192,82 @@ export class UserController {
 
   /**
    * ================================
+   * RESEND KEY MANAGEMENT
+   * ================================
+   */
+
+  @Post('resend-key')
+  @HttpCode(HttpStatus.OK)
+  async saveResendKey(
+    @User() user: AuthenticatedUser,
+    @Body('apiKey') apiKey: string,
+  ) {
+    if (!apiKey) {
+      throw new BadRequestException('Resend API key is required');
+    }
+    return await this.userService.saveCustomerResendKey(user.id, apiKey);
+  }
+
+  @Get('resend-key')
+  async getResendKey(@User() user: AuthenticatedUser) {
+    return await this.userService.getCustomerResendKey(user.id);
+  }
+
+  @Delete('resend-key')
+  @HttpCode(HttpStatus.OK)
+  async removeResendKey(@User() user: AuthenticatedUser) {
+    return await this.userService.removeCustomerResendKey(user.id);
+  }
+
+  @Get('email-provider')
+  async getEmailProvider(@User() user: AuthenticatedUser) {
+    return await this.userService.getEmailProviderStatus(user.id);
+  }
+
+  @Patch('email-provider/:provider/priority')
+  @HttpCode(HttpStatus.OK)
+  async updateEmailProviderPriority(
+    @User() user: AuthenticatedUser,
+    @Param('provider') provider: string,
+    @Body('priority') priority: number,
+  ) {
+    if (priority == null || !Number.isInteger(priority) || priority < 1) {
+      throw new BadRequestException('priority must be a positive integer');
+    }
+    return await this.userService.updateEmailProviderPriority(user.id, provider, priority);
+  }
+
+  /**
+   * ================================
+   * RESEND WEBHOOK KEY MANAGEMENT
+   * ================================
+   */
+
+  @Post('resend-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async saveResendWebhookSecret(
+    @User() user: AuthenticatedUser,
+    @Body('secret') secret: string,
+  ) {
+    if (!secret) {
+      throw new BadRequestException('secret is required');
+    }
+    return await this.userService.saveResendWebhookSecret(user.id, secret);
+  }
+
+  @Get('resend-webhook-key')
+  async getResendWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.getResendWebhookSecret(user.id);
+  }
+
+  @Delete('resend-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async removeResendWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.removeResendWebhookSecret(user.id);
+  }
+
+  /**
+   * ================================
    * SENDGRID WEBHOOK KEY MANAGEMENT
    * ================================
    */

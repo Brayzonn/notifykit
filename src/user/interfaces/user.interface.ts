@@ -6,9 +6,18 @@ import {
   CustomerPlan,
   DeliveryStatus,
   EmailEventType,
+  EmailProviderType,
   JobStatus,
   JobType,
 } from '@prisma/client';
+
+export interface SendingDomainSummary {
+  domain: string;
+  provider: EmailProviderType;
+  verified: boolean;
+  requestedAt: Date;
+  verifiedAt: Date | null;
+}
 
 export interface CustomerProfile {
   id: string;
@@ -19,8 +28,7 @@ export interface CustomerProfile {
   billingCycleStartAt: Date;
   isActive: boolean;
   createdAt: Date;
-  sendingDomain: string | null;
-  domainVerified: boolean;
+  sendingDomains: SendingDomainSummary[];
 }
 
 export interface UserProfile {
