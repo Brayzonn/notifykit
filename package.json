@@ -53,8 +53,10 @@
     "pg": "^8.16.3",
     "rate-limiter-flexible": "^7.1.1",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.9.4",
     "rxjs": "^7.8.1",
-    "stripe": "^20.3.1"
+    "stripe": "^20.3.1",
+    "svix": "^1.89.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
