@@ -9,7 +9,7 @@ services:
     container_name: notifykit-api
     restart: unless-stopped
     ports:
-      - '5932:3000'
+      - '127.0.0.1:5932:3000'
     env_file:
       - .env.production
     depends_on:
