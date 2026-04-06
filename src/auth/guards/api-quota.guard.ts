@@ -11,6 +11,7 @@ import { Request } from 'express';
 import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
 import { AuthenticatedCustomer } from '../interfaces/api-guard.interface';
 import { BillingService } from '@/billing/billing.service';
+import { getPlanLimit } from '@/common/constants/plans.constants';
 
 interface CustomerRequest extends Request {
   customer: AuthenticatedCustomer;
@@ -119,7 +120,7 @@ export class QuotaGuard implements CanActivate {
 
       // Sync in-memory for current request
       customer.plan = CustomerPlan.FREE;
-      customer.monthlyLimit = 1000;
+      customer.monthlyLimit = getPlanLimit(CustomerPlan.FREE);
       this.syncCustomerInMemory(customer);
 
       this.logger.warn(
