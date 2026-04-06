@@ -9,6 +9,7 @@ export interface AuthenticatedCustomer {
   email: string;
   plan: CustomerPlan;
   monthlyLimit: number;
+  customMonthlyLimit?: number | null;
   usageCount?: number;
   usageResetAt: Date;
   billingCycleStartAt: Date;

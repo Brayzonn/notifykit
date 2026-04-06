@@ -49,13 +49,14 @@ export class QuotaGuard implements CanActivate {
 
     // Check usage limit
     const currentUsage = customer.usageCount ?? 0;
-    if (currentUsage >= customer.monthlyLimit) {
+    const effectiveLimit = customer.customMonthlyLimit ?? customer.monthlyLimit;
+    if (currentUsage >= effectiveLimit) {
       this.logger.warn(
-        `Usage limit exceeded for ${customer.email}: ${currentUsage}/${customer.monthlyLimit}`,
+        `Usage limit exceeded for ${customer.email}: ${currentUsage}/${effectiveLimit}`,
       );
       throw new ForbiddenException({
         statusCode: 403,
-        message: `Monthly usage limit exceeded (${currentUsage}/${customer.monthlyLimit}). Upgrade your plan or wait for reset on ${customer.usageResetAt.toLocaleDateString()}.`,
+        message: `Monthly usage limit exceeded (${currentUsage}/${effectiveLimit}). Upgrade your plan or wait for reset on ${customer.usageResetAt.toLocaleDateString()}.`,
         error: 'Forbidden',
       });
     }

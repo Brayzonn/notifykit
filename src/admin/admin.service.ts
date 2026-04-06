@@ -343,6 +343,35 @@ export class AdminService {
     return updated;
   }
 
+  async setCustomLimit(customerId: string, limit: number | null) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const updated = await this.prisma.customer.update({
+      where: { id: customerId },
+      data: { customMonthlyLimit: limit },
+      select: {
+        id: true,
+        email: true,
+        plan: true,
+        monthlyLimit: true,
+        customMonthlyLimit: true,
+        updatedAt: true,
+      },
+    });
+
+    this.logger.log(
+      `Admin set custom limit for customer ${customerId} to ${limit ?? 'none (removed)'}`,
+    );
+
+    return updated;
+  }
+
   async resetCustomerUsage(customerId: string, dto: ResetCustomerUsageDto) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },

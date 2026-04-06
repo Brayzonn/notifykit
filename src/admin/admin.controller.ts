@@ -25,6 +25,7 @@ import {
   UpdateCustomerPlanDto,
   ResetCustomerUsageDto,
   QueryJobsDto,
+  SetCustomLimitDto,
 } from './dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
@@ -133,6 +134,18 @@ export class AdminController {
     @Body() dto: UpdateCustomerPlanDto,
   ) {
     return await this.adminService.updateCustomerPlan(id, dto);
+  }
+
+  @Patch('customers/:id/custom-limit')
+  @ApiOperation({ summary: 'Set or remove a custom monthly notification limit for a customer' })
+  @ApiParam({ name: 'id', description: 'Customer ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Custom limit updated successfully' })
+  @ApiResponse({ status: 404, description: 'Customer not found' })
+  async setCustomLimit(
+    @Param('id') id: string,
+    @Body() dto: SetCustomLimitDto,
+  ) {
+    return this.adminService.setCustomLimit(id, dto.limit ?? null);
   }
 
   @Patch('customers/:id/usage-reset')
