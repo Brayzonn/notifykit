@@ -311,6 +311,7 @@ export class AdminService {
 
     return {
       ...customer,
+      effectiveLimit: customer.customMonthlyLimit ?? customer.monthlyLimit,
       stats: {
         totalJobs,
         completedJobs,
