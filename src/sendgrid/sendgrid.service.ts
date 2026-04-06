@@ -32,6 +32,9 @@ export class SendGridService implements IEmailProvider {
           from: { email: from || this.defaultFromEmail },
           subject,
           content: [{ type: 'text/html', value: body }],
+          tracking_settings: {
+            click_tracking: { enable: false },
+          },
           ...(jobId ? { custom_args: { job_id: jobId } } : {}),
         },
         {

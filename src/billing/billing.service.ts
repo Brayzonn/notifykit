@@ -205,7 +205,9 @@ export class BillingService {
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         paymentProvider: subscriptionData.paymentProvider as any,
         providerCustomerId: subscriptionData.providerCustomerId,
-        providerSubscriptionId: subscriptionData.providerSubscriptionId,
+        ...(subscriptionData.providerSubscriptionId !== null && {
+          providerSubscriptionId: subscriptionData.providerSubscriptionId,
+        }),
         nextBillingDate: subscriptionData.nextBillingDate,
         lastPaymentDate: now,
       },
