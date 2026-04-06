@@ -80,6 +80,7 @@ export const createMockCustomer = (
     lastPaymentDate: null,
     subscriptionEndDate: null,
     paymentMetadata: null,
+    customMonthlyLimit: null,
     previousPlan: null,
     downgradedAt: null,
     createdAt: now,

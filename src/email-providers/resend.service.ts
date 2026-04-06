@@ -30,7 +30,6 @@ export class ResendService implements IEmailProvider {
         to,
         subject,
         html: body,
-        click_tracking: false,
         ...(jobId ? { tags: [{ name: 'job_id', value: jobId }] } : {}),
       });
 
