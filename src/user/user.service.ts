@@ -483,16 +483,17 @@ export class UserService {
       throw new NotFoundException('Customer record not found');
     }
 
-    const { jobs, plan, monthlyLimit, usageCount, usageResetAt } = customer;
+    const { jobs, plan, monthlyLimit, customMonthlyLimit, usageCount, usageResetAt } = customer;
 
     const jobStats = this.calculateJobStats(jobs);
     const activityByDay = this.groupJobsByDay(jobs, days);
-    const remaining = Math.max(monthlyLimit - usageCount, 0);
+    const effectiveLimit = customMonthlyLimit ?? monthlyLimit;
+    const remaining = Math.max(effectiveLimit - usageCount, 0);
 
     return {
       usage: {
         plan,
-        monthlyLimit,
+        monthlyLimit: effectiveLimit,
         used: usageCount,
         remaining,
         resetAt: usageResetAt,
@@ -1159,6 +1160,7 @@ export class UserService {
       select: {
         plan: true,
         monthlyLimit: true,
+        customMonthlyLimit: true,
         usageCount: true,
         usageResetAt: true,
         billingCycleStartAt: true,
@@ -1169,15 +1171,16 @@ export class UserService {
       throw new NotFoundException('Customer record not found');
     }
 
-    const usagePercentage = (customer.usageCount / customer.monthlyLimit) * 100;
-    const remaining = customer.monthlyLimit - customer.usageCount;
+    const effectiveLimit = customer.customMonthlyLimit ?? customer.monthlyLimit;
+    const usagePercentage = (customer.usageCount / effectiveLimit) * 100;
+    const remaining = effectiveLimit - customer.usageCount;
     const formattedPercentage = parseFloat(
       Math.min(usagePercentage, 100).toFixed(2),
     ).toString();
 
     return {
       plan: customer.plan,
-      monthlyLimit: customer.monthlyLimit,
+      monthlyLimit: effectiveLimit,
       usageCount: customer.usageCount,
       remaining: remaining > 0 ? remaining : 0,
       usagePercentage: formattedPercentage,
@@ -1722,6 +1725,7 @@ export class UserService {
       select: {
         plan: true,
         monthlyLimit: true,
+        customMonthlyLimit: true,
         usageCount: true,
         usageResetAt: true,
         jobs: {
