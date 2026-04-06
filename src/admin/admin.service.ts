@@ -97,6 +97,7 @@ export class AdminService {
             id: true,
             plan: true,
             monthlyLimit: true,
+            customMonthlyLimit: true,
             usageCount: true,
             isActive: true,
             subscriptionStatus: true,
@@ -115,6 +116,16 @@ export class AdminService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    if (user.customer) {
+      return {
+        ...user,
+        customer: {
+          ...user.customer,
+          effectiveLimit: user.customer.customMonthlyLimit ?? user.customer.monthlyLimit,
+        },
+      };
     }
 
     return user;
@@ -208,6 +219,7 @@ export class AdminService {
           email: true,
           plan: true,
           monthlyLimit: true,
+          customMonthlyLimit: true,
           usageCount: true,
           usageResetAt: true,
           isActive: true,
@@ -228,7 +240,10 @@ export class AdminService {
     ]);
 
     return {
-      data: customers,
+      data: customers.map((c) => ({
+        ...c,
+        effectiveLimit: c.customMonthlyLimit ?? c.monthlyLimit,
+      })),
       pagination: {
         page,
         limit,
