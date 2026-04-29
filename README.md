@@ -10,7 +10,7 @@ The backend API for [NotifyKit](https://notifykit.dev) — notification infrastr
 - **Database**: PostgreSQL + Prisma ORM
 - **Cache/Queue**: Redis
 - **Auth**: JWT (access + refresh tokens), GitHub OAuth
-- **Email**: SendGrid, Resend (provider-agnostic, BYOK)
+- **Email**: SendGrid, Resend, Postmark (provider-agnostic, BYOK with priority fallback)
 - **Payments**: Multi-provider (Stripe, Paystack, with extensible architecture)
 - **Containerization**: Docker
 
@@ -51,7 +51,7 @@ src/
 │   │   ├── roles.decorator.ts
 │   │   └── user.decorator.ts
 │   ├── encryption/
-│   │   └── encryption.service.ts         # AES encryption for stored SendGrid keys
+│   │   └── encryption.service.ts         # AES encryption for stored provider API keys + webhook secrets
 │   ├── filters/
 │   │   └── all-exceptions.filter.ts      # Global exception → { success, error, timestamp }
 │   ├── interceptors/
@@ -61,6 +61,9 @@ src/
 │   ├── rate-limit/
 │   │   └── rate-limit.module.ts          # Provides IpRateLimitGuard + UserRateLimitGuard
 │   └── utils/
+│       ├── enum.util.ts
+│       ├── error.util.ts                 # getErrorMessage / getAxiosErrorData / getAxiosErrorStatus
+│       └── response.util.ts
 │
 ├── admin/                                # Admin-only endpoints (ADMIN role)
 ├── billing/                              # Plan upgrades, subscriptions, invoices
@@ -72,10 +75,12 @@ src/
 ├── prisma/                               # PrismaService
 ├── queues/                               # BullMQ workers — email & webhook processors
 ├── redis/                                # RedisService (ioredis wrapper + remember helper)
-├── email-providers/                      # Provider-agnostic email — SendGrid & Resend services + factory
-├── sendgrid/                             # SendGrid client + domain verification service
+├── email-providers/                      # Provider-agnostic email — Resend + Postmark services + domain services + factory
+├── sendgrid/                             # SendGrid send client + domain verification service
+├── sendgrid-events/                      # SendGrid webhook event ingestion + signature verification
 ├── resend-events/                        # Resend webhook event ingestion + signature verification
-└── user/                                 # Profile, API key, jobs history, domain management
+├── postmark-events/                      # Postmark webhook event ingestion + Basic-Auth signature guard
+└── user/                                 # Profile, API key, provider keys, jobs history, domain management
 ```
 
 ---
@@ -84,7 +89,7 @@ src/
 
 - Node.js 18+
 - Docker & Docker Compose
-- A SendGrid account and/or a Resend account
+- At least one of: SendGrid, Resend, or Postmark account (any combination — used in priority order for the FREE tier)
 - A Stripe account
 
 ---
@@ -159,6 +164,11 @@ SENDGRID_FROM_NAME=
 # Resend (platform shared key — used as fallback when SendGrid is unavailable)
 RESEND_API_KEY=re_...
 RESEND_FROM_EMAIL=
+
+# Postmark (platform shared key — third-tier fallback for FREE plan)
+POSTMARK_API_KEY=
+POSTMARK_FROM_EMAIL=
+POSTMARK_MESSAGE_STREAM=outbound
 
 # Database
 DATABASE_URL=postgresql://notifykit:localdev123@localhost:5432/notifykit
@@ -307,18 +317,31 @@ GET /api/v1/health
 | GET    | `/api/v1/user/jobs`                 | List jobs                   |
 | GET    | `/api/v1/user/jobs/:id`             | Get job details             |
 | POST   | `/api/v1/user/jobs/:id/retry`       | Retry job                   |
-| GET    | `/api/v1/user/sendgrid/key`         | Get SendGrid key status     |
-| POST   | `/api/v1/user/sendgrid/key`         | Save SendGrid API key       |
-| DELETE | `/api/v1/user/sendgrid/key`         | Remove SendGrid API key     |
-| GET    | `/api/v1/user/resend/key`           | Get Resend key status       |
-| POST   | `/api/v1/user/resend/key`           | Save Resend API key         |
-| DELETE | `/api/v1/user/resend/key`           | Remove Resend API key       |
-| GET    | `/api/v1/user/email-providers`      | List configured providers   |
-| POST   | `/api/v1/user/domain/request`       | Request domain verification |
-| POST   | `/api/v1/user/domain/verify`        | Verify domain               |
-| GET    | `/api/v1/user/domain/status`        | Get domain status           |
-| DELETE | `/api/v1/user/domain`               | Remove domain               |
-| DELETE | `/api/v1/user/account`              | Delete account              |
+| GET    | `/api/v1/user/sendgrid-key`                            | Get SendGrid key status            |
+| POST   | `/api/v1/user/sendgrid-key`                            | Save SendGrid API key              |
+| DELETE | `/api/v1/user/sendgrid-key`                            | Remove SendGrid API key            |
+| GET    | `/api/v1/user/resend-key`                              | Get Resend key status              |
+| POST   | `/api/v1/user/resend-key`                              | Save Resend API key                |
+| DELETE | `/api/v1/user/resend-key`                              | Remove Resend API key              |
+| GET    | `/api/v1/user/postmark-key`                            | Get Postmark key status            |
+| POST   | `/api/v1/user/postmark-key`                            | Save Postmark Server Token         |
+| DELETE | `/api/v1/user/postmark-key`                            | Remove Postmark API key            |
+| GET    | `/api/v1/user/sendgrid-webhook-key`                    | Get SendGrid webhook secret status |
+| POST   | `/api/v1/user/sendgrid-webhook-key`                    | Save SendGrid webhook secret       |
+| DELETE | `/api/v1/user/sendgrid-webhook-key`                    | Remove SendGrid webhook secret     |
+| GET    | `/api/v1/user/resend-webhook-key`                      | Get Resend webhook secret status   |
+| POST   | `/api/v1/user/resend-webhook-key`                      | Save Resend webhook secret         |
+| DELETE | `/api/v1/user/resend-webhook-key`                      | Remove Resend webhook secret       |
+| GET    | `/api/v1/user/postmark-webhook-key`                    | Get Postmark webhook secret status |
+| POST   | `/api/v1/user/postmark-webhook-key`                    | Save Postmark webhook secret       |
+| DELETE | `/api/v1/user/postmark-webhook-key`                    | Remove Postmark webhook secret     |
+| GET    | `/api/v1/user/email-provider`                          | List configured providers          |
+| PATCH  | `/api/v1/user/email-provider/:provider/priority`       | Update provider failover priority  |
+| POST   | `/api/v1/user/domain/request`                          | Request domain verification        |
+| POST   | `/api/v1/user/domain/verify`                           | Verify domain                      |
+| GET    | `/api/v1/user/domain/status`                           | Get domain status                  |
+| DELETE | `/api/v1/user/domain`                                  | Remove domain                      |
+| DELETE | `/api/v1/user/account`                                 | Delete account                     |
 
 ### Billing
 
@@ -366,10 +389,14 @@ GET /api/v1/health
 
 ### Webhooks
 
-| Method | Endpoint                           | Description              |
-| ------ | ---------------------------------- | ------------------------ |
-| POST   | `/api/v1/payment/stripe/webhook`   | Stripe webhook handler   |
-| POST   | `/api/v1/payment/paystack/webhook` | Paystack webhook handler |
+| Method | Endpoint                                  | Description                                              |
+| ------ | ----------------------------------------- | -------------------------------------------------------- |
+| POST   | `/api/v1/payment/stripe/webhook`          | Stripe webhook handler                                   |
+| POST   | `/api/v1/payment/paystack/webhook`        | Paystack webhook handler                                 |
+| POST   | `/api/v1/webhooks/sendgrid`               | SendGrid email events (shared platform key, ECDSA)       |
+| POST   | `/api/v1/webhooks/sendgrid/:customerId`   | SendGrid email events (per-customer key, ECDSA)          |
+| POST   | `/api/v1/webhooks/resend/:customerId`     | Resend email events (per-customer secret, svix)          |
+| POST   | `/api/v1/webhooks/postmark/:customerId`   | Postmark email events (per-customer secret, Basic Auth)  |
 
 ---
 
@@ -423,13 +450,14 @@ All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second windo
 
 ## Testing
 
-This project includes a comprehensive Jest test suite with 150+ tests covering:
+This project includes a Jest test suite with 420+ unit tests and 37 e2e scenarios covering:
 
-- **Auth Service** (33 tests): signin, password reset, token refresh, logout
-- **Stripe Webhooks** (28 tests): signature verification, subscription events, payment handling
-- **Guards** (51 tests): API key validation, quota enforcement, JWT authentication
-- **Queue Processors** (40 tests): email/webhook job processing, retry logic, error handling
-- **E2E Tests** (21 scenarios): Complete auth flow, password reset, API integration
+- **Auth & guards**: signin, password reset, token refresh, logout, API key validation, quota enforcement, JWT/IP/customer rate limiting
+- **Email providers**: SendGrid, Resend, and Postmark send services + domain verification services + the shared `EmailProviderFactory` (FREE-tier fallback order, paid-tier per-customer resolution)
+- **Webhook receivers**: SendGrid / Resend / Postmark signature guards (ECDSA, svix, Basic Auth respectively) and event-type mapping for each provider
+- **Stripe & Paystack webhooks**: signature verification, subscription events, payment handling
+- **Queue processors**: email/webhook job processing, multi-provider failover, retry logic
+- **E2E**: complete signup → verify → signin flow, password reset, refresh-token rotation, session limits, OTP resend
 
 Run tests with:
 
