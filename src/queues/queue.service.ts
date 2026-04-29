@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { EmailProviderType } from '@prisma/client';
 import {
   QUEUE_NAMES,
   QueueType,
@@ -16,6 +17,8 @@ export interface EmailJobData {
   subject: string;
   body: string;
   from?: string;
+  provider?: EmailProviderType;
+  fallback?: EmailProviderType;
 }
 
 export interface WebhookJobData {

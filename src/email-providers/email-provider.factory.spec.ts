@@ -45,13 +45,17 @@ describe('EmailProviderFactory', () => {
     it('returns only SendGrid when only SENDGRID_API_KEY is set', () => {
       env.SENDGRID_API_KEY = 'sg-key';
       const result = factory.resolveAll(CustomerPlan.FREE, []);
-      expect(result).toEqual([{ provider: sendGrid, apiKey: 'sg-key' }]);
+      expect(result).toEqual([
+        { type: EmailProviderType.SENDGRID, provider: sendGrid, apiKey: 'sg-key' },
+      ]);
     });
 
     it('returns Postmark when only POSTMARK_API_KEY is set', () => {
       env.POSTMARK_API_KEY = 'pm-key';
       const result = factory.resolveAll(CustomerPlan.FREE, []);
-      expect(result).toEqual([{ provider: postmark, apiKey: 'pm-key' }]);
+      expect(result).toEqual([
+        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm-key' },
+      ]);
     });
 
     it('returns SendGrid, Resend, Postmark in declared order when all three are set', () => {
@@ -61,9 +65,9 @@ describe('EmailProviderFactory', () => {
 
       const result = factory.resolveAll(CustomerPlan.FREE, []);
       expect(result).toEqual([
-        { provider: sendGrid, apiKey: 'sg' },
-        { provider: resend, apiKey: 're' },
-        { provider: postmark, apiKey: 'pm' },
+        { type: EmailProviderType.SENDGRID, provider: sendGrid, apiKey: 'sg' },
+        { type: EmailProviderType.RESEND, provider: resend, apiKey: 're' },
+        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm' },
       ]);
     });
   });
@@ -79,7 +83,9 @@ describe('EmailProviderFactory', () => {
       const result = factory.resolveAll(CustomerPlan.STARTUP, [
         { provider: EmailProviderType.POSTMARK, apiKey: 'pm-key', priority: 1 },
       ]);
-      expect(result).toEqual([{ provider: postmark, apiKey: 'pm-key' }]);
+      expect(result).toEqual([
+        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm-key' },
+      ]);
     });
 
     it('orders multiple providers by ascending priority', () => {
@@ -89,9 +95,9 @@ describe('EmailProviderFactory', () => {
         { provider: EmailProviderType.RESEND, apiKey: 're', priority: 2 },
       ]);
       expect(result).toEqual([
-        { provider: sendGrid, apiKey: 'sg' },
-        { provider: resend, apiKey: 're' },
-        { provider: postmark, apiKey: 'pm' },
+        { type: EmailProviderType.SENDGRID, provider: sendGrid, apiKey: 'sg' },
+        { type: EmailProviderType.RESEND, provider: resend, apiKey: 're' },
+        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm' },
       ]);
     });
 

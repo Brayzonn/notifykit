@@ -13,6 +13,7 @@ export interface ProviderConfig {
 }
 
 export interface ResolvedProvider {
+  type: EmailProviderType;
   provider: IEmailProvider;
   apiKey: string;
 }
@@ -31,15 +32,27 @@ export class EmailProviderFactory {
       const resolved: ResolvedProvider[] = [];
       const sendGridKey = this.configService.get<string>('SENDGRID_API_KEY');
       if (sendGridKey) {
-        resolved.push({ provider: this.sendGridService, apiKey: sendGridKey });
+        resolved.push({
+          type: EmailProviderType.SENDGRID,
+          provider: this.sendGridService,
+          apiKey: sendGridKey,
+        });
       }
       const resendKey = this.configService.get<string>('RESEND_API_KEY');
       if (resendKey) {
-        resolved.push({ provider: this.resendService, apiKey: resendKey });
+        resolved.push({
+          type: EmailProviderType.RESEND,
+          provider: this.resendService,
+          apiKey: resendKey,
+        });
       }
       const postmarkKey = this.configService.get<string>('POSTMARK_API_KEY');
       if (postmarkKey) {
-        resolved.push({ provider: this.postmarkService, apiKey: postmarkKey });
+        resolved.push({
+          type: EmailProviderType.POSTMARK,
+          provider: this.postmarkService,
+          apiKey: postmarkKey,
+        });
       }
       if (!resolved.length) {
         throw new Error('No shared email provider configured');
@@ -56,9 +69,21 @@ export class EmailProviderFactory {
     return [...providers]
       .sort((a, b) => a.priority - b.priority)
       .map((config) => ({
+        type: config.provider,
         provider: this.getProviderService(config.provider),
         apiKey: config.apiKey,
       }));
+  }
+
+  resolveOne(
+    plan: CustomerPlan,
+    providers: ProviderConfig[],
+    requested: EmailProviderType,
+  ): ResolvedProvider | null {
+    return (
+      this.resolveAll(plan, providers).find((r) => r.type === requested) ??
+      null
+    );
   }
 
   private getProviderService(type: EmailProviderType): IEmailProvider {

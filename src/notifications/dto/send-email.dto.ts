@@ -4,8 +4,10 @@ import {
   IsString,
   IsOptional,
   IsIn,
+  IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { EmailProviderType } from '@prisma/client';
 
 export class SendEmailDto {
   @ApiProperty({
@@ -57,4 +59,22 @@ export class SendEmailDto {
   @IsString()
   @IsOptional()
   idempotencyKey?: string;
+
+  @ApiPropertyOptional({
+    enum: EmailProviderType,
+    description:
+      'Force this email through a specific configured provider (paid plans only). If unset, the customer\'s priority order with full failover applies.',
+  })
+  @IsEnum(EmailProviderType)
+  @IsOptional()
+  provider?: EmailProviderType;
+
+  @ApiPropertyOptional({
+    enum: EmailProviderType,
+    description:
+      'Fallback provider to try if `provider` fails. Ignored unless `provider` is set. Other configured providers are not tried.',
+  })
+  @IsEnum(EmailProviderType)
+  @IsOptional()
+  fallback?: EmailProviderType;
 }

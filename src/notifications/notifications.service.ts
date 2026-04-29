@@ -3,6 +3,7 @@ import {
   Logger,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queues/queue.service';
@@ -59,6 +60,7 @@ export class NotificationsService {
       select: {
         plan: true,
         sendingDomains: { select: { verified: true } },
+        emailProviders: { select: { provider: true } },
         _count: { select: { emailProviders: true } },
       },
     });
@@ -72,6 +74,37 @@ export class NotificationsService {
       hasDomain: customer.sendingDomains.length > 0,
       hasVerifiedDomain: customer.sendingDomains.some((d) => d.verified),
     });
+
+    if (dto.fallback && !dto.provider) {
+      throw new BadRequestException(
+        '`fallback` requires `provider` to be set.',
+      );
+    }
+    if (dto.provider && dto.fallback && dto.provider === dto.fallback) {
+      throw new BadRequestException(
+        '`provider` and `fallback` must be different.',
+      );
+    }
+    if ((dto.provider || dto.fallback) && customer.plan === CustomerPlan.FREE) {
+      throw new ForbiddenException(
+        'Per-message provider routing requires a paid plan.',
+      );
+    }
+    if (dto.provider || dto.fallback) {
+      const configured = new Set(
+        customer.emailProviders.map((p) => p.provider),
+      );
+      if (dto.provider && !configured.has(dto.provider)) {
+        throw new BadRequestException(
+          `Provider ${dto.provider} is not configured for this customer.`,
+        );
+      }
+      if (dto.fallback && !configured.has(dto.fallback)) {
+        throw new BadRequestException(
+          `Fallback provider ${dto.fallback} is not configured for this customer.`,
+        );
+      }
+    }
 
     const priority =
       customer.plan === CustomerPlan.FREE
@@ -89,6 +122,8 @@ export class NotificationsService {
           subject: dto.subject,
           body: dto.body,
           from: dto.from,
+          provider: dto.provider,
+          fallback: dto.fallback,
         } as EmailPayloadData,
         idempotencyKey: dto.idempotencyKey,
         attempts: 0,
@@ -104,6 +139,8 @@ export class NotificationsService {
         subject: dto.subject,
         body: dto.body,
         from: dto.from,
+        provider: dto.provider,
+        fallback: dto.fallback,
       },
       priority,
     );
@@ -349,6 +386,8 @@ export class NotificationsService {
           subject: payload.subject,
           body: payload.body,
           from: payload.from,
+          provider: payload.provider,
+          fallback: payload.fallback,
         },
         job.priority,
         true,

@@ -250,13 +250,14 @@ model Job {
 // ============================================
 
 model DeliveryLog {
-  id           String         @id @default(uuid()) @db.Uuid
-  jobId        String         @map("job_id") @db.Uuid
-  attempt      Int
-  status       DeliveryStatus
-  response     Json?
-  errorMessage String?        @map("error_message")
-  createdAt    DateTime       @default(now()) @map("created_at")
+  id            String             @id @default(uuid()) @db.Uuid
+  jobId         String             @map("job_id") @db.Uuid
+  attempt       Int
+  status        DeliveryStatus
+  response      Json?
+  errorMessage  String?            @map("error_message")
+  usedProvider  EmailProviderType? @map("used_provider")
+  createdAt     DateTime           @default(now()) @map("created_at")
 
   job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 

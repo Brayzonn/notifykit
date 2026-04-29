@@ -146,6 +146,7 @@ export interface JobDeliveryLog {
   jobId: string;
   attempt: number;
   response: any;
+  usedProvider: EmailProviderType | null;
 }
 
 export interface Job {

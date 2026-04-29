@@ -2,10 +2,14 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job, UnrecoverableError } from 'bullmq';
 import { ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CustomerPlan, DeliveryStatus, JobStatus, Prisma } from '@prisma/client';
+import { CustomerPlan, DeliveryStatus, EmailProviderType, JobStatus, Prisma } from '@prisma/client';
 import { QUEUE_NAMES } from '@/queues/queue.constants';
 import { EmailJobData, QueueService } from '@/queues/queue.service';
-import { EmailProviderFactory, ProviderConfig } from '@/email-providers/email-provider.factory';
+import {
+  EmailProviderFactory,
+  ProviderConfig,
+  ResolvedProvider,
+} from '@/email-providers/email-provider.factory';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
@@ -36,7 +40,16 @@ export class EmailWorkerProcessor extends WorkerHost {
   }
 
   async process(job: Job<EmailJobData>): Promise<any> {
-    const { jobId, customerId, to, subject, body, from } = job.data;
+    const {
+      jobId,
+      customerId,
+      to,
+      subject,
+      body,
+      from,
+      provider: forcedProvider,
+      fallback,
+    } = job.data;
 
     const currentJob = await this.prisma.job.findUnique({
       where: { id: jobId },
@@ -46,6 +59,8 @@ export class EmailWorkerProcessor extends WorkerHost {
     const nextAttempt = (currentJob?.attempts || 0) + 1;
 
     this.logger.log(`Processing email job: ${jobId} (attempt ${nextAttempt})`);
+
+    let lastAttemptedProvider: EmailProviderType | undefined;
 
     try {
       const customer = await this.prisma.customer.findUnique({
@@ -104,31 +119,71 @@ export class EmailWorkerProcessor extends WorkerHost {
         }),
       );
 
-      const resolvedProviders = this.emailProviderFactory.resolveAll(
-        customer.plan,
-        decryptedProviders,
-      );
+      let attemptList: ResolvedProvider[];
+      if (forcedProvider) {
+        const primary = this.emailProviderFactory.resolveOne(
+          customer.plan,
+          decryptedProviders,
+          forcedProvider,
+        );
+        if (!primary) {
+          throw new UnrecoverableError(
+            `Provider ${forcedProvider} is not configured for this customer.`,
+          );
+        }
+        attemptList = [primary];
+        if (fallback) {
+          const fb = this.emailProviderFactory.resolveOne(
+            customer.plan,
+            decryptedProviders,
+            fallback,
+          );
+          if (!fb) {
+            throw new UnrecoverableError(
+              `Fallback provider ${fallback} is not configured for this customer.`,
+            );
+          }
+          attemptList.push(fb);
+        }
+      } else {
+        attemptList = this.emailProviderFactory.resolveAll(
+          customer.plan,
+          decryptedProviders,
+        );
+      }
 
       let response: any;
       let lastError: Error | undefined;
+      let successfulProvider: EmailProviderType | undefined;
 
-      for (const { provider, apiKey } of resolvedProviders) {
+      for (const entry of attemptList) {
+        lastAttemptedProvider = entry.type;
         try {
-          response = await provider.sendEmail(
+          response = await entry.provider.sendEmail(
             { to, subject, body, from: fromAddress, jobId },
-            apiKey,
+            entry.apiKey,
           );
           lastError = undefined;
+          successfulProvider = entry.type;
           break;
         } catch (err) {
           this.logger.warn(
-            `Provider failed for job ${jobId}, trying next: ${err.message}`,
+            `Provider ${entry.type} failed for job ${jobId}: ${getErrorMessage(err)}`,
           );
-          lastError = err;
+          lastError = err as Error;
         }
       }
 
-      if (lastError) throw lastError;
+      if (lastError) {
+        // Forced routing is a contract — don't let BullMQ retry through
+        // providers the customer didn't authorize.
+        if (forcedProvider) {
+          throw new UnrecoverableError(
+            `Configured provider(s) failed: ${getErrorMessage(lastError)}`,
+          );
+        }
+        throw lastError;
+      }
 
       await this.prisma.job.update({
         where: { id: jobId },
@@ -141,6 +196,7 @@ export class EmailWorkerProcessor extends WorkerHost {
           attempt: nextAttempt,
           status: DeliveryStatus.SUCCESS,
           response,
+          usedProvider: successfulProvider,
         },
       });
 
@@ -154,7 +210,13 @@ export class EmailWorkerProcessor extends WorkerHost {
           data: { status: JobStatus.FAILED, errorMessage: error.message, attempts: nextAttempt },
         });
         await this.prisma.deliveryLog.create({
-          data: { jobId, attempt: nextAttempt, status: DeliveryStatus.FAILED, errorMessage: error.message },
+          data: {
+            jobId,
+            attempt: nextAttempt,
+            status: DeliveryStatus.FAILED,
+            errorMessage: error.message,
+            usedProvider: lastAttemptedProvider,
+          },
         });
         throw error;
       }
@@ -166,7 +228,13 @@ export class EmailWorkerProcessor extends WorkerHost {
           data: { status: JobStatus.FAILED, errorMessage: error.message, attempts: nextAttempt },
         });
         await this.prisma.deliveryLog.create({
-          data: { jobId, attempt: nextAttempt, status: DeliveryStatus.FAILED, errorMessage: error.message },
+          data: {
+            jobId,
+            attempt: nextAttempt,
+            status: DeliveryStatus.FAILED,
+            errorMessage: error.message,
+            usedProvider: lastAttemptedProvider,
+          },
         });
         throw new UnrecoverableError(error.message);
       }
@@ -209,6 +277,7 @@ export class EmailWorkerProcessor extends WorkerHost {
           attempt: nextAttempt,
           status: DeliveryStatus.FAILED,
           errorMessage,
+          usedProvider: lastAttemptedProvider,
         },
       });
 

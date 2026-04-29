@@ -1,3 +1,5 @@
+import { EmailProviderType } from '@prisma/client';
+
 // ============================================
 // REQUEST DTOs INTERFACES
 // ============================================
@@ -116,6 +118,8 @@ export interface EmailPayloadData {
   subject: string;
   body: string;
   from?: string;
+  provider?: EmailProviderType;
+  fallback?: EmailProviderType;
   [key: string]: any;
 }
 
