@@ -219,6 +219,69 @@ export class UserController {
     return await this.userService.removeCustomerResendKey(user.id);
   }
 
+  /**
+   * ================================
+   * POSTMARK KEY MANAGEMENT
+   * ================================
+   */
+
+  @Post('postmark-key')
+  @HttpCode(HttpStatus.OK)
+  async savePostmarkKey(
+    @User() user: AuthenticatedUser,
+    @Body('serverToken') serverToken: string,
+    @Body('accountToken') accountToken?: string,
+  ) {
+    if (!serverToken) {
+      throw new BadRequestException('Postmark server token is required');
+    }
+    return await this.userService.saveCustomerPostmarkKeys(
+      user.id,
+      serverToken,
+      accountToken,
+    );
+  }
+
+  @Get('postmark-key')
+  async getPostmarkKey(@User() user: AuthenticatedUser) {
+    return await this.userService.getCustomerPostmarkKey(user.id);
+  }
+
+  @Delete('postmark-key')
+  @HttpCode(HttpStatus.OK)
+  async removePostmarkKey(@User() user: AuthenticatedUser) {
+    return await this.userService.removeCustomerPostmarkKey(user.id);
+  }
+
+  /**
+   * ================================
+   * POSTMARK WEBHOOK SECRET
+   * ================================
+   */
+
+  @Post('postmark-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async savePostmarkWebhookSecret(
+    @User() user: AuthenticatedUser,
+    @Body('secret') secret: string,
+  ) {
+    if (!secret) {
+      throw new BadRequestException('secret is required');
+    }
+    return await this.userService.savePostmarkWebhookSecret(user.id, secret);
+  }
+
+  @Get('postmark-webhook-key')
+  async getPostmarkWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.getPostmarkWebhookSecret(user.id);
+  }
+
+  @Delete('postmark-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async removePostmarkWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.removePostmarkWebhookSecret(user.id);
+  }
+
   @Get('email-provider')
   async getEmailProvider(@User() user: AuthenticatedUser) {
     return await this.userService.getEmailProviderStatus(user.id);

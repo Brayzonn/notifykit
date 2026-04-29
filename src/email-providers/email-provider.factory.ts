@@ -4,6 +4,7 @@ import { CustomerPlan, EmailProviderType } from '@prisma/client';
 import { IEmailProvider } from './email-provider.interface';
 import { SendGridService } from '@/sendgrid/sendgrid.service';
 import { ResendService } from './resend.service';
+import { PostmarkService } from './postmark.service';
 
 export interface ProviderConfig {
   provider: EmailProviderType;
@@ -21,6 +22,7 @@ export class EmailProviderFactory {
   constructor(
     private readonly sendGridService: SendGridService,
     private readonly resendService: ResendService,
+    private readonly postmarkService: PostmarkService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -34,6 +36,10 @@ export class EmailProviderFactory {
       const resendKey = this.configService.get<string>('RESEND_API_KEY');
       if (resendKey) {
         resolved.push({ provider: this.resendService, apiKey: resendKey });
+      }
+      const postmarkKey = this.configService.get<string>('POSTMARK_API_KEY');
+      if (postmarkKey) {
+        resolved.push({ provider: this.postmarkService, apiKey: postmarkKey });
       }
       if (!resolved.length) {
         throw new Error('No shared email provider configured');
@@ -61,6 +67,8 @@ export class EmailProviderFactory {
         return this.sendGridService;
       case EmailProviderType.RESEND:
         return this.resendService;
+      case EmailProviderType.POSTMARK:
+        return this.postmarkService;
       default:
         throw new Error(`Unsupported email provider: ${type}`);
     }

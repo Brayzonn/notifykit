@@ -19,6 +19,7 @@ import { AdminModule } from './admin/admin.module';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { SendgridEventsModule } from './sendgrid-events/sendgrid-events.module';
 import { ResendEventsModule } from './resend-events/resend-events.module';
+import { PostmarkEventsModule } from './postmark-events/postmark-events.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ResendEventsModule } from './resend-events/resend-events.module';
     RateLimitModule,
     SendgridEventsModule,
     ResendEventsModule,
+    PostmarkEventsModule,
   ],
   controllers: [AppController],
   providers: [

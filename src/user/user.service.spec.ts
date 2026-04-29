@@ -10,6 +10,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { NotificationsService } from '@/notifications/notifications.service';
 import { SendGridDomainService } from '@/sendgrid/sendgrid-domain.service';
 import { ResendDomainService } from '@/email-providers/resend-domain.service';
+import { PostmarkDomainService } from '@/email-providers/postmark-domain.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
@@ -54,6 +55,7 @@ describe('UserService', () => {
   let emailService: Record<string, jest.Mock>;
   let sendGridDomainService: Record<string, jest.Mock>;
   let resendDomainService: Record<string, jest.Mock>;
+  let postmarkDomainService: Record<string, jest.Mock>;
   let encryptionService: Record<string, jest.Mock>;
   let configService: { get: jest.Mock };
 
@@ -72,6 +74,12 @@ describe('UserService', () => {
   };
 
   const mockResendDomainService = {
+    authenticateDomain: jest.fn(),
+    validateDomain: jest.fn(),
+    deleteDomain: jest.fn(),
+  };
+
+  const mockPostmarkDomainService = {
     authenticateDomain: jest.fn(),
     validateDomain: jest.fn(),
     deleteDomain: jest.fn(),
@@ -97,6 +105,7 @@ describe('UserService', () => {
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: SendGridDomainService, useValue: mockSendGridDomainService },
         { provide: ResendDomainService, useValue: mockResendDomainService },
+        { provide: PostmarkDomainService, useValue: mockPostmarkDomainService },
         { provide: RedisService, useValue: mockRedisService },
         { provide: EmailService, useValue: mockEmailService },
         { provide: ConfigService, useValue: mockConfigService },
@@ -110,6 +119,7 @@ describe('UserService', () => {
     emailService = module.get(EmailService);
     sendGridDomainService = module.get(SendGridDomainService);
     resendDomainService = module.get(ResendDomainService);
+    postmarkDomainService = module.get(PostmarkDomainService);
     encryptionService = module.get(EncryptionService);
     configService = module.get(ConfigService);
 

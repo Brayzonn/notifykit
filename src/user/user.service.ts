@@ -10,6 +10,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
+import { getErrorMessage } from '@/common/utils/error.util';
 import axios from 'axios';
 import {
   AuthProvider,
@@ -42,6 +43,7 @@ import {
 } from './interfaces/user.interface';
 import { SendGridDomainService } from '@/sendgrid/sendgrid-domain.service';
 import { ResendDomainService } from '@/email-providers/resend-domain.service';
+import { PostmarkDomainService } from '@/email-providers/postmark-domain.service';
 import { NotificationsService } from '@/notifications/notifications.service';
 
 @Injectable()
@@ -53,6 +55,7 @@ export class UserService {
     private readonly notificationsService: NotificationsService,
     private readonly sendGridDomainService: SendGridDomainService,
     private readonly resendDomainService: ResendDomainService,
+    private readonly postmarkDomainService: PostmarkDomainService,
     private readonly redis: RedisService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
@@ -83,7 +86,13 @@ export class UserService {
             isActive: true,
             createdAt: true,
             sendingDomains: {
-              select: { domain: true, provider: true, verified: true, requestedAt: true, verifiedAt: true },
+              select: {
+                domain: true,
+                provider: true,
+                verified: true,
+                requestedAt: true,
+                verifiedAt: true,
+              },
             },
           },
         },
@@ -122,7 +131,13 @@ export class UserService {
             isActive: true,
             createdAt: true,
             sendingDomains: {
-              select: { domain: true, provider: true, verified: true, requestedAt: true, verifiedAt: true },
+              select: {
+                domain: true,
+                provider: true,
+                verified: true,
+                requestedAt: true,
+                verifiedAt: true,
+              },
             },
           },
         },
@@ -483,7 +498,14 @@ export class UserService {
       throw new NotFoundException('Customer record not found');
     }
 
-    const { jobs, plan, monthlyLimit, customMonthlyLimit, usageCount, usageResetAt } = customer;
+    const {
+      jobs,
+      plan,
+      monthlyLimit,
+      customMonthlyLimit,
+      usageCount,
+      usageResetAt,
+    } = customer;
 
     const jobStats = this.calculateJobStats(jobs);
     const activityByDay = this.groupJobsByDay(jobs, days);
@@ -634,11 +656,24 @@ export class UserService {
     }
 
     const encryptedKey = this.encryptionService.encrypt(apiKey);
-    const nextPriority = await this.getNextProviderPriority(customer.id, EmailProviderType.SENDGRID);
+    const nextPriority = await this.getNextProviderPriority(
+      customer.id,
+      EmailProviderType.SENDGRID,
+    );
 
     await this.prisma.customerEmailProvider.upsert({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.SENDGRID } },
-      create: { customerId: customer.id, provider: EmailProviderType.SENDGRID, apiKey: encryptedKey, priority: nextPriority },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.SENDGRID,
+        },
+      },
+      create: {
+        customerId: customer.id,
+        provider: EmailProviderType.SENDGRID,
+        apiKey: encryptedKey,
+        priority: nextPriority,
+      },
       update: { apiKey: encryptedKey },
     });
 
@@ -661,7 +696,12 @@ export class UserService {
     }
 
     const record = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.SENDGRID } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.SENDGRID,
+        },
+      },
     });
 
     if (!record) {
@@ -683,7 +723,10 @@ export class UserService {
       select: {
         id: true,
         emailProviders: { where: { provider: EmailProviderType.SENDGRID } },
-        sendingDomains: { where: { provider: EmailProviderType.SENDGRID }, select: { id: true, providerDomainId: true } },
+        sendingDomains: {
+          where: { provider: EmailProviderType.SENDGRID },
+          select: { id: true, providerDomainId: true },
+        },
       },
     });
 
@@ -695,24 +738,34 @@ export class UserService {
 
     for (const sendingDomain of customer.sendingDomains) {
       if (sendingDomain.providerDomainId && sendgridRecord) {
-        const decryptedKey = this.encryptionService.decrypt(sendgridRecord.apiKey);
+        const decryptedKey = this.encryptionService.decrypt(
+          sendgridRecord.apiKey,
+        );
         try {
           await this.sendGridDomainService.deleteDomain(
             parseInt(sendingDomain.providerDomainId),
             decryptedKey,
           );
         } catch (error) {
-          this.logger.warn(`Failed to delete domain from SendGrid during key removal: ${error.message}`);
+          this.logger.warn(
+            `Failed to delete domain from SendGrid during key removal: ${getErrorMessage(error)}`,
+          );
         }
       }
     }
 
     await this.prisma.$transaction([
       this.prisma.customerEmailProvider.deleteMany({
-        where: { customerId: customer.id, provider: EmailProviderType.SENDGRID },
+        where: {
+          customerId: customer.id,
+          provider: EmailProviderType.SENDGRID,
+        },
       }),
       this.prisma.customerSendingDomain.deleteMany({
-        where: { customerId: customer.id, provider: EmailProviderType.SENDGRID },
+        where: {
+          customerId: customer.id,
+          provider: EmailProviderType.SENDGRID,
+        },
       }),
     ]);
 
@@ -782,7 +835,12 @@ export class UserService {
     }
 
     const record = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.SENDGRID } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.SENDGRID,
+        },
+      },
       select: { webhookSecret: true, webhookSecretAddedAt: true },
     });
 
@@ -808,7 +866,9 @@ export class UserService {
       data: { webhookSecret: null, webhookSecretAddedAt: null },
     });
 
-    return { message: 'SendGrid webhook verification key removed successfully' };
+    return {
+      message: 'SendGrid webhook verification key removed successfully',
+    };
   }
 
   /**
@@ -872,7 +932,12 @@ export class UserService {
     }
 
     const record = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.RESEND } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.RESEND,
+        },
+      },
       select: { webhookSecret: true, webhookSecretAddedAt: true },
     });
 
@@ -911,6 +976,288 @@ export class UserService {
 
   /**
    * ================================
+   * POSTMARK KEY MANAGEMENT
+   * ================================
+   */
+
+  async saveCustomerPostmarkKeys(
+    userId: string,
+    serverToken: string,
+    accountToken?: string,
+  ): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      throw new BadRequestException(
+        'Postmark API key is only available for paid plans',
+      );
+    }
+
+    const isValid = await this.validateCustomerPostmarkKey(serverToken);
+    if (!isValid) {
+      throw new BadRequestException('Invalid Postmark server token');
+    }
+
+    const encryptedServer = this.encryptionService.encrypt(serverToken);
+    const encryptedAccount = accountToken
+      ? this.encryptionService.encrypt(accountToken)
+      : undefined;
+    const nextPriority = await this.getNextProviderPriority(
+      customer.id,
+      EmailProviderType.POSTMARK,
+    );
+
+    await this.prisma.customerEmailProvider.upsert({
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.POSTMARK,
+        },
+      },
+      create: {
+        customerId: customer.id,
+        provider: EmailProviderType.POSTMARK,
+        apiKey: encryptedServer,
+        accountApiKey: encryptedAccount ?? null,
+        priority: nextPriority,
+      },
+      update: {
+        apiKey: encryptedServer,
+        ...(encryptedAccount !== undefined && {
+          accountApiKey: encryptedAccount,
+        }),
+      },
+    });
+
+    return { message: 'Postmark API key saved successfully' };
+  }
+
+  async getCustomerPostmarkKey(userId: string): Promise<{
+    hasKey: boolean;
+    hasAccountKey: boolean;
+    addedAt: Date | null;
+    lastFour: string | null;
+    priority: number | null;
+  }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const record = await this.prisma.customerEmailProvider.findUnique({
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.POSTMARK,
+        },
+      },
+    });
+
+    if (!record) {
+      return {
+        hasKey: false,
+        hasAccountKey: false,
+        addedAt: null,
+        lastFour: null,
+        priority: null,
+      };
+    }
+
+    const decrypted = this.encryptionService.decrypt(record.apiKey);
+    return {
+      hasKey: true,
+      hasAccountKey: !!record.accountApiKey,
+      addedAt: record.addedAt,
+      lastFour: decrypted.slice(-4),
+      priority: record.priority,
+    };
+  }
+
+  async removeCustomerPostmarkKey(userId: string): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        emailProviders: { where: { provider: EmailProviderType.POSTMARK } },
+        sendingDomains: {
+          where: { provider: EmailProviderType.POSTMARK },
+          select: { id: true, providerDomainId: true },
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const postmarkRecord = customer.emailProviders[0];
+
+    for (const sendingDomain of customer.sendingDomains) {
+      if (sendingDomain.providerDomainId && postmarkRecord?.accountApiKey) {
+        const decryptedAccountKey = this.encryptionService.decrypt(
+          postmarkRecord.accountApiKey,
+        );
+        try {
+          await this.postmarkDomainService.deleteDomain(
+            sendingDomain.providerDomainId,
+            decryptedAccountKey,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete domain from Postmark during key removal: ${getErrorMessage(error)}`,
+          );
+        }
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.customerEmailProvider.deleteMany({
+        where: {
+          customerId: customer.id,
+          provider: EmailProviderType.POSTMARK,
+        },
+      }),
+      this.prisma.customerSendingDomain.deleteMany({
+        where: {
+          customerId: customer.id,
+          provider: EmailProviderType.POSTMARK,
+        },
+      }),
+    ]);
+
+    return { message: 'Postmark API key removed successfully' };
+  }
+
+  /**
+   * ================================
+   * POSTMARK WEBHOOK SECRET
+   * ================================
+   */
+
+  async savePostmarkWebhookSecret(
+    userId: string,
+    secret: string,
+  ): Promise<{ message: string; webhookUrl: string }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      throw new BadRequestException(
+        'Postmark webhook secret is only available for paid plans',
+      );
+    }
+
+    const updated = await this.prisma.customerEmailProvider.updateMany({
+      where: { customerId: customer.id, provider: EmailProviderType.POSTMARK },
+      data: { webhookSecret: secret, webhookSecretAddedAt: new Date() },
+    });
+
+    if (updated.count === 0) {
+      throw new BadRequestException(
+        'No Postmark API key found. Please add Postmark as an email provider first.',
+      );
+    }
+
+    return {
+      message: 'Postmark webhook signing secret saved successfully',
+      webhookUrl: this.buildPostmarkWebhookUrl(customer.id),
+    };
+  }
+
+  async getPostmarkWebhookSecret(userId: string): Promise<{
+    hasKey: boolean;
+    addedAt: Date | null;
+    webhookUrl: string | null;
+  }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      return { hasKey: false, addedAt: null, webhookUrl: null };
+    }
+
+    const record = await this.prisma.customerEmailProvider.findUnique({
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.POSTMARK,
+        },
+      },
+      select: { webhookSecret: true, webhookSecretAddedAt: true },
+    });
+
+    return {
+      hasKey: !!record?.webhookSecret,
+      addedAt: record?.webhookSecretAddedAt ?? null,
+      webhookUrl: this.buildPostmarkWebhookUrl(customer.id),
+    };
+  }
+
+  async removePostmarkWebhookSecret(userId: string): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    await this.prisma.customerEmailProvider.updateMany({
+      where: { customerId: customer.id, provider: EmailProviderType.POSTMARK },
+      data: { webhookSecret: null, webhookSecretAddedAt: null },
+    });
+
+    return { message: 'Postmark webhook signing secret removed successfully' };
+  }
+
+  private buildPostmarkWebhookUrl(customerId: string): string {
+    const baseUrl = this.configService.get<string>(
+      'BACKEND_URL',
+      'https://api.notifykit.dev',
+    );
+    return `${baseUrl}/api/v1/webhooks/postmark/${customerId}`;
+  }
+
+  private async validateCustomerPostmarkKey(apiKey: string): Promise<boolean> {
+    try {
+      const response = await axios.get('https://api.postmarkapp.com/server', {
+        headers: {
+          Accept: 'application/json',
+          'X-Postmark-Server-Token': apiKey,
+        },
+      });
+      return response.status === 200;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * ================================
    * RESEND KEY MANAGEMENT
    * ================================
    */
@@ -940,11 +1287,24 @@ export class UserService {
     }
 
     const encryptedKey = this.encryptionService.encrypt(apiKey);
-    const nextPriority = await this.getNextProviderPriority(customer.id, EmailProviderType.RESEND);
+    const nextPriority = await this.getNextProviderPriority(
+      customer.id,
+      EmailProviderType.RESEND,
+    );
 
     await this.prisma.customerEmailProvider.upsert({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.RESEND } },
-      create: { customerId: customer.id, provider: EmailProviderType.RESEND, apiKey: encryptedKey, priority: nextPriority },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.RESEND,
+        },
+      },
+      create: {
+        customerId: customer.id,
+        provider: EmailProviderType.RESEND,
+        apiKey: encryptedKey,
+        priority: nextPriority,
+      },
       update: { apiKey: encryptedKey },
     });
 
@@ -967,7 +1327,12 @@ export class UserService {
     }
 
     const record = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.RESEND } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.RESEND,
+        },
+      },
     });
 
     if (!record) {
@@ -989,7 +1354,10 @@ export class UserService {
       select: {
         id: true,
         emailProviders: { where: { provider: EmailProviderType.RESEND } },
-        sendingDomains: { where: { provider: EmailProviderType.RESEND }, select: { id: true, providerDomainId: true } },
+        sendingDomains: {
+          where: { provider: EmailProviderType.RESEND },
+          select: { id: true, providerDomainId: true },
+        },
       },
     });
 
@@ -1001,14 +1369,18 @@ export class UserService {
 
     for (const sendingDomain of customer.sendingDomains) {
       if (sendingDomain.providerDomainId && resendRecord) {
-        const decryptedKey = this.encryptionService.decrypt(resendRecord.apiKey);
+        const decryptedKey = this.encryptionService.decrypt(
+          resendRecord.apiKey,
+        );
         try {
           await this.resendDomainService.deleteDomain(
             sendingDomain.providerDomainId,
             decryptedKey,
           );
         } catch (error) {
-          this.logger.warn(`Failed to delete domain from Resend during key removal: ${error.message}`);
+          this.logger.warn(
+            `Failed to delete domain from Resend during key removal: ${getErrorMessage(error)}`,
+          );
         }
       }
     }
@@ -1026,7 +1398,12 @@ export class UserService {
   }
 
   async getEmailProviderStatus(userId: string): Promise<{
-    providers: { provider: EmailProviderType; addedAt: Date; lastFour: string; priority: number }[];
+    providers: {
+      provider: EmailProviderType;
+      addedAt: Date;
+      lastFour: string;
+      priority: number;
+    }[];
   }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -1056,8 +1433,13 @@ export class UserService {
     userId: string,
     providerParam: string,
     newPriority: number,
-  ): Promise<{ providers: { provider: EmailProviderType; priority: number }[] }> {
-    const providerType = EmailProviderType[providerParam.toUpperCase() as keyof typeof EmailProviderType];
+  ): Promise<{
+    providers: { provider: EmailProviderType; priority: number }[];
+  }> {
+    const providerType =
+      EmailProviderType[
+        providerParam.toUpperCase() as keyof typeof EmailProviderType
+      ];
     if (!providerType) {
       throw new BadRequestException(`Unknown provider: ${providerParam}`);
     }
@@ -1072,7 +1454,12 @@ export class UserService {
     }
 
     const record = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: providerType } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: providerType,
+        },
+      },
     });
 
     if (!record) {
@@ -1082,11 +1469,20 @@ export class UserService {
     // Swap priorities atomically: displace occupant to old priority, then set new priority
     await this.prisma.$transaction([
       this.prisma.customerEmailProvider.updateMany({
-        where: { customerId: customer.id, priority: newPriority, provider: { not: providerType } },
+        where: {
+          customerId: customer.id,
+          priority: newPriority,
+          provider: { not: providerType },
+        },
         data: { priority: record.priority },
       }),
       this.prisma.customerEmailProvider.update({
-        where: { customerId_provider: { customerId: customer.id, provider: providerType } },
+        where: {
+          customerId_provider: {
+            customerId: customer.id,
+            provider: providerType,
+          },
+        },
         data: { priority: newPriority },
       }),
     ]);
@@ -1100,8 +1496,10 @@ export class UserService {
     return { providers: updated };
   }
 
-  private async getNextProviderPriority(customerId: string, provider: EmailProviderType): Promise<number> {
-    // If the provider already exists, priority is irrelevant (upsert will keep existing)
+  private async getNextProviderPriority(
+    customerId: string,
+    provider: EmailProviderType,
+  ): Promise<number> {
     const existing = await this.prisma.customerEmailProvider.findUnique({
       where: { customerId_provider: { customerId, provider } },
       select: { priority: true },
@@ -1263,7 +1661,10 @@ export class UserService {
   /**
    * Get single job details
    */
-  async getJobDetails(userId: string, jobId: string): Promise<JobDetailsResponse> {
+  async getJobDetails(
+    userId: string,
+    jobId: string,
+  ): Promise<JobDetailsResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: { id: true },
@@ -1389,7 +1790,9 @@ export class UserService {
     let anyValid = false;
 
     for (const providerRecord of emailProviders) {
-      const decryptedKey = this.encryptionService.decrypt(providerRecord.apiKey);
+      const decryptedKey = this.encryptionService.decrypt(
+        providerRecord.apiKey,
+      );
       const provider = providerRecord.provider;
 
       let domainId: string;
@@ -1398,7 +1801,13 @@ export class UserService {
 
       if (provider === EmailProviderType.SENDGRID) {
         const existingRow = await this.prisma.customerSendingDomain.findUnique({
-          where: { customerId_domain_provider: { customerId: customer.id, domain, provider } },
+          where: {
+            customerId_domain_provider: {
+              customerId: customer.id,
+              domain,
+              provider,
+            },
+          },
         });
 
         if (existingRow?.providerDomainId) {
@@ -1408,16 +1817,65 @@ export class UserService {
               decryptedKey,
             );
           } catch (error) {
-            this.logger.warn(`Failed to delete old SendGrid domain: ${error.message}`);
+            this.logger.warn(
+              `Failed to delete old SendGrid domain: ${getErrorMessage(error)}`,
+            );
           }
         }
 
-        const result = await this.sendGridDomainService.authenticateDomain(domain, decryptedKey);
+        const result = await this.sendGridDomainService.authenticateDomain(
+          domain,
+          decryptedKey,
+        );
         domainId = result.domainId.toString();
         dnsRecords = result.dnsRecords;
         valid = result.valid;
       } else if (provider === EmailProviderType.RESEND) {
-        const result = await this.resendDomainService.authenticateDomain(domain, decryptedKey);
+        const result = await this.resendDomainService.authenticateDomain(
+          domain,
+          decryptedKey,
+        );
+        domainId = result.domainId;
+        dnsRecords = result.dnsRecords;
+        valid = result.valid;
+      } else if (provider === EmailProviderType.POSTMARK) {
+        if (!providerRecord.accountApiKey) {
+          this.logger.warn(
+            `Skipping Postmark domain verification: account token missing for customer ${customer.id}`,
+          );
+          continue;
+        }
+        const decryptedAccountKey = this.encryptionService.decrypt(
+          providerRecord.accountApiKey,
+        );
+
+        const existingRow = await this.prisma.customerSendingDomain.findUnique({
+          where: {
+            customerId_domain_provider: {
+              customerId: customer.id,
+              domain,
+              provider,
+            },
+          },
+        });
+
+        if (existingRow?.providerDomainId) {
+          try {
+            await this.postmarkDomainService.deleteDomain(
+              existingRow.providerDomainId,
+              decryptedAccountKey,
+            );
+          } catch (error) {
+            this.logger.warn(
+              `Failed to delete old Postmark domain: ${getErrorMessage(error)}`,
+            );
+          }
+        }
+
+        const result = await this.postmarkDomainService.authenticateDomain(
+          domain,
+          decryptedAccountKey,
+        );
         domainId = result.domainId;
         dnsRecords = result.dnsRecords;
         valid = result.valid;
@@ -1426,7 +1884,13 @@ export class UserService {
       }
 
       await this.prisma.customerSendingDomain.upsert({
-        where: { customerId_domain_provider: { customerId: customer.id, domain, provider } },
+        where: {
+          customerId_domain_provider: {
+            customerId: customer.id,
+            domain,
+            provider,
+          },
+        },
         create: {
           customerId: customer.id,
           domain,
@@ -1514,13 +1978,22 @@ export class UserService {
     for (const row of domainRows) {
       if (!row.providerDomainId) continue;
 
-      const providerRecord = await this.prisma.customerEmailProvider.findUnique({
-        where: { customerId_provider: { customerId: customer.id, provider: row.provider } },
-      });
+      const providerRecord = await this.prisma.customerEmailProvider.findUnique(
+        {
+          where: {
+            customerId_provider: {
+              customerId: customer.id,
+              provider: row.provider,
+            },
+          },
+        },
+      );
 
       if (!providerRecord) continue;
 
-      const decryptedKey = this.encryptionService.decrypt(providerRecord.apiKey);
+      const decryptedKey = this.encryptionService.decrypt(
+        providerRecord.apiKey,
+      );
 
       let valid: boolean;
       let validationResults: any;
@@ -1536,6 +2009,22 @@ export class UserService {
         const result = await this.resendDomainService.validateDomain(
           row.providerDomainId,
           decryptedKey,
+        );
+        valid = result.valid;
+        validationResults = result.validationResults;
+      } else if (row.provider === EmailProviderType.POSTMARK) {
+        if (!providerRecord.accountApiKey) {
+          this.logger.warn(
+            `Skipping Postmark domain check: account token missing for customer ${customer.id}`,
+          );
+          continue;
+        }
+        const decryptedAccountKey = this.encryptionService.decrypt(
+          providerRecord.accountApiKey,
+        );
+        const result = await this.postmarkDomainService.validateDomain(
+          row.providerDomainId,
+          decryptedAccountKey,
         );
         valid = result.valid;
         validationResults = result.validationResults;
@@ -1560,7 +2049,8 @@ export class UserService {
       });
     }
 
-    const allVerified = providerResults.length > 0 && providerResults.every((r) => r.verified);
+    const allVerified =
+      providerResults.length > 0 && providerResults.every((r) => r.verified);
     const anyVerified = providerResults.some((r) => r.verified);
 
     return {
@@ -1570,8 +2060,8 @@ export class UserService {
       message: allVerified
         ? 'Domain verified! You can now send emails from this domain.'
         : anyVerified
-        ? 'Domain partially verified. Some providers are still pending DNS propagation.'
-        : 'Domain not yet verified. DNS records may still be propagating (15-60 minutes).',
+          ? 'Domain partially verified. Some providers are still pending DNS propagation.'
+          : 'Domain not yet verified. DNS records may still be propagating (15-60 minutes).',
     };
   }
 
@@ -1632,7 +2122,9 @@ export class UserService {
       where: { userId },
       select: {
         id: true,
-        sendingDomains: { select: { id: true, provider: true, providerDomainId: true } },
+        sendingDomains: {
+          select: { id: true, provider: true, providerDomainId: true },
+        },
       },
     });
 
@@ -1645,7 +2137,19 @@ export class UserService {
     });
 
     const providerKeyMap = new Map(
-      emailProviders.map((p) => [p.provider, this.encryptionService.decrypt(p.apiKey)]),
+      emailProviders.map((p) => [
+        p.provider,
+        this.encryptionService.decrypt(p.apiKey),
+      ]),
+    );
+
+    const providerAccountKeyMap = new Map(
+      emailProviders
+        .filter((p) => p.accountApiKey)
+        .map((p) => [
+          p.provider,
+          this.encryptionService.decrypt(p.accountApiKey as string),
+        ]),
     );
 
     for (const sendingDomain of customer.sendingDomains) {
@@ -1663,7 +2167,7 @@ export class UserService {
           );
         } catch (error) {
           this.logger.warn(
-            `Failed to delete domain from SendGrid: ${error.message}`,
+            `Failed to delete domain from SendGrid: ${getErrorMessage(error)}`,
           );
         }
       } else if (sendingDomain.provider === EmailProviderType.RESEND) {
@@ -1674,7 +2178,25 @@ export class UserService {
           );
         } catch (error) {
           this.logger.warn(
-            `Failed to delete domain from Resend: ${error.message}`,
+            `Failed to delete domain from Resend: ${getErrorMessage(error)}`,
+          );
+        }
+      } else if (sendingDomain.provider === EmailProviderType.POSTMARK) {
+        const accountKey = providerAccountKeyMap.get(sendingDomain.provider);
+        if (!accountKey) {
+          this.logger.warn(
+            `Skipping Postmark domain delete: account token missing for customer ${customer.id}`,
+          );
+          continue;
+        }
+        try {
+          await this.postmarkDomainService.deleteDomain(
+            sendingDomain.providerDomainId,
+            accountKey,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete domain from Postmark: ${getErrorMessage(error)}`,
           );
         }
       }

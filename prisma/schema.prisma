@@ -32,6 +32,7 @@ enum CustomerPlan {
 enum EmailProviderType {
   SENDGRID
   RESEND
+  POSTMARK
 }
 
 enum PaymentProvider {
@@ -178,6 +179,7 @@ model CustomerEmailProvider {
   customerId          String            @map("customer_id") @db.Uuid
   provider            EmailProviderType
   apiKey              String            @map("api_key")
+  accountApiKey       String?           @map("account_api_key")
   webhookSecret       String?           @map("webhook_secret")
   webhookSecretAddedAt DateTime?        @map("webhook_secret_added_at")
   priority            Int               @default(1)
