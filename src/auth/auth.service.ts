@@ -683,20 +683,13 @@ export class AuthService {
     if (user.customer) {
       return { customer: user.customer };
     }
-    const existingCustomer = await this.prisma.customer.findUnique({
+
+    const customer = await this.prisma.customer.upsert({
       where: { userId: user.id },
-    });
-
-    if (existingCustomer) {
-      return { customer: existingCustomer };
-    }
-
-    const customer = await this.prisma.customer.create({
-      data: {
+      update: {},
+      create: {
         userId: user.id,
         email: user.email,
-        apiKey: '',
-        apiKeyHash: '',
         plan: CustomerPlan.FREE,
         monthlyLimit: getPlanLimit(CustomerPlan.FREE),
         usageCount: 0,
