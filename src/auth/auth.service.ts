@@ -660,16 +660,17 @@ export class AuthService {
    */
 
   private async generateTokens(user: User): Promise<AuthTokens> {
-    const payload = {
-      sub: user.id,
-    };
+    const accessToken = this.jwtService.sign({ sub: user.id });
 
-    const accessToken = this.jwtService.sign(payload);
-
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d'),
-    });
+    // jti prevents two same-second signings from hashing to the same value
+    // and colliding on the `token` unique index.
+    const refreshToken = this.jwtService.sign(
+      { sub: user.id, jti: crypto.randomUUID() },
+      {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '7d'),
+      },
+    );
 
     return { accessToken, refreshToken };
   }
