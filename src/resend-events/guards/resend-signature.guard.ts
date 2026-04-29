@@ -11,6 +11,7 @@ import { Request } from 'express';
 import { Webhook } from 'svix';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EmailProviderType } from '@prisma/client';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 @Injectable()
 export class ResendSignatureGuard implements CanActivate {
@@ -61,7 +62,7 @@ export class ResendSignatureGuard implements CanActivate {
       return true;
     } catch (error) {
       this.logger.warn(
-        `Resend signature validation failed for ${customerId}: ${error.message}`,
+        `Resend signature validation failed for ${customerId}: ${getErrorMessage(error)}`,
       );
       throw new UnauthorizedException('Invalid Resend webhook signature');
     }

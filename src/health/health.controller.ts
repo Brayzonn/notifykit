@@ -11,6 +11,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 @Controller('health')
 export class HealthController {
@@ -52,7 +53,7 @@ export class HealthController {
       return {
         redis: {
           status: 'down',
-          message: error.message,
+          message: getErrorMessage(error),
         },
       };
     }

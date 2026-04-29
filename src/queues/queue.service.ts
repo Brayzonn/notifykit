@@ -7,6 +7,7 @@ import {
   JOB_NAMES,
   QUEUE_PRIORITIES,
 } from './queue.constants';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 export interface EmailJobData {
   jobId: string;
@@ -63,7 +64,7 @@ export class QueueService {
       );
       return job;
     } catch (error) {
-      this.logger.error(`Failed to queue email job: ${error.message}`);
+      this.logger.error(`Failed to queue email job: ${getErrorMessage(error)}`);
       throw error;
     }
   }
@@ -92,7 +93,7 @@ export class QueueService {
       );
       return job;
     } catch (error) {
-      this.logger.error(`Failed to queue webhook job: ${error.message}`);
+      this.logger.error(`Failed to queue webhook job: ${getErrorMessage(error)}`);
       throw error;
     }
   }

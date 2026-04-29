@@ -35,7 +35,12 @@ export class SendgridCustomerSignatureGuard implements CanActivate {
     }
 
     const providerRecord = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.SENDGRID } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.SENDGRID,
+        },
+      },
       select: { webhookSecret: true },
     });
 
@@ -73,7 +78,7 @@ export class SendgridCustomerSignatureGuard implements CanActivate {
       return true;
     } catch (error) {
       this.logger.warn(
-        `SendGrid customer signature validation failed for ${customerId}: ${error.message}`,
+        `SendGrid customer signature validation failed for ${customerId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new UnauthorizedException('Invalid SendGrid webhook signature');
     }

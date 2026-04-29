@@ -9,6 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
 import { RedisService } from '@/redis/redis.service';
+import { getErrorMessage } from '@/common/utils/error.util';
 import {
   IP_RATE_LIMIT_KEY,
   IpRateLimitOptions,
@@ -90,7 +91,7 @@ export class IpRateLimitGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      this.logger.error(`IP rate limit check failed: ${error.message}`);
+      this.logger.error(`IP rate limit check failed: ${getErrorMessage(error)}`);
       return true;
     }
   }

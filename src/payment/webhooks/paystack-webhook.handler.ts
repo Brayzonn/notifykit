@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import { BillingService } from '@/billing/billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EmailService } from '@/email/email.service';
+import { getErrorMessage } from '@/common/utils/error.util';
 import {
   CustomerPlan,
   PaymentProvider,
@@ -152,7 +153,7 @@ export class PaystackWebhookHandler {
 
       return { received: true };
     } catch (error) {
-      this.logger.error(`Error processing webhook: ${error.message}`, error);
+      this.logger.error(`Error processing webhook: ${getErrorMessage(error)}`, error);
       throw error;
     }
   }
@@ -365,7 +366,7 @@ export class PaystackWebhookHandler {
       this.logger.log(`Payment failed email sent to ${customer.email}`);
     } catch (error) {
       this.logger.error(
-        `Failed to send payment failed email: ${error.message}`,
+        `Failed to send payment failed email: ${getErrorMessage(error)}`,
         error,
       );
     }

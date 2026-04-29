@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import Stripe from 'stripe';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 @Injectable()
 export class StripeSignatureGuard implements CanActivate {
@@ -44,7 +45,7 @@ export class StripeSignatureGuard implements CanActivate {
       );
       return true;
     } catch (error) {
-      this.logger.warn(`Stripe signature validation failed: ${error.message}`);
+      this.logger.warn(`Stripe signature validation failed: ${getErrorMessage(error)}`);
       throw new UnauthorizedException('Invalid Stripe webhook signature');
     }
   }

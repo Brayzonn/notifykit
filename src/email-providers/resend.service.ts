@@ -46,7 +46,8 @@ export class ResendService implements IEmailProvider {
         messageId: data?.id,
       };
     } catch (error) {
-      this.logger.error('Resend error:', error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error('Resend error:', message);
       throw error;
     }
   }

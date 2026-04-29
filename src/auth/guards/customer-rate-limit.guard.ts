@@ -10,6 +10,7 @@ import { Request } from 'express';
 import { RedisService } from '../../redis/redis.service';
 import { AuthenticatedCustomer } from '../interfaces/api-guard.interface';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 interface CustomerRequest extends Request {
   customer: AuthenticatedCustomer;
@@ -84,7 +85,7 @@ export class CustomerRateLimitGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      this.logger.error(`Rate limit check failed: ${error.message}`);
+      this.logger.error(`Rate limit check failed: ${getErrorMessage(error)}`);
       return true;
     }
   }

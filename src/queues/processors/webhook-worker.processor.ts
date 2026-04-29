@@ -7,6 +7,11 @@ import { WebhookJobData, QueueService } from '../queue.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  getErrorMessage,
+  getAxiosErrorData,
+  getAxiosErrorStatus,
+} from '@/common/utils/error.util';
 
 @Processor(QUEUE_NAMES.WEBHOOK, {
   concurrency: 5,
@@ -87,24 +92,22 @@ export class WebhookWorkerProcessor extends WorkerHost {
       );
       return { success: true };
     } catch (error) {
-      this.logger.error(`Webhook job failed: ${jobId} - ${error.message}`);
+      this.logger.error(`Webhook job failed: ${jobId} - ${getErrorMessage(error)}`);
 
-      const errorResponse = error.response
-        ? {
-            statusCode: error.response.status,
-            body: error.response.data,
-          }
-        : null;
+      const status = getAxiosErrorStatus(error);
+      const data = getAxiosErrorData<{
+        error?: { message?: string };
+        message?: string;
+      } | string>(error);
 
-      let errorMessage = error.message;
-      if (error.response) {
-        const status = error.response.status;
-        const data = error.response.data;
+      const errorResponse =
+        status !== undefined ? { statusCode: status, body: data } : null;
 
-        // Check for nested error message structures
-        if (data?.error?.message) {
+      let errorMessage = getErrorMessage(error);
+      if (status !== undefined) {
+        if (typeof data === 'object' && data?.error?.message) {
           errorMessage = `${status} - ${data.error.message}`;
-        } else if (data?.message) {
+        } else if (typeof data === 'object' && data?.message) {
           errorMessage = `${status} - ${data.message}`;
         } else if (typeof data === 'string') {
           errorMessage = `${status} - ${data}`;

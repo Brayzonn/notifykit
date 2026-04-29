@@ -9,6 +9,11 @@ import { EmailProviderFactory, ProviderConfig } from '@/email-providers/email-pr
 import { PrismaService } from '@/prisma/prisma.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
+import {
+  getErrorMessage,
+  getAxiosErrorData,
+  getAxiosErrorStatus,
+} from '@/common/utils/error.util';
 
 @Processor(QUEUE_NAMES.EMAIL, { concurrency: 5 })
 export class EmailWorkerProcessor extends WorkerHost {
@@ -166,22 +171,30 @@ export class EmailWorkerProcessor extends WorkerHost {
         throw new UnrecoverableError(error.message);
       }
 
-      this.logger.error(`Email job failed: ${jobId} - ${error.message}`);
+      this.logger.error(`Email job failed: ${jobId} - ${getErrorMessage(error)}`);
 
-      let errorMessage = error.message;
-      if (error.response) {
-        const status = error.response.status;
-        const data = error.response.data;
+      let errorMessage = getErrorMessage(error);
+      const status = getAxiosErrorStatus(error);
+      const data = getAxiosErrorData<{
+        errors?: Array<{ message?: string } | string>;
+        error?: { message?: string };
+        message?: string;
+      } | string>(error);
 
+      if (status !== undefined) {
         if (
+          typeof data === 'object' &&
           data?.errors &&
           Array.isArray(data.errors) &&
           data.errors.length > 0
         ) {
-          errorMessage = `${status} - ${data.errors[0].message || data.errors[0]}`;
-        } else if (data?.error?.message) {
+          const first = data.errors[0];
+          const firstMessage =
+            typeof first === 'string' ? first : first?.message;
+          errorMessage = `${status} - ${firstMessage ?? 'unknown'}`;
+        } else if (typeof data === 'object' && data?.error?.message) {
           errorMessage = `${status} - ${data.error.message}`;
-        } else if (data?.message) {
+        } else if (typeof data === 'object' && data?.message) {
           errorMessage = `${status} - ${data.message}`;
         } else if (typeof data === 'string') {
           errorMessage = `${status} - ${data}`;

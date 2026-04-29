@@ -1,6 +1,11 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import {
+  getErrorMessage,
+  getAxiosErrorData,
+  getAxiosErrorStatus,
+} from '@/common/utils/error.util';
 
 interface DnsRecord {
   type: string;
@@ -101,11 +106,14 @@ export class SendGridDomainService {
         valid: response.data.valid,
       };
     } catch (error) {
-      const sgMessage: string =
-        error.response?.data?.errors?.[0]?.message || '';
+      const data = getAxiosErrorData<{
+        errors?: Array<{ message?: string }>;
+      }>(error);
+      const sgMessage = data?.errors?.[0]?.message ?? '';
+      const baseMessage = getErrorMessage(error);
 
       if (
-        error.response?.status === 400 &&
+        getAxiosErrorStatus(error) === 400 &&
         sgMessage.toLowerCase().includes('already exists')
       ) {
         this.logger.warn(
@@ -115,10 +123,10 @@ export class SendGridDomainService {
       }
 
       this.logger.error(
-        `SendGrid domain authentication failed: ${error.message}`,
+        `SendGrid domain authentication failed: ${baseMessage}`,
       );
       throw new BadGatewayException(
-        `Failed to authenticate domain: ${sgMessage || error.message}`,
+        `Failed to authenticate domain: ${sgMessage || baseMessage}`,
       );
     }
   }
@@ -160,7 +168,7 @@ export class SendGridDomainService {
     } catch (error) {
       if (error instanceof BadGatewayException) throw error;
       throw new BadGatewayException(
-        `Failed to retrieve existing domain: ${error.message}`,
+        `Failed to retrieve existing domain: ${getErrorMessage(error)}`,
       );
     }
   }
@@ -192,9 +200,13 @@ export class SendGridDomainService {
         validationResults: response.data.validation_results,
       };
     } catch (error) {
-      this.logger.error(`SendGrid domain validation failed: ${error.message}`);
+      const data = getAxiosErrorData<{
+        errors?: Array<{ message?: string }>;
+      }>(error);
+      const baseMessage = getErrorMessage(error);
+      this.logger.error(`SendGrid domain validation failed: ${baseMessage}`);
       throw new BadGatewayException(
-        `Failed to validate domain: ${error.response?.data?.errors?.[0]?.message || error.message}`,
+        `Failed to validate domain: ${data?.errors?.[0]?.message ?? baseMessage}`,
       );
     }
   }
@@ -215,7 +227,7 @@ export class SendGridDomainService {
 
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to get domain details: ${error.message}`);
+      this.logger.error(`Failed to get domain details: ${getErrorMessage(error)}`);
       throw error;
     }
   }
@@ -233,7 +245,7 @@ export class SendGridDomainService {
 
       this.logger.log(`Domain deleted: ${domainId}`);
     } catch (error) {
-      this.logger.error(`Failed to delete domain: ${error.message}`);
+      this.logger.error(`Failed to delete domain: ${getErrorMessage(error)}`);
       throw error;
     }
   }

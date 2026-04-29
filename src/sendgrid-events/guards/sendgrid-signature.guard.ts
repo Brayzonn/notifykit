@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { EventWebhook } from '@sendgrid/eventwebhook';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 @Injectable()
 export class SendgridSignatureGuard implements CanActivate {
@@ -66,7 +67,7 @@ export class SendgridSignatureGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      this.logger.warn(`SendGrid signature validation failed: ${error.message}`);
+      this.logger.warn(`SendGrid signature validation failed: ${getErrorMessage(error)}`);
       throw new UnauthorizedException('Invalid SendGrid webhook signature');
     }
   }

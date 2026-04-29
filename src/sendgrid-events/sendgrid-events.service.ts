@@ -54,8 +54,14 @@ export class SendgridEventsService {
         continue;
       }
 
-      const { email, timestamp, sg_event_id, job_id, event: _, ...rest } =
-        event;
+      const {
+        email,
+        timestamp,
+        sg_event_id,
+        job_id,
+        event: _,
+        ...rest
+      } = event;
 
       const resolvedSgEventId =
         sg_event_id ?? `${jobId}:${eventType}:${timestamp}`;
@@ -79,7 +85,7 @@ export class SendgridEventsService {
         this.logger.debug(`Recorded ${eventType} event for job ${jobId}`);
       } catch (error) {
         this.logger.error(
-          `Failed to store email event for job ${jobId}: ${error.message}`,
+          `Failed to store email event for job ${jobId}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }

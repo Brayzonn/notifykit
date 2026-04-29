@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { getErrorMessage } from '@/common/utils/error.util';
 
 interface ResendWebhookEvent {
   type: string;
@@ -87,7 +88,7 @@ export class ResendEventsService {
       this.logger.debug(`Recorded ${eventType} event for job ${jobId}`);
     } catch (error) {
       this.logger.error(
-        `Failed to store Resend event for job ${jobId}: ${error.message}`,
+        `Failed to store Resend event for job ${jobId}: ${getErrorMessage(error)}`,
       );
     }
   }

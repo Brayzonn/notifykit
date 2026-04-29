@@ -9,6 +9,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PaymentProvider } from './payment-provider.interface';
 import { CheckoutSessionRequest } from '@/billing/interfaces/billing.interface';
+import { getAxiosErrorData } from '@/common/utils/error.util';
 
 @Injectable()
 export class PaystackPaymentProvider implements PaymentProvider {
@@ -78,7 +79,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
     } catch (error) {
       this.logger.error(
         'Failed to create Paystack transaction',
-        error?.response?.data || error,
+        getAxiosErrorData(error) ?? error,
       );
       throw new InternalServerErrorException(
         'Failed to create checkout session',
@@ -133,7 +134,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
     } catch (error) {
       this.logger.error(
         'Failed to cancel Paystack subscription',
-        error?.response?.data || error,
+        getAxiosErrorData(error) ?? error,
       );
       throw new InternalServerErrorException('Failed to cancel subscription');
     }
@@ -177,7 +178,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
     } catch (error) {
       this.logger.error(
         'Failed to fetch Paystack payment methods',
-        error?.response?.data || error,
+        getAxiosErrorData(error) ?? error,
       );
 
       return { methods: [] };
@@ -234,7 +235,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
     } catch (error) {
       this.logger.error(
         'Failed to fetch Paystack transactions',
-        error?.response?.data || error,
+        getAxiosErrorData(error) ?? error,
       );
       throw new InternalServerErrorException('Failed to fetch invoices');
     }
