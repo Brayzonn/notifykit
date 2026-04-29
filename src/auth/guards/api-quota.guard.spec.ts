@@ -208,7 +208,7 @@ describe('QuotaGuard', () => {
         'SUBSCRIPTION_EXPIRED',
       );
       expect(customer.plan).toBe(CustomerPlan.FREE);
-      expect(customer.monthlyLimit).toBe(1000);
+      expect(customer.monthlyLimit).toBe(100);
     });
 
     it('should sync customer plan to FREE in-memory after downgrade', async () => {
@@ -228,7 +228,7 @@ describe('QuotaGuard', () => {
       await guard.canActivate(context);
 
       expect(customer.plan).toBe(CustomerPlan.FREE);
-      expect(customer.monthlyLimit).toBe(1000);
+      expect(customer.monthlyLimit).toBe(100);
       // After reset (0) + increment (1) = 1
       expect(customer.usageCount).toBe(1);
     });

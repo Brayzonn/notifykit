@@ -79,6 +79,7 @@ describe('SendGridService', () => {
           from: { email: 'custom@example.com' },
           subject: 'Hello',
           content: [{ type: 'text/html', value: '<p>Hi</p>' }],
+          tracking_settings: { click_tracking: { enable: false } },
         },
         expect.any(Object),
       );

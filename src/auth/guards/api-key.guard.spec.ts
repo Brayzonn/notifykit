@@ -305,6 +305,7 @@ describe('ApiKeyGuard', () => {
           email: true,
           plan: true,
           monthlyLimit: true,
+          customMonthlyLimit: true,
           usageCount: true,
           usageResetAt: true,
           billingCycleStartAt: true,
