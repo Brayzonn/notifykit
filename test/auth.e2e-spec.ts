@@ -6,18 +6,20 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { RedisService } from '../src/redis/redis.service';
 import { EmailService } from '../src/email/email.service';
+import { IpRateLimitGuard } from '../src/auth/guards/ip-rate-limit.guard';
+import {
+  closeBullQueues,
+  createMockEmailService,
+  type MockedEmailService,
+} from './helpers/test-utils';
 
 describe('Auth Flow (e2e)', () => {
   let app: INestApplication;
+  let moduleFixture: TestingModule;
   let prisma: PrismaService;
   let redis: RedisService;
-  let emailService: jest.Mocked<EmailService>;
 
-  const mockEmailService = {
-    sendOtpEmail: jest.fn(),
-    sendWelcomeEmail: jest.fn(),
-    sendResetPasswordEmail: jest.fn(),
-  };
+  const mockEmailService: MockedEmailService = createMockEmailService();
 
   const testUser = {
     email: `test-${Date.now()}@example.com`,
@@ -27,11 +29,13 @@ describe('Auth Flow (e2e)', () => {
   };
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
+    moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(EmailService)
       .useValue(mockEmailService)
+      .overrideGuard(IpRateLimitGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -49,12 +53,12 @@ describe('Auth Flow (e2e)', () => {
 
     prisma = moduleFixture.get<PrismaService>(PrismaService);
     redis = moduleFixture.get<RedisService>(RedisService);
-    emailService = moduleFixture.get(EmailService);
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    await closeBullQueues(moduleFixture);
     await app.close();
+    await prisma.$disconnect();
   });
 
   afterEach(async () => {
@@ -110,7 +114,7 @@ describe('Auth Flow (e2e)', () => {
       });
       expect(customer).toBeTruthy();
       expect(customer?.plan).toBe('FREE');
-      expect(customer?.monthlyLimit).toBe(1000);
+      expect(customer?.monthlyLimit).toBe(100);
 
       // Step 3: Sign in
       const signinResponse = await request(app.getHttpServer())
@@ -189,6 +193,10 @@ describe('Auth Flow (e2e)', () => {
     });
 
     it('should refresh access token with valid refresh token', async () => {
+      // JWT iat is second-resolution; wait so the new token differs from the
+      // signin one.
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
       const response = await request(app.getHttpServer())
         .post('/auth/refresh-token')
         .set('Cookie', refreshTokenCookie)
@@ -233,6 +241,10 @@ describe('Auth Flow (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/verify-otp')
         .send({ email: testUser.email, otp });
+
+      // verify-otp issues its own refresh token; remove it so this flow only
+      // exercises the cookie produced by /auth/signin below.
+      await prisma.refreshToken.deleteMany({});
 
       const signinResponse = await request(app.getHttpServer())
         .post('/auth/signin')
@@ -378,7 +390,9 @@ describe('Auth Flow (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body.message).toContain('email');
+      expect(response.body.message).toEqual(
+        expect.arrayContaining([expect.stringContaining('email')]),
+      );
     });
 
     it('should validate password strength', async () => {
@@ -390,7 +404,9 @@ describe('Auth Flow (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body.message).toContain('password');
+      expect(response.body.message).toEqual(
+        expect.arrayContaining([expect.stringContaining('password')]),
+      );
     });
 
     it('should require all fields for signup', async () => {

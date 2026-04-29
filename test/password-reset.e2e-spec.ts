@@ -6,20 +6,22 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { RedisService } from '../src/redis/redis.service';
 import { EmailService } from '../src/email/email.service';
+import { IpRateLimitGuard } from '../src/auth/guards/ip-rate-limit.guard';
 import { AuthProvider } from '@prisma/client';
 import * as argon2 from 'argon2';
+import {
+  closeBullQueues,
+  createMockEmailService,
+  type MockedEmailService,
+} from './helpers/test-utils';
 
 describe('Password Reset Flow (e2e)', () => {
   let app: INestApplication;
+  let moduleFixture: TestingModule;
   let prisma: PrismaService;
   let redis: RedisService;
-  let emailService: jest.Mocked<EmailService>;
 
-  const mockEmailService = {
-    sendOtpEmail: jest.fn(),
-    sendWelcomeEmail: jest.fn(),
-    sendResetPasswordEmail: jest.fn(),
-  };
+  const mockEmailService: MockedEmailService = createMockEmailService();
 
   const testUser = {
     email: `reset-${Date.now()}@example.com`,
@@ -29,11 +31,13 @@ describe('Password Reset Flow (e2e)', () => {
   };
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
+    moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(EmailService)
       .useValue(mockEmailService)
+      .overrideGuard(IpRateLimitGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -51,12 +55,12 @@ describe('Password Reset Flow (e2e)', () => {
 
     prisma = moduleFixture.get<PrismaService>(PrismaService);
     redis = moduleFixture.get<RedisService>(RedisService);
-    emailService = moduleFixture.get(EmailService);
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    await closeBullQueues(moduleFixture);
     await app.close();
+    await prisma.$disconnect();
   });
 
   afterEach(async () => {

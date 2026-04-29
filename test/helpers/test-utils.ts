@@ -1,13 +1,28 @@
-import { PrismaService } from '../../src/prisma/prisma.service';
-import { RedisService } from '../../src/redis/redis.service';
-import { EmailService } from '../../src/email/email.service';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import type { TestingModule } from '@nestjs/testing';
+import { getQueueToken } from '@nestjs/bullmq';
+import type { EmailService } from '../../src/email/email.service';
+import { QUEUE_NAMES } from '../../src/queues/queue.constants';
 
-/**
- * Type helper for mocked Prisma service
- * This creates a type where all Prisma methods are Jest mocks
- */
+// Without this, BullMQ's ioredis connections leak past test teardown and
+// compete with the next run's Redis traffic, causing flaky timeouts.
+export const closeBullQueues = async (
+  moduleFixture: TestingModule,
+): Promise<void> => {
+  for (const name of Object.values(QUEUE_NAMES)) {
+    try {
+      const queue = moduleFixture.get<{ close: () => Promise<void> }>(
+        getQueueToken(name),
+        { strict: false },
+      );
+      if (queue && typeof queue.close === 'function') {
+        await queue.close();
+      }
+    } catch {
+      // queue not registered in this module
+    }
+  }
+};
+
 export type MockedPrismaService = {
   user: {
     findUnique: jest.Mock;
@@ -70,9 +85,6 @@ export type MockedPrismaService = {
   $transaction: jest.Mock;
 };
 
-/**
- * Create a properly typed mock PrismaService for testing
- */
 export const createMockPrismaService = (): MockedPrismaService => ({
   user: {
     findUnique: jest.fn(),
@@ -135,9 +147,6 @@ export const createMockPrismaService = (): MockedPrismaService => ({
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 });
 
-/**
- * Type helper for mocked Redis service
- */
 export type MockedRedisService = {
   get: jest.Mock;
   set: jest.Mock;
@@ -146,9 +155,6 @@ export type MockedRedisService = {
   getClient: jest.Mock;
 };
 
-/**
- * Create a properly typed mock RedisService for testing
- */
 export const createMockRedisService = (): MockedRedisService => ({
   get: jest.fn(),
   set: jest.fn(),
@@ -163,9 +169,6 @@ export const createMockRedisService = (): MockedRedisService => ({
   })),
 });
 
-/**
- * Type helper for mocked JWT service
- */
 export type MockedJwtService = {
   sign: jest.Mock;
   verify: jest.Mock;
@@ -174,9 +177,6 @@ export type MockedJwtService = {
   decode: jest.Mock;
 };
 
-/**
- * Create a properly typed mock JwtService for testing
- */
 export const createMockJwtService = (): MockedJwtService => ({
   sign: jest.fn((payload) => `mock.jwt.token.${payload.sub}`),
   verify: jest.fn(() => ({
@@ -189,17 +189,11 @@ export const createMockJwtService = (): MockedJwtService => ({
   decode: jest.fn(),
 });
 
-/**
- * Type helper for mocked Config service
- */
 export type MockedConfigService = {
   get: jest.Mock;
   getOrThrow: jest.Mock;
 };
 
-/**
- * Create a properly typed mock ConfigService for testing
- */
 export const createMockConfigService = (): MockedConfigService => ({
   get: jest.fn((key: string, defaultValue?: any) => {
     const config: Record<string, any> = {
@@ -216,29 +210,29 @@ export const createMockConfigService = (): MockedConfigService => ({
   getOrThrow: jest.fn(),
 });
 
-/**
- * Type helper for mocked Email service
- */
+// Derived from EmailService so a new send* method triggers a TS error here
+// until it's mocked.
 export type MockedEmailService = {
-  sendOtpEmail: jest.Mock;
-  sendWelcomeEmail: jest.Mock;
-  sendResetPasswordEmail: jest.Mock;
-  sendPaymentFailedEmail: jest.Mock;
+  [K in keyof EmailService as EmailService[K] extends (...args: any[]) => any
+    ? K
+    : never]: jest.Mock;
 };
 
-/**
- * Create a properly typed mock EmailService for testing
- */
-export const createMockEmailService = (): MockedEmailService => ({
-  sendOtpEmail: jest.fn(),
-  sendWelcomeEmail: jest.fn(),
-  sendResetPasswordEmail: jest.fn(),
-  sendPaymentFailedEmail: jest.fn(),
-});
+export const createMockEmailService = (): MockedEmailService => {
+  const resolved = () => jest.fn().mockResolvedValue(undefined);
+  return {
+    sendOtpEmail: resolved(),
+    sendResetPasswordEmail: resolved(),
+    sendWelcomeEmail: resolved(),
+    sendPasswordResetEmail: resolved(),
+    sendEmailChangeVerification: resolved(),
+    sendEmailChangeConfirmation: resolved(),
+    sendEmailChangeCancelled: resolved(),
+    sendEmailChangeSuccess: resolved(),
+    sendPaymentFailedEmail: resolved(),
+  } satisfies MockedEmailService;
+};
 
-/**
- * Extract OTP from Redis for testing
- */
 export const extractOtpFromRedis = async (
   redis: any,
   email: string,
@@ -248,8 +242,5 @@ export const extractOtpFromRedis = async (
   return await redis.get(key);
 };
 
-/**
- * Wait for async operations
- */
 export const waitForAsync = (ms: number = 100) =>
   new Promise((resolve) => setTimeout(resolve, ms));
