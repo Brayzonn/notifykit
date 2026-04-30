@@ -363,6 +363,32 @@ GET /api/v1/health
 | GET    | `/api/v1/notifications/jobs/:id`       | Get job status            |
 | POST   | `/api/v1/notifications/jobs/:id/retry` | Retry failed job          |
 
+#### Per-message provider routing (paid plans)
+
+`POST /api/v1/notifications/email` accepts two optional fields that override the customer's default priority order for a single message:
+
+| Field      | Type                                    | Behavior                                                                                                                  |
+| ---------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `provider` | `"SENDGRID" \| "RESEND" \| "POSTMARK"`  | Force this email through a specific configured provider. If it fails and `fallback` is unset, the job fails — no retry.  |
+| `fallback` | `"SENDGRID" \| "RESEND" \| "POSTMARK"`  | Optional second provider tried only if `provider` fails. Other configured providers are not tried.                       |
+
+Validation:
+
+| Condition                                                  | Response             |
+| ---------------------------------------------------------- | -------------------- |
+| `fallback` set without `provider`                          | `400 Bad Request`    |
+| `provider` equals `fallback`                               | `400 Bad Request`    |
+| Either field used by a `FREE` plan customer                | `403 Forbidden`      |
+| Requested `provider` or `fallback` not configured          | `400 Bad Request`    |
+
+Forced routing is a contract: BullMQ does **not** retry through providers the customer didn't authorize. Routing fields persist with the job, so manual or automatic retries replay the same attempt set.
+
+When neither field is set, behavior is unchanged: the worker tries the customer's full priority list with full failover.
+
+#### `usedProvider` on delivery logs
+
+Every entry in the `deliveryLogs[]` array on `GET /api/v1/notifications/jobs/:id` and `GET /api/v1/user/jobs/:id` now includes a `usedProvider` field (`"SENDGRID" \| "RESEND" \| "POSTMARK" \| null`). Success rows record the provider that delivered the email; failure rows record the last provider attempted. Pre-attempt failures and rows that pre-date the migration are `null`.
+
 ### Admin (ADMIN role required)
 
 | Method | Endpoint                                  | Description                    |
@@ -450,7 +476,7 @@ All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second windo
 
 ## Testing
 
-This project includes a Jest test suite with 420+ unit tests and 37 e2e scenarios covering:
+This project includes a Jest test suite with 440+ unit tests and 37 e2e scenarios covering:
 
 - **Auth & guards**: signin, password reset, token refresh, logout, API key validation, quota enforcement, JWT/IP/customer rate limiting
 - **Email providers**: SendGrid, Resend, and Postmark send services + domain verification services + the shared `EmailProviderFactory` (FREE-tier fallback order, paid-tier per-customer resolution)
