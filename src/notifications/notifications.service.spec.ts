@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '@/queues/queue.service';
@@ -9,7 +9,7 @@ import {
   createMockPrismaService,
   type MockedPrismaService,
 } from '../../test/helpers/test-utils';
-import { CustomerPlan, JobStatus, JobType } from '@prisma/client';
+import { CustomerPlan, EmailProviderType, JobStatus, JobType } from '@prisma/client';
 import { QUEUE_PRIORITIES } from '@/queues/queue.constants';
 
 type MockedQueueService = {
@@ -240,6 +240,143 @@ describe('NotificationsService', () => {
         status: 'pending',
         type: 'email',
         createdAt,
+      });
+    });
+
+    // ── Per-message provider routing ───────────────────────────────────────────
+
+    describe('per-message provider routing', () => {
+      const paidCustomer = (
+        providers: EmailProviderType[] = [
+          EmailProviderType.SENDGRID,
+          EmailProviderType.POSTMARK,
+        ],
+      ) =>
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: providers.length },
+          emailProviders: providers.map((provider) => ({
+            id: `cep-${provider}`,
+            customerId: 'customer-123',
+            provider,
+            apiKey: 'enc:key',
+            priority: 1,
+            isActive: true,
+            webhookSecret: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })) as any,
+          sendingDomains: [
+            {
+              domain: 'mail.example.com',
+              provider: EmailProviderType.SENDGRID,
+              verified: true,
+              requestedAt: new Date(),
+              verifiedAt: new Date(),
+            },
+          ] as any,
+        });
+
+      it('rejects fallback when provider is not set', async () => {
+        prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+
+        await expect(
+          service.sendEmail('customer-123', {
+            ...emailDto,
+            fallback: EmailProviderType.SENDGRID,
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      });
+
+      it('rejects when provider equals fallback', async () => {
+        prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+
+        await expect(
+          service.sendEmail('customer-123', {
+            ...emailDto,
+            provider: EmailProviderType.SENDGRID,
+            fallback: EmailProviderType.SENDGRID,
+          }),
+        ).rejects.toThrow('`provider` and `fallback` must be different.');
+      });
+
+      it.each([
+        { provider: EmailProviderType.SENDGRID },
+        { fallback: EmailProviderType.SENDGRID, provider: EmailProviderType.POSTMARK },
+      ])('rejects routing fields on FREE plan (%o)', async (routing) => {
+        prisma.customer.findUnique.mockResolvedValue(
+          createMockCustomer({ plan: CustomerPlan.FREE }),
+        );
+
+        await expect(
+          service.sendEmail('customer-123', { ...emailDto, ...routing }),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('rejects when requested provider is not configured', async () => {
+        prisma.customer.findUnique.mockResolvedValue(
+          paidCustomer([EmailProviderType.SENDGRID]),
+        );
+
+        await expect(
+          service.sendEmail('customer-123', {
+            ...emailDto,
+            provider: EmailProviderType.POSTMARK,
+          }),
+        ).rejects.toThrow('Provider POSTMARK is not configured for this customer.');
+      });
+
+      it('rejects when fallback provider is not configured', async () => {
+        prisma.customer.findUnique.mockResolvedValue(
+          paidCustomer([EmailProviderType.SENDGRID]),
+        );
+
+        await expect(
+          service.sendEmail('customer-123', {
+            ...emailDto,
+            provider: EmailProviderType.SENDGRID,
+            fallback: EmailProviderType.POSTMARK,
+          }),
+        ).rejects.toThrow(
+          'Fallback provider POSTMARK is not configured for this customer.',
+        );
+      });
+
+      it('persists provider + fallback into Job.payload', async () => {
+        prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+
+        await service.sendEmail('customer-123', {
+          ...emailDto,
+          provider: EmailProviderType.POSTMARK,
+          fallback: EmailProviderType.SENDGRID,
+        });
+
+        expect(prisma.job.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            payload: expect.objectContaining({
+              provider: EmailProviderType.POSTMARK,
+              fallback: EmailProviderType.SENDGRID,
+            }),
+          }),
+        });
+      });
+
+      it('forwards provider + fallback to addEmailJob', async () => {
+        prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+
+        await service.sendEmail('customer-123', {
+          ...emailDto,
+          provider: EmailProviderType.POSTMARK,
+          fallback: EmailProviderType.SENDGRID,
+        });
+
+        expect(queueService.addEmailJob).toHaveBeenCalledWith(
+          expect.objectContaining({
+            provider: EmailProviderType.POSTMARK,
+            fallback: EmailProviderType.SENDGRID,
+          }),
+          QUEUE_PRIORITIES.NORMAL,
+        );
       });
     });
   });
@@ -479,6 +616,50 @@ describe('NotificationsService', () => {
           to: 'user@example.com',
         }),
         failedEmailJob.priority,
+        true,
+      );
+    });
+
+    it('forwards routing fields from the persisted payload back into the queue', async () => {
+      const routedJob = makeJob({
+        id: 'job-routed',
+        type: JobType.EMAIL,
+        status: JobStatus.FAILED,
+        payload: {
+          to: 'user@example.com',
+          subject: 'Hello',
+          body: '<p>Hi</p>',
+          provider: EmailProviderType.POSTMARK,
+          fallback: EmailProviderType.SENDGRID,
+        },
+      });
+      prisma.job.findFirst.mockResolvedValue(routedJob);
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: 2 },
+          sendingDomains: [
+            {
+              domain: 'mail.example.com',
+              provider: EmailProviderType.SENDGRID,
+              verified: true,
+              requestedAt: new Date(),
+              verifiedAt: new Date(),
+            },
+          ] as any,
+        }),
+      );
+      prisma.job.update.mockResolvedValue({ ...routedJob, status: JobStatus.PENDING });
+      queueService.addEmailJob.mockResolvedValue(undefined);
+
+      await service.retryJob('customer-123', 'job-routed');
+
+      expect(queueService.addEmailJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: EmailProviderType.POSTMARK,
+          fallback: EmailProviderType.SENDGRID,
+        }),
+        routedJob.priority,
         true,
       );
     });

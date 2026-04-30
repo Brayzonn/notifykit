@@ -15,7 +15,10 @@ import {
   type MockedConfigService,
 } from '../../../test/helpers/test-utils';
 
-type MockedEmailProviderFactory = { resolveAll: jest.Mock };
+type MockedEmailProviderFactory = {
+  resolveAll: jest.Mock;
+  resolveOne: jest.Mock;
+};
 type MockedQueueService = { moveToDeadLetterQueue: jest.Mock };
 type MockedEncryptionService = { encrypt: jest.Mock; decrypt: jest.Mock };
 type MockedEmailProvider = { sendEmail: jest.Mock };
@@ -32,7 +35,10 @@ describe('EmailWorkerProcessor', () => {
   let queueService: MockedQueueService;
   let encryptionService: MockedEncryptionService;
 
-  const mockEmailProviderFactory: MockedEmailProviderFactory = { resolveAll: jest.fn() };
+  const mockEmailProviderFactory: MockedEmailProviderFactory = {
+    resolveAll: jest.fn(),
+    resolveOne: jest.fn(),
+  };
   const mockPrismaService = createMockPrismaService();
   const mockQueueService: MockedQueueService = { moveToDeadLetterQueue: jest.fn() };
   const mockConfigService = createMockConfigService();
@@ -505,6 +511,223 @@ describe('EmailWorkerProcessor', () => {
       await expect(processor.process(mockJob as Job)).rejects.toThrow();
 
       expect(mockProvider.sendEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Per-Message Provider Routing ────────────────────────────────────────────
+
+  describe('Per-Message Provider Routing', () => {
+    const paidCustomer = () =>
+      makeCustomer({
+        plan: CustomerPlan.INDIE,
+        sendingDomains: [
+          { domain: 'mail.example.com', provider: EmailProviderType.SENDGRID, verified: true },
+        ],
+        emailProviders: [
+          { provider: EmailProviderType.POSTMARK, apiKey: 'enc:pm', priority: 1 },
+          { provider: EmailProviderType.SENDGRID, apiKey: 'enc:sg', priority: 2 },
+          { provider: EmailProviderType.RESEND, apiKey: 'enc:re', priority: 3 },
+        ],
+      });
+
+    const buildResolved = (type: EmailProviderType, provider: MockedEmailProvider) => ({
+      type,
+      provider,
+      apiKey: `key-${type}`,
+    });
+
+    it('uses only the forced provider when fallback is not set, and records usedProvider on success', async () => {
+      const emailData = { ...createMockEmailData(), provider: EmailProviderType.POSTMARK };
+      const mockJob = createMockJob(emailData, 0);
+      const postmark: MockedEmailProvider = {
+        sendEmail: jest.fn().mockResolvedValue({ messageId: 'pm-1' }),
+      };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveOne.mockReturnValueOnce(
+        buildResolved(EmailProviderType.POSTMARK, postmark),
+      );
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await processor.process(mockJob as Job);
+
+      expect(mockEmailProviderFactory.resolveOne).toHaveBeenCalledTimes(1);
+      expect(mockEmailProviderFactory.resolveAll).not.toHaveBeenCalled();
+      expect(postmark.sendEmail).toHaveBeenCalledTimes(1);
+      expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: DeliveryStatus.SUCCESS,
+          usedProvider: EmailProviderType.POSTMARK,
+        }),
+      });
+    });
+
+    it('throws UnrecoverableError when forced provider fails and no fallback is set', async () => {
+      const emailData = { ...createMockEmailData(), provider: EmailProviderType.POSTMARK };
+      const mockJob = createMockJob(emailData, 0);
+      const postmark: MockedEmailProvider = {
+        sendEmail: jest.fn().mockRejectedValue(new Error('postmark down')),
+      };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveOne.mockReturnValueOnce(
+        buildResolved(EmailProviderType.POSTMARK, postmark),
+      );
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await expect(processor.process(mockJob as Job)).rejects.toThrow(
+        'Configured provider(s) failed',
+      );
+
+      expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: DeliveryStatus.FAILED,
+          usedProvider: EmailProviderType.POSTMARK,
+        }),
+      });
+    });
+
+    it('falls over from forced provider to fallback when primary fails, and records the fallback as usedProvider', async () => {
+      const emailData = {
+        ...createMockEmailData(),
+        provider: EmailProviderType.POSTMARK,
+        fallback: EmailProviderType.SENDGRID,
+      };
+      const mockJob = createMockJob(emailData, 0);
+      const postmark: MockedEmailProvider = {
+        sendEmail: jest.fn().mockRejectedValue(new Error('postmark down')),
+      };
+      const sendgrid: MockedEmailProvider = {
+        sendEmail: jest.fn().mockResolvedValue({ messageId: 'sg-1' }),
+      };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveOne
+        .mockReturnValueOnce(buildResolved(EmailProviderType.POSTMARK, postmark))
+        .mockReturnValueOnce(buildResolved(EmailProviderType.SENDGRID, sendgrid));
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await processor.process(mockJob as Job);
+
+      expect(postmark.sendEmail).toHaveBeenCalledTimes(1);
+      expect(sendgrid.sendEmail).toHaveBeenCalledTimes(1);
+      expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: DeliveryStatus.SUCCESS,
+          usedProvider: EmailProviderType.SENDGRID,
+        }),
+      });
+    });
+
+    it('throws UnrecoverableError and records last attempted provider when both forced and fallback fail', async () => {
+      const emailData = {
+        ...createMockEmailData(),
+        provider: EmailProviderType.POSTMARK,
+        fallback: EmailProviderType.SENDGRID,
+      };
+      const mockJob = createMockJob(emailData, 0);
+      const postmark: MockedEmailProvider = {
+        sendEmail: jest.fn().mockRejectedValue(new Error('postmark down')),
+      };
+      const sendgrid: MockedEmailProvider = {
+        sendEmail: jest.fn().mockRejectedValue(new Error('sendgrid down')),
+      };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveOne
+        .mockReturnValueOnce(buildResolved(EmailProviderType.POSTMARK, postmark))
+        .mockReturnValueOnce(buildResolved(EmailProviderType.SENDGRID, sendgrid));
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await expect(processor.process(mockJob as Job)).rejects.toThrow(
+        'Configured provider(s) failed',
+      );
+
+      expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: DeliveryStatus.FAILED,
+          usedProvider: EmailProviderType.SENDGRID,
+        }),
+      });
+    });
+
+    it('does not iterate the rest of the priority list — Resend (priority 3) is never tried', async () => {
+      const emailData = {
+        ...createMockEmailData(),
+        provider: EmailProviderType.POSTMARK,
+        fallback: EmailProviderType.SENDGRID,
+      };
+      const mockJob = createMockJob(emailData, 0);
+      const postmark: MockedEmailProvider = {
+        sendEmail: jest.fn().mockRejectedValue(new Error('postmark down')),
+      };
+      const sendgrid: MockedEmailProvider = {
+        sendEmail: jest.fn().mockRejectedValue(new Error('sendgrid down')),
+      };
+      const resend: MockedEmailProvider = { sendEmail: jest.fn() };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveOne
+        .mockReturnValueOnce(buildResolved(EmailProviderType.POSTMARK, postmark))
+        .mockReturnValueOnce(buildResolved(EmailProviderType.SENDGRID, sendgrid));
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await expect(processor.process(mockJob as Job)).rejects.toThrow();
+
+      expect(resend.sendEmail).not.toHaveBeenCalled();
+      expect(mockEmailProviderFactory.resolveAll).not.toHaveBeenCalled();
+    });
+
+    it('throws UnrecoverableError when forced provider is not configured', async () => {
+      const emailData = { ...createMockEmailData(), provider: EmailProviderType.POSTMARK };
+      const mockJob = createMockJob(emailData, 0);
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveOne.mockReturnValueOnce(null);
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await expect(processor.process(mockJob as Job)).rejects.toThrow(
+        'Provider POSTMARK is not configured for this customer.',
+      );
+    });
+
+    it('uses resolveAll (priority order) and records usedProvider when no routing is set', async () => {
+      const emailData = createMockEmailData();
+      const mockJob = createMockJob(emailData, 0);
+      const sendgrid: MockedEmailProvider = {
+        sendEmail: jest.fn().mockResolvedValue({ messageId: 'sg-1' }),
+      };
+
+      prisma.job.findUnique.mockResolvedValue({ id: emailData.jobId, attempts: 0 });
+      prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+      mockEmailProviderFactory.resolveAll.mockReturnValueOnce([
+        buildResolved(EmailProviderType.SENDGRID, sendgrid),
+      ]);
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await processor.process(mockJob as Job);
+
+      expect(mockEmailProviderFactory.resolveOne).not.toHaveBeenCalled();
+      expect(mockEmailProviderFactory.resolveAll).toHaveBeenCalledTimes(1);
+      expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: DeliveryStatus.SUCCESS,
+          usedProvider: EmailProviderType.SENDGRID,
+        }),
+      });
     });
   });
 });
