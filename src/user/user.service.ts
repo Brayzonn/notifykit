@@ -677,6 +677,12 @@ export class UserService {
       update: { apiKey: encryptedKey },
     });
 
+    await this.autoRegisterDomainForNewProvider(
+      customer.id,
+      EmailProviderType.SENDGRID,
+      apiKey,
+    );
+
     return { message: 'SendGrid API key saved successfully' };
   }
 
@@ -1036,6 +1042,13 @@ export class UserService {
       },
     });
 
+    await this.autoRegisterDomainForNewProvider(
+      customer.id,
+      EmailProviderType.POSTMARK,
+      serverToken,
+      accountToken,
+    );
+
     return { message: 'Postmark API key saved successfully' };
   }
 
@@ -1307,6 +1320,12 @@ export class UserService {
       },
       update: { apiKey: encryptedKey },
     });
+
+    await this.autoRegisterDomainForNewProvider(
+      customer.id,
+      EmailProviderType.RESEND,
+      apiKey,
+    );
 
     return { message: 'Resend API key saved successfully' };
   }
@@ -1733,6 +1752,119 @@ export class UserService {
   /**
    * Request domain verification
    */
+  /**
+   * Register an existing customer domain with a newly added provider.
+   * Idempotent: no-op if customer has no domain or provider already registered.
+   * Never throws — failures are logged so the save flow keeps working.
+   */
+  private async autoRegisterDomainForNewProvider(
+    customerId: string,
+    provider: EmailProviderType,
+    decryptedApiKey: string,
+    decryptedAccountKey?: string,
+  ): Promise<void> {
+    try {
+      const existing = await this.prisma.customerSendingDomain.findFirst({
+        where: { customerId },
+        orderBy: { requestedAt: 'desc' },
+        select: { domain: true },
+      });
+      if (!existing) return;
+
+      const domain = existing.domain;
+
+      const alreadyRegistered =
+        await this.prisma.customerSendingDomain.findUnique({
+          where: {
+            customerId_domain_provider: { customerId, domain, provider },
+          },
+          select: { id: true },
+        });
+      if (alreadyRegistered) return;
+
+      let domainId: string;
+      let dnsRecords: Array<{ type: string; host: string; value: string }>;
+      let valid: boolean;
+
+      if (provider === EmailProviderType.SENDGRID) {
+        const result = await this.sendGridDomainService.authenticateDomain(
+          domain,
+          decryptedApiKey,
+        );
+        domainId = result.domainId.toString();
+        dnsRecords = result.dnsRecords;
+        valid = result.valid;
+      } else if (provider === EmailProviderType.RESEND) {
+        const result = await this.resendDomainService.authenticateDomain(
+          domain,
+          decryptedApiKey,
+        );
+        domainId = result.domainId;
+        dnsRecords = result.dnsRecords;
+        valid = result.valid;
+      } else if (provider === EmailProviderType.POSTMARK) {
+        if (!decryptedAccountKey) {
+          this.logger.warn(
+            `Skipping auto domain registration for Postmark on customer ${customerId}: account token missing`,
+          );
+          return;
+        }
+        const result = await this.postmarkDomainService.authenticateDomain(
+          domain,
+          decryptedAccountKey,
+        );
+        domainId = result.domainId;
+        dnsRecords = result.dnsRecords;
+        valid = result.valid;
+      } else {
+        return;
+      }
+
+      await this.prisma.customerSendingDomain.create({
+        data: {
+          customerId,
+          domain,
+          provider,
+          providerDomainId: domainId,
+          dnsRecords,
+          verified: valid,
+          requestedAt: new Date(),
+          verifiedAt: valid ? new Date() : null,
+        },
+      });
+
+      this.logger.log(
+        `Auto-registered domain ${domain} with ${provider} for customer ${customerId}`,
+      );
+
+      if (!valid && dnsRecords.length > 0) {
+        const owner = await this.prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { user: { select: { email: true, name: true } } },
+        });
+        if (owner?.user) {
+          this.emailService
+            .sendDomainProviderAddedEmail({
+              email: owner.user.email,
+              name: owner.user.name,
+              domain,
+              provider,
+              dnsRecords,
+            })
+            .catch((err) =>
+              this.logger.error(
+                `Failed to send domain-provider-added email to ${owner.user!.email}: ${getErrorMessage(err)}`,
+              ),
+            );
+        }
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Auto domain registration failed for ${provider} on customer ${customerId}: ${getErrorMessage(err)}`,
+      );
+    }
+  }
+
   async requestDomainVerification(userId: string, domain: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -1786,6 +1918,8 @@ export class UserService {
       value: string;
       provider: string;
     }> = [];
+
+    const warnings: Array<{ provider: string; reason: string }> = [];
 
     let anyValid = false;
 
@@ -1843,6 +1977,11 @@ export class UserService {
           this.logger.warn(
             `Skipping Postmark domain verification: account token missing for customer ${customer.id}`,
           );
+          warnings.push({
+            provider: EmailProviderType.POSTMARK,
+            reason:
+              'Account token missing. Add it to your Postmark provider settings to verify the domain on Postmark.',
+          });
           continue;
         }
         const decryptedAccountKey = this.encryptionService.decrypt(
@@ -1931,6 +2070,7 @@ export class UserService {
       domain,
       status: anyValid ? 'verified' : 'pending',
       dnsRecords: allDnsRecords,
+      warnings,
       instructions: {
         message: 'Add these DNS records to your domain registrar',
         steps: [

@@ -255,6 +255,17 @@ export class NotificationsService {
         createdAt: true,
         startedAt: true,
         completedAt: true,
+        deliveryLogs: {
+          select: {
+            id: true,
+            attempt: true,
+            status: true,
+            usedProvider: true,
+            errorMessage: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -266,6 +277,10 @@ export class NotificationsService {
       ...job,
       status: toApiStatus(job.status),
       type: job.type.toLowerCase(),
+      deliveryLogs: job.deliveryLogs.map((log) => ({
+        ...log,
+        status: log.status.toLowerCase(),
+      })),
     };
   }
 

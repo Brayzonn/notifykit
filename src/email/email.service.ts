@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import sgMail from '@sendgrid/mail';
 import {
+  DomainProviderAddedEmailData,
   EmailChangeCancelledData,
   EmailChangeConfirmationData,
   EmailChangeSuccessData,
@@ -19,6 +20,7 @@ import { emailChangeCancelledTemplate } from '@/email/templates/email-change-can
 import { emailChangeSuccessTemplate } from '@/email/templates/email-change-success.template';
 import { paymentFailedEmailTemplate } from './templates/payment-failed.template';
 import { resetPasswordEmailTemplate } from './templates/reset-password.template';
+import { domainProviderAddedTemplate } from '@/email/templates/domain-provider-added.template';
 
 @Injectable()
 export class EmailService {
@@ -186,5 +188,27 @@ export class EmailService {
     });
 
     this.logger.log(`Payment failed email sent to ${data.email}`);
+  }
+
+  async sendDomainProviderAddedEmail(
+    data: DomainProviderAddedEmailData,
+  ): Promise<void> {
+    const html = domainProviderAddedTemplate(
+      data.name,
+      data.domain,
+      data.provider,
+      data.dnsRecords,
+    );
+
+    await sgMail.send({
+      to: data.email,
+      from: this.fromEmail,
+      subject: `Action needed: publish DNS records for ${data.provider} - NotifyKit`,
+      html,
+    });
+
+    this.logger.log(
+      `Domain-provider-added email sent to ${data.email} for ${data.domain} / ${data.provider}`,
+    );
   }
 }

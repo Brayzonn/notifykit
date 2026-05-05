@@ -33,6 +33,15 @@ export interface JobResponse {
   createdAt: Date;
 }
 
+export interface DeliveryLogItem {
+  id: string;
+  attempt: number;
+  status: string;
+  usedProvider: EmailProviderType | null;
+  errorMessage: string | null;
+  createdAt: Date;
+}
+
 export interface JobStatusResponse {
   id: string;
   type: string;
@@ -45,6 +54,7 @@ export interface JobStatusResponse {
   createdAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
+  deliveryLogs: DeliveryLogItem[];
 }
 
 export interface JobListItem {

@@ -13,9 +13,9 @@ export const JOB_NAMES = {
 export type QueueType = 'email' | 'webhook' | 'failed';
 
 export const QUEUE_PRIORITIES = {
-  CRITICAL: 10,
+  CRITICAL: 1,
   NORMAL: 5,
-  LOW: 1,
+  LOW: 10,
 } as const;
 
 export const RETRY_CONFIG = {

@@ -482,6 +482,42 @@ export class AdminService {
     };
   }
 
+  async getJobById(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            email: true,
+            plan: true,
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+        deliveryLogs: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            attempt: true,
+            status: true,
+            usedProvider: true,
+            errorMessage: true,
+            response: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    return job;
+  }
+
   async deleteJob(jobId: string) {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },

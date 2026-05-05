@@ -52,3 +52,11 @@ export interface PaymentFailedEmailData {
   amount: number;
   retryDate: Date | null;
 }
+
+export interface DomainProviderAddedEmailData {
+  email: string;
+  name: string;
+  domain: string;
+  provider: string;
+  dnsRecords: Array<{ type: string; host: string; value: string }>;
+}

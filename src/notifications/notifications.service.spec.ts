@@ -32,6 +32,7 @@ const makeJob = (overrides: Partial<Record<string, any>> = {}) => ({
   createdAt: new Date('2026-01-01T00:00:00Z'),
   startedAt: null,
   completedAt: null,
+  deliveryLogs: [],
   ...overrides,
 });
 

@@ -178,6 +178,15 @@ export class AdminController {
     return await this.adminService.getJobs(query);
   }
 
+  @Get('jobs/:id')
+  @ApiOperation({ summary: 'Get a single job with delivery logs' })
+  @ApiParam({ name: 'id', description: 'Job ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Returns job with delivery logs' })
+  @ApiResponse({ status: 404, description: 'Job not found' })
+  async getJob(@Param('id') id: string) {
+    return await this.adminService.getJobById(id);
+  }
+
   @Delete('jobs/:id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Hard delete job (permanent deletion)' })
