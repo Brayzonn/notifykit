@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerMiddleware } from './common/middleware/activity-logger.middleware';
 import { AppController } from '@/app.controller';
@@ -26,6 +27,7 @@ import { PostmarkEventsModule } from './postmark-events/postmark-events.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     RedisModule,
     PrismaModule,
     AuthModule,

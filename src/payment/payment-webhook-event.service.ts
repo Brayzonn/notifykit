@@ -43,4 +43,24 @@ export class PaymentWebhookEventService {
       throw err;
     }
   }
+
+  /**
+   * Removes a previously recorded dedup entry so that a failed event can be
+   * retried. Called from the catch block of the webhook handler when processing
+   * throws after the dedup record was already written.
+   */
+  async unmarkProcessed(
+    provider: PaymentProvider,
+    eventId: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.paymentWebhookEvent.delete({
+        where: { provider_eventId: { provider, eventId } },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to remove dedup record for ${provider}:${eventId} — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 }

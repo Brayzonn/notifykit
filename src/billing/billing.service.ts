@@ -267,7 +267,7 @@ export class BillingService {
   }
 
   async handleSubscriptionCancelled(subscriptionId: string) {
-    const customer = await this.prisma.customer.findFirst({
+    const customer = await this.prisma.customer.findUnique({
       where: { providerSubscriptionId: subscriptionId },
     });
 
@@ -280,6 +280,7 @@ export class BillingService {
       where: { id: customer.id },
       data: {
         subscriptionStatus: SubscriptionStatus.CANCELLED,
+        subscriptionEndDate: customer.nextBillingDate ?? customer.subscriptionEndDate,
       },
     });
 
@@ -287,7 +288,7 @@ export class BillingService {
   }
 
   async handleSubscriptionExpired(subscriptionId: string) {
-    const customer = await this.prisma.customer.findFirst({
+    const customer = await this.prisma.customer.findUnique({
       where: { providerSubscriptionId: subscriptionId },
     });
 
@@ -371,7 +372,7 @@ export class BillingService {
     //do later-------send user downgrade email--------------------------------------
 
     this.logger.warn(
-      `Customer ${customer.email} downgraded from ${originalPlan} to FREE. Next reset: ${resetDate.toISOString()}`,
+      `Customer ${customer.email} downgraded from ${originalPlan} to FREE. Reason: ${reason}. Next reset: ${resetDate.toISOString()}`,
     );
   }
 

@@ -53,7 +53,6 @@ export class PaystackPaymentProvider implements PaymentProvider {
             metadata: {
               customerId: request.customerId,
               plan: request.plan,
-              cancel_action: `${this.configService.get('FRONTEND_URL')}/user/dashboard/usage?cancelled=true`,
             },
           },
           {
@@ -107,8 +106,8 @@ export class PaystackPaymentProvider implements PaymentProvider {
       const emailToken = subscriptionResponse.data?.data?.email_token;
 
       if (!emailToken) {
-        this.logger.warn(
-          `No email token found for subscription ${subscriptionId}, attempting disable with subscription code`,
+        throw new InternalServerErrorException(
+          `Paystack did not return an email_token for subscription ${subscriptionId}`,
         );
       }
 
@@ -117,7 +116,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
           `${this.paystackUrl}/subscription/disable`,
           {
             code: subscriptionId,
-            token: emailToken || subscriptionId,
+            token: emailToken,
           },
           {
             headers: {
@@ -329,7 +328,14 @@ export class PaystackPaymentProvider implements PaymentProvider {
       INDIE: this.configService.get('PAYSTACK_INDIE_AMOUNT'),
       STARTUP: this.configService.get('PAYSTACK_STARTUP_AMOUNT'),
     };
-    return Number(amounts[plan]);
+    const raw = amounts[plan];
+    const amount = Number(raw);
+    if (!raw || isNaN(amount) || amount <= 0) {
+      throw new InternalServerErrorException(
+        `PAYSTACK_${plan}_AMOUNT is not configured or invalid (got: ${raw})`,
+      );
+    }
+    return amount;
   }
 
   getPlanCode(plan: string): string {

@@ -36,7 +36,6 @@ interface PaystackWebhookEvent {
     metadata?: {
       customerId?: string;
       plan?: CustomerPlan;
-      cancel_action?: string;
       referrer?: string;
     };
     source?: {
@@ -100,6 +99,8 @@ interface PaystackWebhookEvent {
 @Injectable()
 export class PaystackWebhookHandler {
   private readonly logger = new Logger(PaystackWebhookHandler.name);
+  private readonly indiePlanId: string;
+  private readonly startupPlanId: string;
 
   constructor(
     private readonly billingService: BillingService,
@@ -109,7 +110,10 @@ export class PaystackWebhookHandler {
     private readonly paystackProvider: PaystackPaymentProvider,
     private readonly queueService: QueueService,
     private readonly webhookEventLog: PaymentWebhookEventService,
-  ) {}
+  ) {
+    this.indiePlanId = this.configService.get<string>('PAYSTACK_INDIE_PLAN_ID') ?? '';
+    this.startupPlanId = this.configService.get<string>('PAYSTACK_STARTUP_PLAN_ID') ?? '';
+  }
 
   async handle(payload: Buffer, signature: string) {
     const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
@@ -148,6 +152,7 @@ export class PaystackWebhookHandler {
           break;
 
         case 'subscription.disable':
+        case 'subscription.not_renew':
           await this.handleSubscriptionDisable(event.data);
           break;
 
@@ -161,7 +166,16 @@ export class PaystackWebhookHandler {
 
       return { received: true };
     } catch (error) {
-      this.logger.error(`Error processing webhook: ${getErrorMessage(error)}`, error);
+      this.logger.error(
+        `Error processing webhook: ${getErrorMessage(error)}`,
+        error,
+      );
+      if (dedupKey) {
+        await this.webhookEventLog.unmarkProcessed(
+          PaymentProvider.PAYSTACK,
+          dedupKey,
+        );
+      }
       throw error;
     }
   }
@@ -249,9 +263,7 @@ export class PaystackWebhookHandler {
         existingCustomer.id,
         nextBillingDate,
       );
-      this.logger.log(
-        `Renewal processed for customer ${customerCode}`,
-      );
+      this.logger.log(`Renewal processed for customer ${customerCode}`);
       return;
     }
 
@@ -295,7 +307,7 @@ export class PaystackWebhookHandler {
       return;
     }
 
-    const customer = await this.prisma.customer.findFirst({
+    const customer = await this.prisma.customer.findUnique({
       where: { providerCustomerId: customerCode },
     });
 
@@ -350,7 +362,7 @@ export class PaystackWebhookHandler {
       return;
     }
 
-    const customer = await this.prisma.customer.findFirst({
+    const customer = await this.prisma.customer.findUnique({
       where: { providerSubscriptionId: subscriptionCode },
     });
 
@@ -391,16 +403,8 @@ export class PaystackWebhookHandler {
   }
 
   private mapPlanCodeToPlan(planCode: string): CustomerPlan | null {
-    const indiePlanId = this.configService.get('PAYSTACK_INDIE_PLAN_ID');
-    const startupPlanId = this.configService.get('PAYSTACK_STARTUP_PLAN_ID');
-
-    if (planCode === indiePlanId) {
-      return CustomerPlan.INDIE;
-    }
-    if (planCode === startupPlanId) {
-      return CustomerPlan.STARTUP;
-    }
-
+    if (planCode === this.indiePlanId) return CustomerPlan.INDIE;
+    if (planCode === this.startupPlanId) return CustomerPlan.STARTUP;
     return null;
   }
 }

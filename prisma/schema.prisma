@@ -146,8 +146,8 @@ model Customer {
 
   subscriptionStatus     SubscriptionStatus? @map("subscription_status")
   paymentProvider        PaymentProvider?    @map("payment_provider")
-  providerCustomerId     String?             @map("provider_customer_id")
-  providerSubscriptionId String?             @map("provider_subscription_id")
+  providerCustomerId     String?             @unique @map("provider_customer_id")
+  providerSubscriptionId String?             @unique @map("provider_subscription_id")
   subscriptionEndDate    DateTime?           @map("subscription_end_date")
   lastPaymentDate        DateTime?           @map("last_payment_date")
   nextBillingDate        DateTime?           @map("next_billing_date")
@@ -165,7 +165,6 @@ model Customer {
   @@index([email])
   @@index([userId])
   @@index([subscriptionStatus])
-  @@index([providerSubscriptionId])
   @@index([paymentProvider])
   @@map("customers")
 }

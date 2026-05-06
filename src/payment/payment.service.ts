@@ -21,7 +21,7 @@ export class PaymentService {
   }
 
   async cancelSubscription(subscriptionId: string): Promise<void> {
-    const customer = await this.prisma.customer.findFirst({
+    const customer = await this.prisma.customer.findUnique({
       where: { providerSubscriptionId: subscriptionId },
     });
 
