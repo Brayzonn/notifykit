@@ -1,7 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import * as crypto from 'crypto';
 import { BillingService } from '@/billing/billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -13,6 +11,8 @@ import {
   SubscriptionStatus,
 } from '@prisma/client';
 import { PaystackPaymentProvider } from '../providers/paystack-payment.provider';
+import { QueueService } from '@/queues/queue.service';
+import { PaymentWebhookEventService } from '../payment-webhook-event.service';
 
 interface PaystackWebhookEvent {
   event: string;
@@ -100,15 +100,15 @@ interface PaystackWebhookEvent {
 @Injectable()
 export class PaystackWebhookHandler {
   private readonly logger = new Logger(PaystackWebhookHandler.name);
-  private readonly paystackUrl = 'https://api.paystack.co';
 
   constructor(
     private readonly billingService: BillingService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
-    private readonly httpService: HttpService,
     private readonly paystackProvider: PaystackPaymentProvider,
+    private readonly queueService: QueueService,
+    private readonly webhookEventLog: PaymentWebhookEventService,
   ) {}
 
   async handle(payload: Buffer, signature: string) {
@@ -117,17 +117,25 @@ export class PaystackWebhookHandler {
       throw new Error('PAYSTACK_SECRET_KEY not configured');
     }
 
-    const hash = crypto
-      .createHmac('sha512', secret)
-      .update(payload)
-      .digest('hex');
-
-    if (hash !== signature) {
+    if (!this.verifySignature(payload, signature, secret)) {
       throw new UnauthorizedException('Invalid webhook signature');
     }
 
     const event: PaystackWebhookEvent = JSON.parse(payload.toString());
     this.logger.log(`Processing Paystack webhook: ${event.event}`);
+
+    const dedupKey = this.buildDedupKey(event);
+    if (dedupKey) {
+      const isNew = await this.webhookEventLog.markProcessed(
+        PaymentProvider.PAYSTACK,
+        dedupKey,
+        event.event,
+        event,
+      );
+      if (!isNew) {
+        return { received: true, duplicate: true };
+      }
+    }
 
     try {
       switch (event.event) {
@@ -158,6 +166,45 @@ export class PaystackWebhookHandler {
     }
   }
 
+  private verifySignature(
+    payload: Buffer,
+    signature: string,
+    secret: string,
+  ): boolean {
+    const expected = crypto
+      .createHmac('sha512', secret)
+      .update(payload)
+      .digest();
+    let provided: Buffer;
+    try {
+      provided = Buffer.from(signature, 'hex');
+    } catch {
+      return false;
+    }
+    if (provided.length !== expected.length) return false;
+    return crypto.timingSafeEqual(expected, provided);
+  }
+
+  /**
+   * Stable per-event identifier. Paystack doesn't ship a single canonical
+   * `event_id`, so we synthesize one from the most-unique field available:
+   * - `charge.success` / `invoice.*` → transaction `reference`
+   * - `subscription.*` → `subscription_code` (combined with event type, since
+   *   the same code generates multiple events across its lifecycle)
+   * Returns null if we can't form a key — caller should let the event through
+   * (no dedup) rather than block legitimate traffic.
+   */
+  private buildDedupKey(event: PaystackWebhookEvent): string | null {
+    const ref = event.data?.reference;
+    const subCode = event.data?.subscription_code;
+    const txId = event.data?.id;
+
+    if (ref) return `${event.event}:${ref}`;
+    if (subCode) return `${event.event}:${subCode}`;
+    if (txId != null) return `${event.event}:${txId}`;
+    return null;
+  }
+
   private async handleChargeSuccess(data: PaystackWebhookEvent['data']) {
     const customerId = data.metadata?.customerId;
     const plan = data.metadata?.plan;
@@ -172,18 +219,43 @@ export class PaystackWebhookHandler {
       return;
     }
 
-    const existingCustomer = await this.prisma.customer.findFirst({
+    const existingCustomer = await this.prisma.customer.findUnique({
       where: { id: customerId },
     });
 
-    if (
-      existingCustomer?.subscriptionStatus === SubscriptionStatus.ACTIVE &&
-      existingCustomer?.plan === plan
-    ) {
-      this.logger.log(`Customer ${customerId} already on ${plan}, skipping`);
+    if (!existingCustomer) {
+      this.logger.warn(`Customer not found for charge.success: ${customerId}`);
       return;
     }
 
+    const isRenewal =
+      existingCustomer.subscriptionStatus === SubscriptionStatus.ACTIVE &&
+      existingCustomer.plan === plan &&
+      !!existingCustomer.providerSubscriptionId;
+
+    if (isRenewal) {
+      let nextBillingDate: Date | null = null;
+      try {
+        const sub = await this.paystackProvider.getSubscriptionByCode(
+          existingCustomer.providerSubscriptionId!,
+        );
+        nextBillingDate = sub?.nextBillingDate ?? null;
+      } catch (err) {
+        this.logger.warn(
+          `Renewal: failed to fetch fresh next_payment_date: ${getErrorMessage(err)}`,
+        );
+      }
+      await this.billingService.handleRenewalCharge(
+        existingCustomer.id,
+        nextBillingDate,
+      );
+      this.logger.log(
+        `Renewal processed for customer ${customerCode}`,
+      );
+      return;
+    }
+
+    // Initial activation
     await this.billingService.handleSubscriptionActivated(customerId, {
       providerSubscriptionId: null,
       providerCustomerId: customerCode,
@@ -192,22 +264,15 @@ export class PaystackWebhookHandler {
       nextBillingDate: null,
     });
 
-    setTimeout(async () => {
-      const customer = await this.prisma.customer.findFirst({
-        where: { id: customerId },
-      });
-      if (!customer?.providerSubscriptionId) {
-        this.logger.warn(
-          `subscription.create never fired for ${customerId}, fetching manually`,
-        );
-        await this.fetchAndLinkSubscription(
-          customerId,
-          customerCode,
-          plan,
-          customerNumericId,
-        );
-      }
-    }, 10000);
+    // Schedule a delayed back-fill (replaces fragile in-process setTimeout).
+    // Idempotent — `subscription.create` arriving first will set
+    // providerSubscriptionId and the delayed worker will short-circuit.
+    await this.queueService.schedulePaystackSubscriptionLink({
+      customerId,
+      customerCode,
+      customerNumericId,
+      plan: plan as 'INDIE' | 'STARTUP',
+    });
 
     this.logger.log(
       `Access provisioned for customer ${customerCode} via charge.success`,
@@ -275,53 +340,6 @@ export class PaystackWebhookHandler {
 
     await this.billingService.handleSubscriptionCancelled(subscriptionCode);
     this.logger.log(`Subscription disabled: ${subscriptionCode}`);
-  }
-
-  private async fetchAndLinkSubscription(
-    customerId: string,
-    customerCode: string,
-    plan: CustomerPlan,
-    customerNumericId?: number,
-  ) {
-    const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
-    const query = customerNumericId ?? customerCode;
-
-    const response = await firstValueFrom(
-      this.httpService.get(
-        `${this.paystackUrl}/subscription?customer=${query}`,
-        { headers: { Authorization: `Bearer ${secret}` } },
-      ),
-    );
-
-    const subscriptions = response.data?.data || [];
-
-    this.logger.log(
-      `Found ${subscriptions.length} subscriptions for customer ${customerCode}`,
-    );
-
-    const planCode = this.paystackProvider.getPlanCode(plan);
-
-    const active = subscriptions.find(
-      (s: any) => s.status === 'active' && s.plan.plan_code === planCode,
-    );
-    if (!active) {
-      this.logger.error(
-        `No subscription found for customer ${customerId} after 10s`,
-      );
-      return;
-    }
-
-    await this.prisma.customer.update({
-      where: { id: customerId },
-      data: {
-        providerSubscriptionId: active.subscription_code,
-        nextBillingDate: new Date(active.next_payment_date),
-        subscriptionEndDate: new Date(active.next_payment_date),
-        usageResetAt: new Date(active.next_payment_date),
-      },
-    });
-
-    this.logger.log(`Manually linked subscription for customer ${customerId}`);
   }
 
   private async handleInvoicePaymentFailed(data: PaystackWebhookEvent['data']) {

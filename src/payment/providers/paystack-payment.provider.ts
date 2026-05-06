@@ -241,6 +241,89 @@ export class PaystackPaymentProvider implements PaymentProvider {
     }
   }
 
+  /**
+   * Fetch a single subscription by its code. Returns next_payment_date and
+   * status. Used on renewal to bump dates without trusting webhook payload.
+   */
+  async getSubscriptionByCode(
+    subscriptionCode: string,
+  ): Promise<{
+    subscriptionCode: string;
+    nextBillingDate: Date | null;
+    status: string;
+    planCode: string | null;
+  } | null> {
+    if (!this.secretKey) return null;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(
+          `${this.paystackUrl}/subscription/${subscriptionCode}`,
+          { headers: { Authorization: `Bearer ${this.secretKey}` } },
+        ),
+      );
+      const sub = response.data?.data;
+      if (!sub) return null;
+      return {
+        subscriptionCode: sub.subscription_code,
+        nextBillingDate: sub.next_payment_date
+          ? new Date(sub.next_payment_date)
+          : null,
+        status: sub.status,
+        planCode: sub.plan?.plan_code ?? null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch Paystack subscription ${subscriptionCode}: ${
+          (getAxiosErrorData(error) as any)?.message ?? (error as Error).message
+        }`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Find an active subscription for a Paystack customer that matches a given
+   * plan. Used by the delayed link processor when subscription.create may have
+   * arrived out-of-order or been missed.
+   */
+  async findActiveSubscriptionByCustomer(
+    customerCodeOrNumericId: string | number,
+    plan: string,
+  ): Promise<{
+    subscriptionCode: string;
+    nextBillingDate: Date | null;
+  } | null> {
+    if (!this.secretKey) return null;
+    const planCode = this.getPlanCode(plan);
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(
+          `${this.paystackUrl}/subscription?customer=${customerCodeOrNumericId}`,
+          { headers: { Authorization: `Bearer ${this.secretKey}` } },
+        ),
+      );
+      const subs: any[] = response.data?.data ?? [];
+      const active = subs.find(
+        (s) => s.status === 'active' && s.plan?.plan_code === planCode,
+      );
+      if (!active) return null;
+      return {
+        subscriptionCode: active.subscription_code,
+        nextBillingDate: active.next_payment_date
+          ? new Date(active.next_payment_date)
+          : null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to list Paystack subscriptions for customer ${customerCodeOrNumericId}: ${
+          (getAxiosErrorData(error) as any)?.message ?? (error as Error).message
+        }`,
+      );
+      return null;
+    }
+  }
+
   private getPlanAmount(plan: string): number {
     const amounts: Record<string, string | undefined> = {
       INDIE: this.configService.get('PAYSTACK_INDIE_AMOUNT'),

@@ -288,3 +288,20 @@ model EmailEvent {
   @@index([occurredAt(sort: Desc)])
   @@map("email_events")
 }
+
+// ============================================
+// PAYMENT WEBHOOK EVENT MODEL (idempotency / audit)
+// ============================================
+
+model PaymentWebhookEvent {
+  id          String          @id @default(uuid()) @db.Uuid
+  provider    PaymentProvider
+  eventId     String          @map("event_id")
+  eventType   String          @map("event_type")
+  payload     Json
+  processedAt DateTime        @default(now()) @map("processed_at")
+
+  @@unique([provider, eventId])
+  @@index([provider, processedAt(sort: Desc)])
+  @@map("payment_webhook_events")
+}

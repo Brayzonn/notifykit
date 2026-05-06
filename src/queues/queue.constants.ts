@@ -2,15 +2,17 @@ export const QUEUE_NAMES = {
   EMAIL: 'notifications-email',
   WEBHOOK: 'notifications-webhook',
   FAILED: 'notifications-failed',
+  PAYMENT_TASKS: 'payment-tasks',
 } as const;
 
 export const JOB_NAMES = {
   SEND_EMAIL: 'send-email',
   SEND_WEBHOOK: 'send-webhook',
   FAILED_JOB: 'failed-job',
+  LINK_PAYSTACK_SUBSCRIPTION: 'link-paystack-subscription',
 } as const;
 
-export type QueueType = 'email' | 'webhook' | 'failed';
+export type QueueType = 'email' | 'webhook' | 'failed' | 'payment';
 
 export const QUEUE_PRIORITIES = {
   CRITICAL: 1,

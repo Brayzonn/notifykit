@@ -43,6 +43,9 @@ export class BillingService {
       throw new BadRequestException('Already on this plan');
     }
 
+    // Lazy reconciliation: if payment providers expiry webhook was missed, the customer may
+    // still be CANCELLED with a past end date. Correct the DB state now so the
+    // downgrade check below operates on accurate data
     if (
       customer.subscriptionStatus === SubscriptionStatus.CANCELLED &&
       customer.subscriptionEndDate &&
@@ -198,6 +201,7 @@ export class BillingService {
       data: {
         plan: subscriptionData.plan,
         monthlyLimit: PLAN_LIMITS[subscriptionData.plan].monthlyLimit,
+        usageCount: 0,
         usageResetAt:
           subscriptionData.nextBillingDate ??
           new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
@@ -214,6 +218,52 @@ export class BillingService {
     });
 
     await this.redis.del(`user:${currentCustomer.userId}`);
+  }
+
+  /**
+   * Handle a renewal charge for an already-ACTIVE subscription.
+   * Advances billing dates, refreshes lastPaymentDate, and resets usage so the
+   * customer starts the new cycle at 0.
+   */
+  async handleRenewalCharge(
+    customerId: string,
+    nextBillingDate: Date | null,
+  ): Promise<void> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, userId: true, email: true },
+    });
+
+    if (!customer) {
+      this.logger.warn(`Renewal: customer ${customerId} not found`);
+      return;
+    }
+
+    const now = new Date();
+    const fallbackNext = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      now.getDate(),
+    );
+    const effectiveNext = nextBillingDate ?? fallbackNext;
+
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        lastPaymentDate: now,
+        nextBillingDate: effectiveNext,
+        subscriptionEndDate: effectiveNext,
+        usageResetAt: effectiveNext,
+        billingCycleStartAt: now,
+        usageCount: 0,
+      },
+    });
+
+    await this.redis.del(`user:${customer.userId}`);
+
+    this.logger.log(
+      `Renewal applied for ${customer.email}; next billing ${effectiveNext.toISOString()}`,
+    );
   }
 
   async handleSubscriptionCancelled(subscriptionId: string) {

@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import * as crypto from 'crypto';
 import { PaystackWebhookHandler } from './paystack-webhook.handler';
 import { BillingService } from '@/billing/billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EmailService } from '@/email/email.service';
 import { PaystackPaymentProvider } from '../providers/paystack-payment.provider';
+import { QueueService } from '@/queues/queue.service';
+import { PaymentWebhookEventService } from '../payment-webhook-event.service';
 import { createMockCustomer } from '../../../test/helpers/mock-factories';
 import {
   createMockPrismaService,
@@ -21,6 +22,7 @@ import { PaymentProvider, CustomerPlan, SubscriptionStatus } from '@prisma/clien
 type MockedBillingService = {
   handleSubscriptionActivated: jest.Mock;
   handleSubscriptionCancelled: jest.Mock;
+  handleRenewalCharge: jest.Mock;
 };
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
@@ -55,13 +57,23 @@ describe('PaystackWebhookHandler', () => {
   const mockBillingService: MockedBillingService = {
     handleSubscriptionActivated: jest.fn(),
     handleSubscriptionCancelled: jest.fn(),
+    handleRenewalCharge: jest.fn(),
   };
 
   const mockPrismaService = createMockPrismaService();
   const mockConfigService = createMockConfigService();
   const mockEmailService = createMockEmailService();
-  const mockHttpService = { get: jest.fn() };
-  const mockPaystackProvider = { getPlanCode: jest.fn() };
+  const mockPaystackProvider = {
+    getPlanCode: jest.fn(),
+    getSubscriptionByCode: jest.fn(),
+    findActiveSubscriptionByCustomer: jest.fn(),
+  };
+  const mockQueueService = {
+    schedulePaystackSubscriptionLink: jest.fn().mockResolvedValue({ id: 'fake-job' }),
+  };
+  const mockWebhookEventLog = {
+    markProcessed: jest.fn().mockResolvedValue(true),
+  };
 
   beforeEach(async () => {
     jest.useFakeTimers();
@@ -73,8 +85,9 @@ describe('PaystackWebhookHandler', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: EmailService, useValue: mockEmailService },
-        { provide: HttpService, useValue: mockHttpService },
         { provide: PaystackPaymentProvider, useValue: mockPaystackProvider },
+        { provide: QueueService, useValue: mockQueueService },
+        { provide: PaymentWebhookEventService, useValue: mockWebhookEventLog },
       ],
     }).compile();
 
@@ -91,6 +104,12 @@ describe('PaystackWebhookHandler', () => {
         PAYSTACK_STARTUP_PLAN_ID: STARTUP_PLAN_CODE,
       };
       return config[key];
+    });
+
+    // afterEach's jest.resetAllMocks wipes resolved values; re-prime here.
+    mockWebhookEventLog.markProcessed.mockResolvedValue(true);
+    mockQueueService.schedulePaystackSubscriptionLink.mockResolvedValue({
+      id: 'fake-job',
     });
   });
 
@@ -138,7 +157,16 @@ describe('PaystackWebhookHandler', () => {
       plan: { plan_code: INDIE_PLAN_CODE, name: 'Indie' },
     };
 
-    it('should call handleSubscriptionActivated with null providerSubscriptionId', async () => {
+    it('should call handleSubscriptionActivated and schedule a delayed link job for an initial activation', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          id: 'customer-123',
+          subscriptionStatus: SubscriptionStatus.EXPIRED,
+          plan: CustomerPlan.FREE,
+          providerSubscriptionId: null,
+        }),
+      );
+
       const { payload, signature } = sign(makeEvent('charge.success', baseData));
 
       await handler.handle(payload, signature);
@@ -153,21 +181,51 @@ describe('PaystackWebhookHandler', () => {
           nextBillingDate: null,
         },
       );
+      expect(mockQueueService.schedulePaystackSubscriptionLink).toHaveBeenCalledWith({
+        customerId: 'customer-123',
+        customerCode: 'CUS_abc123',
+        customerNumericId: 42,
+        plan: CustomerPlan.INDIE,
+      });
+      expect(billingService.handleRenewalCharge).not.toHaveBeenCalled();
     });
 
-    it('should skip when the customer is already ACTIVE on the same plan', async () => {
-      prisma.customer.findFirst.mockResolvedValue(
+    it('should call handleRenewalCharge when the customer is already ACTIVE on the same plan with a linked subscription', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
         createMockCustomer({
+          id: 'customer-123',
           subscriptionStatus: SubscriptionStatus.ACTIVE,
           plan: CustomerPlan.INDIE,
+          providerSubscriptionId: 'SUB_abc',
         }),
       );
+      mockPaystackProvider.getSubscriptionByCode.mockResolvedValue({
+        subscriptionCode: 'SUB_abc',
+        nextBillingDate: new Date('2026-06-04'),
+        status: 'active',
+        planCode: INDIE_PLAN_CODE,
+      });
 
       const { payload, signature } = sign(makeEvent('charge.success', baseData));
 
       await handler.handle(payload, signature);
 
+      expect(billingService.handleRenewalCharge).toHaveBeenCalledWith(
+        'customer-123',
+        new Date('2026-06-04'),
+      );
       expect(billingService.handleSubscriptionActivated).not.toHaveBeenCalled();
+      expect(mockQueueService.schedulePaystackSubscriptionLink).not.toHaveBeenCalled();
+    });
+
+    it('should warn and skip when the customer is not found', async () => {
+      prisma.customer.findUnique.mockResolvedValue(null);
+      const { payload, signature } = sign(makeEvent('charge.success', baseData));
+
+      await handler.handle(payload, signature);
+
+      expect(billingService.handleSubscriptionActivated).not.toHaveBeenCalled();
+      expect(billingService.handleRenewalCharge).not.toHaveBeenCalled();
     });
 
     it('should log and skip when metadata is missing', async () => {

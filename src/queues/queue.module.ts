@@ -46,6 +46,9 @@ import { CommonModule } from '@/common/common.module';
       {
         name: 'notifications-failed',
       },
+      {
+        name: 'payment-tasks',
+      },
     ),
   ],
   providers: [QueueService, EmailWorkerProcessor, WebhookWorkerProcessor],

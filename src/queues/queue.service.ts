@@ -30,6 +30,13 @@ export interface WebhookJobData {
   payload: any;
 }
 
+export interface PaystackSubscriptionLinkJobData {
+  customerId: string;
+  customerCode: string;
+  customerNumericId?: number;
+  plan: 'INDIE' | 'STARTUP';
+}
+
 @Injectable()
 export class QueueService {
   private readonly logger = new Logger(QueueService.name);
@@ -41,7 +48,41 @@ export class QueueService {
     private webhookQueue: Queue<WebhookJobData>,
     @InjectQueue(QUEUE_NAMES.FAILED)
     private failedQueue: Queue<any>,
+    @InjectQueue(QUEUE_NAMES.PAYMENT_TASKS)
+    private paymentQueue: Queue<PaystackSubscriptionLinkJobData>,
   ) {}
+
+  /**
+   * Schedule a delayed back-fill of the Paystack subscription code/dates after
+   * a successful initial charge. Idempotent per customerId — duplicate webhooks
+   * collapse to one queued job.
+   */
+  async schedulePaystackSubscriptionLink(
+    data: PaystackSubscriptionLinkJobData,
+    delayMs: number = 10_000,
+  ) {
+    try {
+      const job = await this.paymentQueue.add(
+        JOB_NAMES.LINK_PAYSTACK_SUBSCRIPTION,
+        data,
+        {
+          jobId: `link:${data.customerId}`,
+          delay: delayMs,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 30_000 },
+        },
+      );
+      this.logger.log(
+        `Scheduled Paystack subscription link for customer ${data.customerId} in ${delayMs}ms`,
+      );
+      return job;
+    } catch (error) {
+      this.logger.error(
+        `Failed to schedule subscription link: ${getErrorMessage(error)}`,
+      );
+      throw error;
+    }
+  }
 
   /**
    * Add email notification to queue
@@ -123,7 +164,8 @@ export class QueueService {
 
       this.logger.warn(`Job moved to DLQ: ${jobData.jobId} - Error: ${error}`);
     } catch (err) {
-      this.logger.error(`Failed to move job to DLQ: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to move job to DLQ: ${message}`);
     }
   }
 
