@@ -5,8 +5,32 @@ import {
   IsIn,
   IsObject,
   IsString,
+  registerDecorator,
+  ValidationOptions,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+const MAX_PAYLOAD_BYTES = 10 * 1024; // 10kb
+
+function MaxPayloadSize(options?: ValidationOptions) {
+  return (object: object, propertyName: string) => {
+    registerDecorator({
+      name: 'maxPayloadSize',
+      target: object.constructor,
+      propertyName,
+      options: { message: `payload must not exceed ${MAX_PAYLOAD_BYTES / 1024}kb`, ...options },
+      validator: {
+        validate(value: any) {
+          try {
+            return Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_PAYLOAD_BYTES;
+          } catch {
+            return false;
+          }
+        },
+      },
+    });
+  };
+}
 
 export class SendWebhookDto {
   @ApiProperty({
@@ -41,6 +65,7 @@ export class SendWebhookDto {
     },
     description: 'Webhook payload data',
   })
+  @MaxPayloadSize()
   @IsObject()
   @IsNotEmpty()
   payload: any;

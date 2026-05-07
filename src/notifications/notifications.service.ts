@@ -238,40 +238,45 @@ export class NotificationsService {
     customerId: string,
     jobId: string,
   ): Promise<JobStatusResponse | null> {
-    const job = await this.prisma.job.findFirst({
-      where: {
-        id: jobId,
-        customerId,
-      },
-      select: {
-        id: true,
-        type: true,
-        status: true,
-        priority: true,
-        payload: true,
-        attempts: true,
-        maxAttempts: true,
-        errorMessage: true,
-        createdAt: true,
-        startedAt: true,
-        completedAt: true,
-        deliveryLogs: {
-          select: {
-            id: true,
-            attempt: true,
-            status: true,
-            usedProvider: true,
-            errorMessage: true,
-            createdAt: true,
+    const [job, customer] = await Promise.all([
+      this.prisma.job.findFirst({
+        where: { id: jobId, customerId },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          priority: true,
+          payload: true,
+          attempts: true,
+          maxAttempts: true,
+          errorMessage: true,
+          createdAt: true,
+          startedAt: true,
+          completedAt: true,
+          deliveryLogs: {
+            select: {
+              id: true,
+              attempt: true,
+              status: true,
+              usedProvider: true,
+              errorMessage: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'asc' },
           },
-          orderBy: { createdAt: 'asc' },
         },
-      },
-    });
+      }),
+      this.prisma.customer.findUnique({
+        where: { id: customerId },
+        select: { plan: true },
+      }),
+    ]);
 
     if (!job) {
       return null;
     }
+
+    const isFreePlan = customer?.plan === CustomerPlan.FREE;
 
     return {
       ...job,
@@ -280,6 +285,7 @@ export class NotificationsService {
       deliveryLogs: job.deliveryLogs.map((log) => ({
         ...log,
         status: log.status.toLowerCase(),
+        usedProvider: isFreePlan ? null : log.usedProvider,
       })),
     };
   }

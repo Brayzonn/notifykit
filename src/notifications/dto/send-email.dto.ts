@@ -12,31 +12,31 @@ import { EmailProviderType } from '@prisma/client';
 export class SendEmailDto {
   @ApiProperty({
     example: 'recipient@example.com',
-    description: 'Recipient email address'
+    description: 'Recipient email address',
   })
   @IsEmail()
   @IsNotEmpty()
-  to: string;
+  to!: string;
 
   @ApiProperty({
     example: 'Welcome to NotifyKit',
-    description: 'Email subject line'
+    description: 'Email subject line',
   })
   @IsString()
   @IsNotEmpty()
-  subject: string;
+  subject!: string;
 
   @ApiProperty({
     example: 'Hello! Welcome to our platform.',
-    description: 'Email body (HTML or plain text)'
+    description: 'Email body (HTML or plain text)',
   })
   @IsString()
   @IsNotEmpty()
-  body: string;
+  body!: string;
 
   @ApiPropertyOptional({
     example: 'noreply@yourdomain.com',
-    description: 'Sender email address (requires verified domain)'
+    description: 'Sender email address (requires verified domain)',
   })
   @IsEmail()
   @IsOptional()
@@ -46,7 +46,7 @@ export class SendEmailDto {
     example: 5,
     enum: [1, 5, 10],
     description: 'Priority level (1=high, 5=normal, 10=low)',
-    default: 5
+    default: 5,
   })
   @IsIn([1, 5, 10])
   @IsOptional()
@@ -54,7 +54,7 @@ export class SendEmailDto {
 
   @ApiPropertyOptional({
     example: 'unique-key-123',
-    description: 'Idempotency key to prevent duplicate sends'
+    description: 'Idempotency key to prevent duplicate sends',
   })
   @IsString()
   @IsOptional()
@@ -63,7 +63,7 @@ export class SendEmailDto {
   @ApiPropertyOptional({
     enum: EmailProviderType,
     description:
-      'Force this email through a specific configured provider (paid plans only). If unset, the customer\'s priority order with full failover applies.',
+      "Force this email through a specific configured provider (paid plans only). If unset, the customer's priority order with full failover applies.",
   })
   @IsEnum(EmailProviderType)
   @IsOptional()
