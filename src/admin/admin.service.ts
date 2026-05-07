@@ -309,9 +309,13 @@ export class AdminService {
       this.prisma.job.count({ where: { customerId, status: 'FAILED' } }),
     ]);
 
+    const { webhookSigningSecret, webhookSigningSecretAt, ...rest } = customer;
+
     return {
-      ...customer,
+      ...rest,
       effectiveLimit: customer.customMonthlyLimit ?? customer.monthlyLimit,
+      hasWebhookSigningSecret: webhookSigningSecret !== null,
+      webhookSigningSecretAt,
       stats: {
         totalJobs,
         completedJobs,
