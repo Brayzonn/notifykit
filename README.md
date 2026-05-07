@@ -341,6 +341,10 @@ GET /api/v1/health
 | POST   | `/api/v1/user/domain/verify`                           | Verify domain                      |
 | GET    | `/api/v1/user/domain/status`                           | Get domain status                  |
 | DELETE | `/api/v1/user/domain`                                  | Remove domain                      |
+| POST   | `/api/v1/user/webhook-secret`                          | Generate webhook signing secret    |
+| GET    | `/api/v1/user/webhook-secret`                          | Get signing secret status          |
+| POST   | `/api/v1/user/webhook-secret/rotate`                   | Rotate webhook signing secret      |
+| DELETE | `/api/v1/user/webhook-secret`                          | Delete webhook signing secret      |
 | DELETE | `/api/v1/user/account`                                 | Delete account                     |
 
 ### Billing
@@ -384,6 +388,19 @@ Validation:
 Forced routing is a contract: BullMQ does **not** retry through providers the customer didn't authorize. Routing fields persist with the job, so manual or automatic retries replay the same attempt set.
 
 When neither field is set, behavior is unchanged: the worker tries the customer's full priority list with full failover.
+
+#### Webhook HMAC signing
+
+If a customer has configured a webhook signing secret, every outgoing webhook delivery includes two additional headers:
+
+| Header                  | Value                            |
+| ----------------------- | -------------------------------- |
+| `X-Webhook-Timestamp`   | Unix timestamp (seconds)         |
+| `X-Webhook-Signature`   | `t=<timestamp>,v1=<sha256_hex>`  |
+
+The signature is computed as `HMAC-SHA256(timestamp + "." + JSON.stringify(payload), secret)`. Customers should verify it at their endpoint by recomputing the signature and comparing using a constant-time comparison. If no secret is configured, these headers are omitted and delivery proceeds unsigned.
+
+Secrets are managed via the `/api/v1/user/webhook-secret` endpoints (JWT auth). They are stored encrypted at rest using AES-256-CBC. The plaintext secret is returned only at generation time (prefixed `whsec_`); subsequent calls to `GET /webhook-secret` return status only.
 
 #### `usedProvider` on delivery logs
 

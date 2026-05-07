@@ -2448,6 +2448,74 @@ export class UserService {
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  // ============================================
+  // WEBHOOK SIGNING SECRET
+  // ============================================
+
+  async generateWebhookSigningSecret(userId: string): Promise<{ secret: string; createdAt: Date }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const secret = 'whsec_' + crypto.randomBytes(32).toString('hex');
+    const encrypted = this.encryptionService.encrypt(secret);
+    const now = new Date();
+
+    await this.prisma.customer.update({
+      where: { id: customer.id },
+      data: { webhookSigningSecret: encrypted, webhookSigningSecretAt: now },
+    });
+
+    return { secret, createdAt: now };
+  }
+
+  async getWebhookSigningSecretStatus(userId: string): Promise<{ hasSecret: boolean; createdAt: Date | null }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { webhookSigningSecret: true, webhookSigningSecretAt: true },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    return {
+      hasSecret: !!customer.webhookSigningSecret,
+      createdAt: customer.webhookSigningSecretAt ?? null,
+    };
+  }
+
+  async rotateWebhookSigningSecret(userId: string): Promise<{ secret: string; createdAt: Date }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, webhookSigningSecret: true },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer.webhookSigningSecret) {
+      throw new BadRequestException('No webhook signing secret to rotate. Generate one first.');
+    }
+
+    return this.generateWebhookSigningSecret(userId);
+  }
+
+  async deleteWebhookSigningSecret(userId: string): Promise<{ message: string }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    await this.prisma.customer.update({
+      where: { id: customer.id },
+      data: { webhookSigningSecret: null, webhookSigningSecretAt: null },
+    });
+
+    return { message: 'Webhook signing secret deleted.' };
+  }
+
   private initializeActivityMap(days: number) {
     const activityMap = new Map<
       string,

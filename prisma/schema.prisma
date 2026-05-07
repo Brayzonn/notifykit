@@ -156,6 +156,9 @@ model Customer {
   previousPlan CustomerPlan? @map("previous_plan")
   downgradedAt DateTime?     @map("downgraded_at")
 
+  webhookSigningSecret   String?   @map("webhook_signing_secret")
+  webhookSigningSecretAt DateTime? @map("webhook_signing_secret_at")
+
   user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs           Job[]
   emailProviders CustomerEmailProvider[]

@@ -432,4 +432,33 @@ export class UserController {
   async removeDomain(@User() user: AuthenticatedUser) {
     return await this.userService.removeDomain(user.id);
   }
+
+  /**
+   * ================================
+   * WEBHOOK SIGNING SECRET
+   * ================================
+   */
+
+  @Post('webhook-secret')
+  @HttpCode(HttpStatus.OK)
+  async generateWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.generateWebhookSigningSecret(user.id);
+  }
+
+  @Get('webhook-secret')
+  async getWebhookSecretStatus(@User() user: AuthenticatedUser) {
+    return await this.userService.getWebhookSigningSecretStatus(user.id);
+  }
+
+  @Post('webhook-secret/rotate')
+  @HttpCode(HttpStatus.OK)
+  async rotateWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.rotateWebhookSigningSecret(user.id);
+  }
+
+  @Delete('webhook-secret')
+  @HttpCode(HttpStatus.OK)
+  async deleteWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.deleteWebhookSigningSecret(user.id);
+  }
 }

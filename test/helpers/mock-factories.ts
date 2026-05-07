@@ -83,6 +83,8 @@ export const createMockCustomer = (
     customMonthlyLimit: null,
     previousPlan: null,
     downgradedAt: null,
+    webhookSigningSecret: null,
+    webhookSigningSecretAt: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

@@ -91,6 +91,9 @@
     "typescript": "~5.4.0",
     "typescript-eslint": "^7.18.0"
   },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
   "overrides": {
     "lodash": "^4.17.21"
   }
