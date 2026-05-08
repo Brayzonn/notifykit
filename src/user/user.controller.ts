@@ -461,4 +461,15 @@ export class UserController {
   async deleteWebhookSecret(@User() user: AuthenticatedUser) {
     return await this.userService.deleteWebhookSigningSecret(user.id);
   }
+
+  /**
+   * ================================
+   * API KEYS PAGE (CONSOLIDATED)
+   * ================================
+   */
+
+  @Get('api-keys-page')
+  async getApiKeysPage(@User() user: AuthenticatedUser) {
+    return await this.userService.getApiKeysPageData(user.id);
+  }
 }

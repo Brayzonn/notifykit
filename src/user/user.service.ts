@@ -2486,6 +2486,104 @@ export class UserService {
     };
   }
 
+  async getApiKeysPageData(userId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        plan: true,
+        apiKey: true,
+        apiKeyHash: true,
+        apiKeyLastFour: true,
+        createdAt: true,
+        webhookSigningSecret: true,
+        webhookSigningSecretAt: true,
+        emailProviders: { orderBy: { priority: 'asc' } },
+      },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    let apiKeyData: {
+      apiKey: string;
+      firstTime?: boolean;
+      masked?: boolean;
+      createdAt: Date;
+    } | null = null;
+
+    if (customer.apiKeyHash) {
+      if (customer.apiKey) {
+        const plaintext = customer.apiKey;
+        await this.prisma.customer.update({
+          where: { userId },
+          data: { apiKey: null },
+        });
+        apiKeyData = { apiKey: plaintext, firstTime: true, createdAt: customer.createdAt };
+      } else {
+        const lastFour = customer.apiKeyLastFour ?? '••••';
+        apiKeyData = {
+          apiKey: `nh_••••••••••••••••${lastFour}`,
+          masked: true,
+          createdAt: customer.createdAt,
+        };
+      }
+    }
+
+    const isPaid = customer.plan !== CustomerPlan.FREE;
+    const getProvider = (type: EmailProviderType) =>
+      customer.emailProviders.find((p) => p.provider === type) ?? null;
+
+    const sendgrid = getProvider(EmailProviderType.SENDGRID);
+    const resend = getProvider(EmailProviderType.RESEND);
+    const postmark = getProvider(EmailProviderType.POSTMARK);
+
+    const buildTracking = (record: typeof sendgrid, webhookUrl: string) => {
+      if (!isPaid) return { hasKey: false, addedAt: null, webhookUrl: null };
+      return {
+        hasKey: !!record?.webhookSecret,
+        addedAt: record?.webhookSecretAddedAt ?? null,
+        webhookUrl,
+      };
+    };
+
+    return {
+      apiKey: apiKeyData,
+      plan: customer.plan,
+      sendgrid: {
+        hasKey: !!sendgrid,
+        addedAt: sendgrid?.addedAt ?? null,
+        lastFour: sendgrid ? this.encryptionService.decrypt(sendgrid.apiKey).slice(-4) : null,
+        priority: sendgrid?.priority ?? null,
+        tracking: buildTracking(sendgrid, this.buildWebhookUrl(customer.id)),
+      },
+      resend: {
+        hasKey: !!resend,
+        addedAt: resend?.addedAt ?? null,
+        lastFour: resend ? this.encryptionService.decrypt(resend.apiKey).slice(-4) : null,
+        priority: resend?.priority ?? null,
+        tracking: buildTracking(resend, this.buildResendWebhookUrl(customer.id)),
+      },
+      postmark: {
+        hasKey: !!postmark,
+        hasAccountKey: !!postmark?.accountApiKey,
+        addedAt: postmark?.addedAt ?? null,
+        lastFour: postmark ? this.encryptionService.decrypt(postmark.apiKey).slice(-4) : null,
+        priority: postmark?.priority ?? null,
+        tracking: buildTracking(postmark, this.buildPostmarkWebhookUrl(customer.id)),
+      },
+      emailProviders: customer.emailProviders.map((r) => ({
+        provider: r.provider,
+        addedAt: r.addedAt,
+        lastFour: this.encryptionService.decrypt(r.apiKey).slice(-4),
+        priority: r.priority,
+      })),
+      webhookSigningSecret: {
+        hasSecret: !!customer.webhookSigningSecret,
+        createdAt: customer.webhookSigningSecretAt ?? null,
+      },
+    };
+  }
+
   async rotateWebhookSigningSecret(userId: string): Promise<{ secret: string; createdAt: Date }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
