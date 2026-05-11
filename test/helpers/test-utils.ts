@@ -1,6 +1,6 @@
 import type { TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
-import type { EmailService } from '../../src/email/email.service';
+import type { EmailService } from '../../src/platform-email/email.service';
 import { QUEUE_NAMES } from '../../src/queues/queue.constants';
 
 // Without this, BullMQ's ioredis connections leak past test teardown and

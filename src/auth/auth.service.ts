@@ -25,7 +25,7 @@ import {
   RefreshTokenResponse,
 } from '@/auth/interfaces/auth.interface';
 import { RedisService } from '@/redis/redis.service';
-import { EmailService } from '@/email/email.service';
+import { EmailService } from '@/platform-email/email.service';
 import { getPlanLimit } from '@/common/constants/plans.constants';
 import { RefreshTokenWithUser } from './types/auth-service.types';
 

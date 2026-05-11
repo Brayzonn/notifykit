@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
-import { EmailService } from '@/email/email.service';
+import { EmailService } from '@/platform-email/email.service';
 import {
   createMockUser,
   createMockCustomer,

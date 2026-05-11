@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { BillingService } from '@/billing/billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EmailService } from '@/email/email.service';
+import { EmailService } from '@/platform-email/email.service';
 import { getErrorMessage } from '@/common/utils/error.util';
 import {
   CustomerPlan,
@@ -111,8 +111,10 @@ export class PaystackWebhookHandler {
     private readonly queueService: QueueService,
     private readonly webhookEventLog: PaymentWebhookEventService,
   ) {
-    this.indiePlanId = this.configService.get<string>('PAYSTACK_INDIE_PLAN_ID') ?? '';
-    this.startupPlanId = this.configService.get<string>('PAYSTACK_STARTUP_PLAN_ID') ?? '';
+    this.indiePlanId =
+      this.configService.get<string>('PAYSTACK_INDIE_PLAN_ID') ?? '';
+    this.startupPlanId =
+      this.configService.get<string>('PAYSTACK_STARTUP_PLAN_ID') ?? '';
   }
 
   async handle(payload: Buffer, signature: string) {

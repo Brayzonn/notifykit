@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import { PaystackWebhookHandler } from './paystack-webhook.handler';
 import { BillingService } from '@/billing/billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EmailService } from '@/email/email.service';
+import { EmailService } from '@/platform-email/email.service';
 import { PaystackPaymentProvider } from '../providers/paystack-payment.provider';
 import { QueueService } from '@/queues/queue.service';
 import { PaymentWebhookEventService } from '../payment-webhook-event.service';

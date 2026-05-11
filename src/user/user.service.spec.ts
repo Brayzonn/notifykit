@@ -12,7 +12,7 @@ import { SendGridDomainService } from '@/email-providers/sendgrid/sendgrid-domai
 import { ResendDomainService } from '@/email-providers/resend/resend-domain.service';
 import { PostmarkDomainService } from '@/email-providers/postmark/postmark-domain.service';
 import { RedisService } from '@/redis/redis.service';
-import { EmailService } from '@/email/email.service';
+import { EmailService } from '@/platform-email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { createMockUser, createMockCustomer } from '../../test/helpers/mock-factories';
 import {

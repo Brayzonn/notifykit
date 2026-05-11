@@ -8,17 +8,17 @@ import {
   OtpEmailData,
   PaymentFailedEmailData,
   WelcomeEmailData,
-} from '@/email/interfaces/email.interface';
-import { otpEmailTemplate } from '@/email/templates/otp.template';
-import { welcomeEmailTemplate } from '@/email/templates/welcome.template';
-import { passwordResetEmailTemplate } from '@/email/templates/password-reset.template';
-import { emailChangeVerificationTemplate } from '@/email/templates/email-change-verification.template';
-import { emailChangeConfirmationTemplate } from '@/email/templates/email-change-confirmation.template';
-import { emailChangeCancelledTemplate } from '@/email/templates/email-change-cancelled.template';
-import { emailChangeSuccessTemplate } from '@/email/templates/email-change-success.template';
+} from '@/platform-email/interfaces/email.interface';
+import { otpEmailTemplate } from '@/platform-email/templates/otp.template';
+import { welcomeEmailTemplate } from '@/platform-email/templates/welcome.template';
+import { passwordResetEmailTemplate } from '@/platform-email/templates/password-reset.template';
+import { emailChangeVerificationTemplate } from '@/platform-email/templates/email-change-verification.template';
+import { emailChangeConfirmationTemplate } from '@/platform-email/templates/email-change-confirmation.template';
+import { emailChangeCancelledTemplate } from '@/platform-email/templates/email-change-cancelled.template';
+import { emailChangeSuccessTemplate } from '@/platform-email/templates/email-change-success.template';
 import { paymentFailedEmailTemplate } from './templates/payment-failed.template';
 import { resetPasswordEmailTemplate } from './templates/reset-password.template';
-import { domainProviderAddedTemplate } from '@/email/templates/domain-provider-added.template';
+import { domainProviderAddedTemplate } from '@/platform-email/templates/domain-provider-added.template';
 import { QueueService } from '@/queues/queue.service';
 
 @Injectable()

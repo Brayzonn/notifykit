@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { RedisService } from '../src/redis/redis.service';
-import { EmailService } from '../src/email/email.service';
+import { EmailService } from '../src/platform-email/email.service';
 import { IpRateLimitGuard } from '../src/auth/guards/ip-rate-limit.guard';
 import {
   closeBullQueues,

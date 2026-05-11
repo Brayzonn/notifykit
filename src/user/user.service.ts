@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
-import { EmailService } from '@/email/email.service';
+import { EmailService } from '@/platform-email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { getErrorMessage } from '@/common/utils/error.util';
 import axios from 'axios';

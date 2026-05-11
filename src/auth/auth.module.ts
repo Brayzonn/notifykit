@@ -8,7 +8,7 @@ import { RedisModule } from '@/redis/redis.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthService } from './auth.service';
-import { EmailModule } from '@/email/email.module';
+import { EmailModule } from '@/platform-email/email.module';
 import { AuthController } from './auth.controller';
 import { GithubStrategy } from './strategies/github.strategy';
 import { BillingModule } from '@/billing/billing.module';
