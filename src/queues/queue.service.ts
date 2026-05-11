@@ -9,6 +9,7 @@ import {
   QUEUE_PRIORITIES,
 } from './queue.constants';
 import { getErrorMessage } from '@/common/utils/error.util';
+import { PlatformEmailJobData } from './processors/platform-email.processor';
 
 export interface EmailJobData {
   jobId: string;
@@ -50,7 +51,24 @@ export class QueueService {
     private failedQueue: Queue<any>,
     @InjectQueue(QUEUE_NAMES.PAYMENT_TASKS)
     private paymentQueue: Queue<PaystackSubscriptionLinkJobData>,
+    @InjectQueue(QUEUE_NAMES.PLATFORM_EMAIL)
+    private platformEmailQueue: Queue<PlatformEmailJobData>,
   ) {}
+
+  async enqueuePlatformEmail(data: PlatformEmailJobData): Promise<void> {
+    try {
+      await this.platformEmailQueue.add(JOB_NAMES.SEND_PLATFORM_EMAIL, data, {
+        priority: QUEUE_PRIORITIES.CRITICAL,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 15000 },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to enqueue platform email [${data.label}] to ${data.to}: ${getErrorMessage(error)}`,
+      );
+      throw error;
+    }
+  }
 
   /**
    * Schedule a delayed back-fill of the Paystack subscription code/dates after

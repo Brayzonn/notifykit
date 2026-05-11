@@ -3,6 +3,7 @@ export const QUEUE_NAMES = {
   WEBHOOK: 'notifications-webhook',
   FAILED: 'notifications-failed',
   PAYMENT_TASKS: 'payment-tasks',
+  PLATFORM_EMAIL: 'platform-email',
 } as const;
 
 export const JOB_NAMES = {
@@ -10,6 +11,7 @@ export const JOB_NAMES = {
   SEND_WEBHOOK: 'send-webhook',
   FAILED_JOB: 'failed-job',
   LINK_PAYSTACK_SUBSCRIPTION: 'link-paystack-subscription',
+  SEND_PLATFORM_EMAIL: 'send-platform-email',
 } as const;
 
 export type QueueType = 'email' | 'webhook' | 'failed' | 'payment';

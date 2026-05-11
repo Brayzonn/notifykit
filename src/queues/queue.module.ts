@@ -6,6 +6,7 @@ import { QueueService } from './queue.service';
 import { EmailProvidersModule } from '@/email-providers/email-providers.module';
 import { EmailWorkerProcessor } from './processors/email-worker.processor';
 import { WebhookWorkerProcessor } from './processors/webhook-worker.processor';
+import { PlatformEmailProcessor } from './processors/platform-email.processor';
 import { EncryptionModule } from '@/common/encryption/encryption.module';
 import { CommonModule } from '@/common/common.module';
 
@@ -37,21 +38,14 @@ import { CommonModule } from '@/common/common.module';
       inject: [ConfigService],
     }),
     BullModule.registerQueue(
-      {
-        name: 'notifications-email',
-      },
-      {
-        name: 'notifications-webhook',
-      },
-      {
-        name: 'notifications-failed',
-      },
-      {
-        name: 'payment-tasks',
-      },
+      { name: 'notifications-email' },
+      { name: 'notifications-webhook' },
+      { name: 'notifications-failed' },
+      { name: 'payment-tasks' },
+      { name: 'platform-email' },
     ),
   ],
-  providers: [QueueService, EmailWorkerProcessor, WebhookWorkerProcessor],
+  providers: [QueueService, EmailWorkerProcessor, WebhookWorkerProcessor, PlatformEmailProcessor],
   exports: [QueueService, BullModule],
 })
 export class QueueModule {}
