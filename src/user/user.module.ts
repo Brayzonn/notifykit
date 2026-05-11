@@ -3,7 +3,7 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { EmailService } from '@/email/email.service';
-import { SendGridModule } from '@/sendgrid/sendgrid.module';
+import { SendGridModule } from '@/email-providers/sendgrid/sendgrid.module';
 import { EmailProvidersModule } from '@/email-providers/email-providers.module';
 import { RedisModule } from '@/redis/redis.module';
 import { EmailModule } from '@/email/email.module';

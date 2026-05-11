@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { IEmailProvider, SendEmailParams } from './email-provider.interface';
+import { IEmailProvider, SendEmailParams } from '../email-provider.interface';
 
 @Injectable()
 export class PostmarkService implements IEmailProvider {

@@ -75,11 +75,13 @@ src/
 ├── prisma/                               # PrismaService
 ├── queues/                               # BullMQ workers — email & webhook processors
 ├── redis/                                # RedisService (ioredis wrapper + remember helper)
-├── email-providers/                      # Provider-agnostic email — Resend + Postmark services + domain services + factory
-├── sendgrid/                             # SendGrid send client + domain verification service
-├── sendgrid-events/                      # SendGrid webhook event ingestion + signature verification
-├── resend-events/                        # Resend webhook event ingestion + signature verification
-├── postmark-events/                      # Postmark webhook event ingestion + Basic-Auth signature guard
+├── email-providers/                      # All email provider integrations
+│   ├── email-provider.interface.ts       # IEmailProvider interface + SendEmailParams
+│   ├── email-provider.factory.ts         # Resolves provider(s) per customer + plan
+│   ├── email-providers.module.ts
+│   ├── sendgrid/                         # SendGrid send client, domain verification, webhook events + guards
+│   ├── resend/                           # Resend send client, domain verification, webhook events + guards
+│   └── postmark/                         # Postmark send client, domain verification, webhook events + guards
 └── user/                                 # Profile, API key, provider keys, jobs history, domain management
 ```
 

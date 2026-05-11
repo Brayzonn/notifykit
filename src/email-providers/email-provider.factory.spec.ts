@@ -2,9 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { CustomerPlan, EmailProviderType } from '@prisma/client';
 import { EmailProviderFactory } from './email-provider.factory';
-import { SendGridService } from '@/sendgrid/sendgrid.service';
-import { ResendService } from './resend.service';
-import { PostmarkService } from './postmark.service';
+import { SendGridService } from './sendgrid/sendgrid.service';
+import { ResendService } from './resend/resend.service';
+import { PostmarkService } from './postmark/postmark.service';
 
 describe('EmailProviderFactory', () => {
   let factory: EmailProviderFactory;

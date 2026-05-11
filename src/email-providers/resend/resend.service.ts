@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
-import { IEmailProvider, SendEmailParams } from './email-provider.interface';
+import { IEmailProvider, SendEmailParams } from '../email-provider.interface';
 
 @Injectable()
 export class ResendService implements IEmailProvider {

@@ -41,9 +41,9 @@ import {
   JobDetailsResponse,
   JobsHistoryResponse,
 } from './interfaces/user.interface';
-import { SendGridDomainService } from '@/sendgrid/sendgrid-domain.service';
-import { ResendDomainService } from '@/email-providers/resend-domain.service';
-import { PostmarkDomainService } from '@/email-providers/postmark-domain.service';
+import { SendGridDomainService } from '@/email-providers/sendgrid/sendgrid-domain.service';
+import { ResendDomainService } from '@/email-providers/resend/resend-domain.service';
+import { PostmarkDomainService } from '@/email-providers/postmark/postmark-domain.service';
 import { NotificationsService } from '@/notifications/notifications.service';
 
 @Injectable()

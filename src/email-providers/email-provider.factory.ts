@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CustomerPlan, EmailProviderType } from '@prisma/client';
 import { IEmailProvider } from './email-provider.interface';
-import { SendGridService } from '@/sendgrid/sendgrid.service';
-import { ResendService } from './resend.service';
-import { PostmarkService } from './postmark.service';
+import { SendGridService } from './sendgrid/sendgrid.service';
+import { ResendService } from './resend/resend.service';
+import { PostmarkService } from './postmark/postmark.service';
 
 export interface ProviderConfig {
   provider: EmailProviderType;

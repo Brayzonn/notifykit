@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   IEmailProvider,
   SendEmailParams,
-} from '@/email-providers/email-provider.interface';
+} from '../email-provider.interface';
 
 @Injectable()
 export class SendGridService implements IEmailProvider {

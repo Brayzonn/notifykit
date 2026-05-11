@@ -18,9 +18,9 @@ import { PaymentModule } from './payment/payment.module';
 import { BillingModule } from './billing/billing.module';
 import { AdminModule } from './admin/admin.module';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
-import { SendgridEventsModule } from './sendgrid-events/sendgrid-events.module';
-import { ResendEventsModule } from './resend-events/resend-events.module';
-import { PostmarkEventsModule } from './postmark-events/postmark-events.module';
+import { SendgridEventsModule } from './email-providers/sendgrid/sendgrid-events.module';
+import { ResendEventsModule } from './email-providers/resend/resend-events.module';
+import { PostmarkEventsModule } from './email-providers/postmark/postmark-events.module';
 
 @Module({
   imports: [
