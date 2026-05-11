@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import sgMail from '@sendgrid/mail';
 import {
   DomainProviderAddedEmailData,
   EmailChangeCancelledData,
@@ -21,194 +19,115 @@ import { emailChangeSuccessTemplate } from '@/email/templates/email-change-succe
 import { paymentFailedEmailTemplate } from './templates/payment-failed.template';
 import { resetPasswordEmailTemplate } from './templates/reset-password.template';
 import { domainProviderAddedTemplate } from '@/email/templates/domain-provider-added.template';
+import { QueueService } from '@/queues/queue.service';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly fromEmail: string;
 
-  constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
+  constructor(private readonly queueService: QueueService) {}
 
-    if (!apiKey) {
-      this.logger.warn('SENDGRID_API_KEY not configured.');
-    } else {
-      sgMail.setApiKey(apiKey);
-    }
-
-    this.fromEmail = this.configService.get<string>(
-      'SENDGRID_FROM_EMAIL',
-      'noreply@notifykit.dev',
-    );
+  private enqueue(to: string, subject: string, html: string, label: string): Promise<void> {
+    return this.queueService.enqueuePlatformEmail({ to, subject, html, label });
   }
 
-  /**
-   * Send OTP verification email
-   */
   async sendOtpEmail(data: OtpEmailData): Promise<void> {
-    const html = otpEmailTemplate(data.otp, data.expiresInMinutes);
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Verify Your Email - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`OTP email sent to ${data.email}`);
-  }
-
-  /**
-   * Send reset password OTP email
-   */
-  async sendResetPasswordEmail(data: OtpEmailData): Promise<void> {
-    const html = resetPasswordEmailTemplate(data.otp, data.expiresInMinutes);
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Reset Your Password - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Password reset email sent to ${data.email}`);
-  }
-
-  /**
-   * Send welcome email
-   */
-  async sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
-    const html = welcomeEmailTemplate(data.name);
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Welcome to NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Welcome email sent to ${data.email}`);
-  }
-
-  /**
-   * Send password reset email
-   */
-  async sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
-    const html = passwordResetEmailTemplate(resetUrl);
-
-    await sgMail.send({
-      to: email,
-      from: this.fromEmail,
-      subject: 'Reset Your Password - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Password reset email sent to ${email}`);
-  }
-
-  async sendEmailChangeVerification(
-    data: EmailChangeVerificationData,
-  ): Promise<void> {
-    const html = emailChangeVerificationTemplate(data.name, data.verifyLink);
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Verify Your New Email Address - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Email change verification sent to ${data.email}`);
-  }
-
-  async sendEmailChangeConfirmation(
-    data: EmailChangeConfirmationData,
-  ): Promise<void> {
-    const html = emailChangeConfirmationTemplate(
-      data.name,
+    await this.enqueue(
       data.email,
-      data.newEmail,
-      data.confirmLink,
-      data.cancelLink,
+      'Verify Your Email - NotifyKit',
+      otpEmailTemplate(data.otp, data.expiresInMinutes),
+      'otp',
     );
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Confirm Email Change Request - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Email change confirmation sent to ${data.email}`);
+    this.logger.log(`OTP email queued for ${data.email}`);
   }
 
-  async sendEmailChangeCancelled(
-    data: EmailChangeCancelledData,
-  ): Promise<void> {
-    const html = emailChangeCancelledTemplate(data.email, data.newEmail);
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Email Change Cancelled - NotifyKit',
-      html,
-    });
-
-    this.logger.log(
-      `Email change cancelled notification sent to ${data.email}`,
+  async sendResetPasswordEmail(data: OtpEmailData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      'Reset Your Password - NotifyKit',
+      resetPasswordEmailTemplate(data.otp, data.expiresInMinutes),
+      'reset-password-otp',
     );
+    this.logger.log(`Password reset email queued for ${data.email}`);
+  }
+
+  async sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      'Welcome to NotifyKit',
+      welcomeEmailTemplate(data.name),
+      'welcome',
+    );
+    this.logger.log(`Welcome email queued for ${data.email}`);
+  }
+
+  async sendPasswordResetEmail(email: string, resetUrl: string): Promise<void> {
+    await this.enqueue(
+      email,
+      'Reset Your Password - NotifyKit',
+      passwordResetEmailTemplate(resetUrl),
+      'password-reset',
+    );
+    this.logger.log(`Password reset email queued for ${email}`);
+  }
+
+  async sendEmailChangeVerification(data: EmailChangeVerificationData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      'Verify Your New Email Address - NotifyKit',
+      emailChangeVerificationTemplate(data.name, data.verifyLink),
+      'email-change-verify',
+    );
+    this.logger.log(`Email change verification queued for ${data.email}`);
+  }
+
+  async sendEmailChangeConfirmation(data: EmailChangeConfirmationData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      'Confirm Email Change Request - NotifyKit',
+      emailChangeConfirmationTemplate(data.name, data.email, data.newEmail, data.confirmLink, data.cancelLink),
+      'email-change-confirm',
+    );
+    this.logger.log(`Email change confirmation queued for ${data.email}`);
+  }
+
+  async sendEmailChangeCancelled(data: EmailChangeCancelledData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      'Email Change Cancelled - NotifyKit',
+      emailChangeCancelledTemplate(data.email, data.newEmail),
+      'email-change-cancelled',
+    );
+    this.logger.log(`Email change cancelled notification queued for ${data.email}`);
   }
 
   async sendEmailChangeSuccess(data: EmailChangeSuccessData): Promise<void> {
-    const html = emailChangeSuccessTemplate(data.email);
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Email Updated Successfully - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Email change success notification sent to ${data.email}`);
+    await this.enqueue(
+      data.email,
+      'Email Updated Successfully - NotifyKit',
+      emailChangeSuccessTemplate(data.email),
+      'email-change-success',
+    );
+    this.logger.log(`Email change success notification queued for ${data.email}`);
   }
 
   async sendPaymentFailedEmail(data: PaymentFailedEmailData): Promise<void> {
-    const html = paymentFailedEmailTemplate(
-      data.name,
-      data.plan,
-      data.amount,
-      data.retryDate,
+    await this.enqueue(
+      data.email,
+      'Payment Failed - Action Required - NotifyKit',
+      paymentFailedEmailTemplate(data.name, data.plan, data.amount, data.retryDate),
+      'payment-failed',
     );
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: 'Payment Failed - Action Required - NotifyKit',
-      html,
-    });
-
-    this.logger.log(`Payment failed email sent to ${data.email}`);
+    this.logger.log(`Payment failed email queued for ${data.email}`);
   }
 
-  async sendDomainProviderAddedEmail(
-    data: DomainProviderAddedEmailData,
-  ): Promise<void> {
-    const html = domainProviderAddedTemplate(
-      data.name,
-      data.domain,
-      data.provider,
-      data.dnsRecords,
+  async sendDomainProviderAddedEmail(data: DomainProviderAddedEmailData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      `Action needed: publish DNS records for ${data.provider} - NotifyKit`,
+      domainProviderAddedTemplate(data.name, data.domain, data.provider, data.dnsRecords),
+      'domain-provider-added',
     );
-
-    await sgMail.send({
-      to: data.email,
-      from: this.fromEmail,
-      subject: `Action needed: publish DNS records for ${data.provider} - NotifyKit`,
-      html,
-    });
-
-    this.logger.log(
-      `Domain-provider-added email sent to ${data.email} for ${data.domain} / ${data.provider}`,
-    );
+    this.logger.log(`Domain-provider-added email queued for ${data.email} (${data.domain})`);
   }
 }
