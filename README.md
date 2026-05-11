@@ -60,6 +60,8 @@ src/
 │   │   └── activity-logger.middleware.ts
 │   ├── rate-limit/
 │   │   └── rate-limit.module.ts          # Provides IpRateLimitGuard + UserRateLimitGuard
+│   ├── slack/
+│   │   └── slack.service.ts              # Slack Incoming Webhook alerts (SLACK_WEBHOOK_URL)
 │   └── utils/
 │       ├── enum.util.ts
 │       ├── error.util.ts                 # getErrorMessage / getAxiosErrorData / getAxiosErrorStatus
@@ -68,7 +70,7 @@ src/
 ├── admin/                                # Admin-only endpoints (ADMIN role)
 ├── billing/                              # Plan upgrades, subscriptions, invoices
 ├── config/                               # Cookie, CORS, validation, request-size config
-├── email/                                # Internal email dispatch + HTML templates
+├── platform-email/                       # Internal platform email dispatch + HTML templates
 ├── health/                               # GET /health, GET /health/simple
 ├── notifications/                        # Customer-facing API — send email & webhook
 ├── payment/                              # Stripe & Paystack providers + webhook handlers
@@ -157,6 +159,9 @@ PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxx
 PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxx
 PAYSTACK_INDIE_PLAN_ID=PLN_xxxxxxxxxxxxx
 PAYSTACK_STARTUP_PLAN_ID=PLN_xxxxxxxxxxxxx
+
+# Slack (optional — Incoming Webhook URL for platform email failure alerts)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 
 # SendGrid (platform shared key — used for Free plan and as fallback)
 SENDGRID_API_KEY=SG....
@@ -416,6 +421,8 @@ Every entry in the `deliveryLogs[]` array on `GET /api/v1/notifications/jobs/:id
 | GET    | `/api/v1/admin/users/:id`                 | Get user details               |
 | PATCH  | `/api/v1/admin/users/:id`                 | Update user                    |
 | DELETE | `/api/v1/admin/users/:id`                 | Soft delete user               |
+| POST   | `/api/v1/admin/users/:id/restore`         | Restore soft-deleted user      |
+| DELETE | `/api/v1/admin/users/:id/permanent`       | Permanently delete user        |
 | GET    | `/api/v1/admin/customers`                 | List all customers (paginated) |
 | GET    | `/api/v1/admin/customers/:id`             | Get customer with jobs summary |
 | PATCH  | `/api/v1/admin/customers/:id/plan`        | Update customer plan           |
