@@ -1,5 +1,5 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { QueueService } from './queue.service';
@@ -10,6 +10,7 @@ import { PlatformEmailProcessor } from './processors/platform-email.processor';
 import { EncryptionModule } from '@/common/encryption/encryption.module';
 import { CommonModule } from '@/common/common.module';
 
+@Global()
 @Module({
   imports: [
     HttpModule,
