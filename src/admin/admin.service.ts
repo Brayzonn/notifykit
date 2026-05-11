@@ -188,6 +188,57 @@ export class AdminService {
     };
   }
 
+  async restoreUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.deletedAt) {
+      throw new BadRequestException('User is not deleted');
+    }
+
+    const restored = await this.prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: null },
+      select: {
+        id: true,
+        email: true,
+        deletedAt: true,
+      },
+    });
+
+    this.logger.log(`Admin restored user ${userId} (${user.email})`);
+
+    return {
+      message: 'User restored successfully',
+      user: restored,
+    };
+  }
+
+  async permanentlyDeleteUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+
+    this.logger.warn(`Admin permanently deleted user ${userId} (${user.email})`);
+
+    return {
+      message: 'User permanently deleted',
+    };
+  }
+
   /**
    * ================================
    * CUSTOMER MANAGEMENT

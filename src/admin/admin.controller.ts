@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Param,
@@ -89,6 +90,27 @@ export class AdminController {
   @ApiResponse({ status: 400, description: 'User is already deleted' })
   async deleteUser(@Param('id') id: string) {
     return await this.adminService.deleteUser(id);
+  }
+
+  @Post('users/:id/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Restore a soft-deleted user' })
+  @ApiParam({ name: 'id', description: 'User ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'User restored successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 400, description: 'User is not deleted' })
+  async restoreUser(@Param('id') id: string) {
+    return await this.adminService.restoreUser(id);
+  }
+
+  @Delete('users/:id/permanent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Permanently delete a user (irreversible)' })
+  @ApiParam({ name: 'id', description: 'User ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'User permanently deleted' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async permanentlyDeleteUser(@Param('id') id: string) {
+    return await this.adminService.permanentlyDeleteUser(id);
   }
 
   /**
