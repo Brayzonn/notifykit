@@ -7,6 +7,7 @@ import { SlackService } from '@/common/slack/slack.service';
 import { getErrorMessage } from '@/common/utils/error.util';
 
 export interface PlatformEmailJobData {
+  logId: string;
   to: string;
   subject: string;
   html: string;

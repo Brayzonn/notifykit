@@ -10,6 +10,7 @@ import {
 } from './queue.constants';
 import { getErrorMessage } from '@/common/utils/error.util';
 import { PlatformEmailJobData } from './processors/platform-email.processor';
+import { PrismaService } from '@/prisma/prisma.service';
 
 export interface EmailJobData {
   jobId: string;
@@ -53,16 +54,33 @@ export class QueueService {
     private paymentQueue: Queue<PaystackSubscriptionLinkJobData>,
     @InjectQueue(QUEUE_NAMES.PLATFORM_EMAIL)
     private platformEmailQueue: Queue<PlatformEmailJobData>,
+    private readonly prisma: PrismaService,
   ) {}
 
-  async enqueuePlatformEmail(data: PlatformEmailJobData): Promise<void> {
+  async enqueuePlatformEmail(data: Omit<PlatformEmailJobData, 'logId'>): Promise<void> {
+    const log = await this.prisma.platformEmailLog.create({
+      data: {
+        label: data.label,
+        to: data.to,
+        subject: data.subject,
+      },
+    });
+
     try {
-      await this.platformEmailQueue.add(JOB_NAMES.SEND_PLATFORM_EMAIL, data, {
-        priority: QUEUE_PRIORITIES.CRITICAL,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 15000 },
-      });
+      await this.platformEmailQueue.add(
+        JOB_NAMES.SEND_PLATFORM_EMAIL,
+        { ...data, logId: log.id },
+        {
+          priority: QUEUE_PRIORITIES.CRITICAL,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 15000 },
+        },
+      );
     } catch (error) {
+      await this.prisma.platformEmailLog.update({
+        where: { id: log.id },
+        data: { status: 'FAILED', errorMessage: getErrorMessage(error) },
+      });
       this.logger.error(
         `Failed to enqueue platform email [${data.label}] to ${data.to}: ${getErrorMessage(error)}`,
       );
