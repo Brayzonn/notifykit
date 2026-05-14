@@ -27,6 +27,7 @@ import {
   ResetCustomerUsageDto,
   QueryJobsDto,
   SetCustomLimitDto,
+  QueryPlatformEmailLogsDto,
 } from './dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/auth/guards/roles.guard';
@@ -243,6 +244,28 @@ export class AdminController {
       search,
       verified: verified !== undefined ? verified === 'true' : undefined,
     });
+  }
+
+  /**
+   * ================================
+   * PLATFORM EMAIL LOG ENDPOINTS
+   * ================================
+   */
+
+  @Get('platform-email-logs')
+  @ApiOperation({ summary: 'Get all platform email logs with pagination and filters' })
+  @ApiResponse({ status: 200, description: 'Returns paginated list of platform email logs' })
+  async getPlatformEmailLogs(@Query() query: QueryPlatformEmailLogsDto) {
+    return await this.adminService.getPlatformEmailLogs(query);
+  }
+
+  @Get('platform-email-logs/:id')
+  @ApiOperation({ summary: 'Get a single platform email log by ID' })
+  @ApiParam({ name: 'id', description: 'Platform email log ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Returns platform email log' })
+  @ApiResponse({ status: 404, description: 'Platform email log not found' })
+  async getPlatformEmailLogById(@Param('id') id: string) {
+    return await this.adminService.getPlatformEmailLogById(id);
   }
 
   /**
