@@ -24,7 +24,8 @@ export const PLAN_LIMITS = {
     rateLimit: 50,
     logRetentionDays: 90,
     name: CustomerPlan.INDIE,
-    price: 9,
+    price: 5,
+    priceNgn: 5000,
     usesOwnApiKey: true,
     features: [
       '4,000 webhook notifications/month',
@@ -43,7 +44,8 @@ export const PLAN_LIMITS = {
     rateLimit: 200,
     logRetentionDays: null,
     name: CustomerPlan.STARTUP,
-    price: 30,
+    price: 15,
+    priceNgn: 15000,
     usesOwnApiKey: true,
     features: [
       '15,000 webhook notifications/month',
