@@ -78,6 +78,12 @@ enum EmailEventType {
   DEFERRED
 }
 
+enum PlatformEmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 // ============================================
 // USER MODEL 
 // ============================================
@@ -289,6 +295,29 @@ model EmailEvent {
   @@index([event])
   @@index([occurredAt(sort: Desc)])
   @@map("email_events")
+}
+
+// ============================================
+// PLATFORM EMAIL LOG MODEL
+// ============================================
+
+model PlatformEmailLog {
+  id           String              @id @default(uuid()) @db.Uuid
+  label        String
+  to           String
+  subject      String
+  status       PlatformEmailStatus @default(PENDING)
+  attempts     Int                 @default(0)
+  errorMessage String?             @map("error_message")
+  sentAt       DateTime?           @map("sent_at")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  @@index([label])
+  @@index([to])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("platform_email_logs")
 }
 
 // ============================================
