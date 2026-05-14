@@ -81,6 +81,14 @@ export type MockedPrismaService = {
     findMany: jest.Mock;
     findFirst: jest.Mock;
   };
+  platformEmailLog: {
+    create: jest.Mock;
+    findUnique: jest.Mock;
+    findMany: jest.Mock;
+    update: jest.Mock;
+    delete: jest.Mock;
+    count: jest.Mock;
+  };
   $disconnect: jest.Mock;
   $transaction: jest.Mock;
 };
@@ -142,6 +150,14 @@ export const createMockPrismaService = (): MockedPrismaService => ({
     create: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
+  },
+  platformEmailLog: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
   },
   $disconnect: jest.fn(),
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
