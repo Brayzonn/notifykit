@@ -5,3 +5,4 @@ export * from './update-customer-plan.dto';
 export * from './reset-customer-usage.dto';
 export * from './query-jobs.dto';
 export * from './set-custom-limit.dto';
+export * from './query-platform-email-logs.dto';
