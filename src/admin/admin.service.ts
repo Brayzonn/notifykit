@@ -12,6 +12,7 @@ import {
   UpdateCustomerPlanDto,
   ResetCustomerUsageDto,
   QueryJobsDto,
+  QueryPlatformEmailLogsDto,
 } from './dto';
 import { CustomerPlan } from '@prisma/client';
 
@@ -663,6 +664,75 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * ================================
+   * PLATFORM EMAIL LOGS
+   * ================================
+   */
+
+  async getPlatformEmailLogs(query: QueryPlatformEmailLogsDto) {
+    const { page = 1, limit = 20, status, label, search } = query;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (label) {
+      where.label = label;
+    }
+
+    if (search) {
+      where.to = { contains: search, mode: 'insensitive' };
+    }
+
+    const [logs, total] = await Promise.all([
+      this.prisma.platformEmailLog.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          label: true,
+          to: true,
+          subject: true,
+          status: true,
+          attempts: true,
+          errorMessage: true,
+          sentAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.platformEmailLog.count({ where }),
+    ]);
+
+    return {
+      data: logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getPlatformEmailLogById(id: string) {
+    const log = await this.prisma.platformEmailLog.findUnique({
+      where: { id },
+    });
+
+    if (!log) {
+      throw new NotFoundException('Platform email log not found');
+    }
+
+    return log;
   }
 
   /**
