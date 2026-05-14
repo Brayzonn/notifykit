@@ -268,6 +268,16 @@ export class AdminController {
     return await this.adminService.getPlatformEmailLogById(id);
   }
 
+  @Delete('platform-email-logs/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a platform email log (permanent)' })
+  @ApiParam({ name: 'id', description: 'Platform email log ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Platform email log deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Platform email log not found' })
+  async deletePlatformEmailLog(@Param('id') id: string) {
+    return await this.adminService.deletePlatformEmailLog(id);
+  }
+
   /**
    * ================================
    * STATISTICS ENDPOINTS

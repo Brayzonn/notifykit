@@ -735,6 +735,22 @@ export class AdminService {
     return log;
   }
 
+  async deletePlatformEmailLog(id: string) {
+    const log = await this.prisma.platformEmailLog.findUnique({
+      where: { id },
+    });
+
+    if (!log) {
+      throw new NotFoundException('Platform email log not found');
+    }
+
+    await this.prisma.platformEmailLog.delete({ where: { id } });
+
+    this.logger.warn(`Admin deleted platform email log ${id} [${log.label}] to ${log.to}`);
+
+    return { message: 'Platform email log deleted successfully', id };
+  }
+
   /**
    * ================================
    * STATISTICS
