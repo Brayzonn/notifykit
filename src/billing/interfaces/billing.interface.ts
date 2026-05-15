@@ -4,11 +4,14 @@ import {
   SubscriptionStatus,
 } from '@prisma/client';
 
+export type Currency = 'USD' | 'NGN';
+
 export interface CheckoutSessionRequest {
   customerId: string;
   customerEmail: string;
   plan: CustomerPlan;
   currentPlan: CustomerPlan;
+  currency: Currency;
 }
 
 export interface SubscriptionActivatedEvent {

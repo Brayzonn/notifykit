@@ -16,7 +16,9 @@ export class PaymentService {
   async createCheckoutSession(
     request: CheckoutSessionRequest,
   ): Promise<string> {
-    const provider = this.providerFactory.getDefaultProvider();
+    const provider = this.providerFactory.getProviderByCurrency(
+      request.currency,
+    );
     return provider.createCheckoutSession(request);
   }
 

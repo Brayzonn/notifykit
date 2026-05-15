@@ -41,6 +41,7 @@ enum PaymentProvider {
   PAYSTACK
   FLUTTERWAVE
   LEMONSQUEEZY
+  POLAR
 }
 
 enum SubscriptionStatus {

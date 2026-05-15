@@ -12,6 +12,7 @@ import { getPlanLimit } from '@/common/constants/plans.constants';
 import {
   CancelSubscriptionResponse,
   CreateCheckoutResponse,
+  Currency,
   InvoicesResponse,
   SubscriptionDetailsResponse,
 } from '@/billing/interfaces/billing.interface';
@@ -30,6 +31,7 @@ export class BillingService {
   async createUpgradeCheckout(
     userId: string,
     targetPlan: CustomerPlan,
+    currency: Currency,
   ): Promise<CreateCheckoutResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -76,6 +78,7 @@ export class BillingService {
       customerEmail: customer.email,
       plan: targetPlan,
       currentPlan: customer.plan,
+      currency,
     });
 
     return {

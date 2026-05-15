@@ -31,6 +31,7 @@ export class BillingController {
     return this.billingService.createUpgradeCheckout(
       user.id,
       upgradePlanDto.plan,
+      upgradePlanDto.currency,
     );
   }
 

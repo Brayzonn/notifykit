@@ -1,6 +1,7 @@
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { CustomerPlan } from '@prisma/client';
+import { Currency } from '../interfaces/billing.interface';
 
 export class UpgradePlanDto {
   @ApiProperty({
@@ -9,5 +10,13 @@ export class UpgradePlanDto {
     description: 'Plan to upgrade to'
   })
   @IsEnum(CustomerPlan)
-  plan: CustomerPlan;
+  plan!: CustomerPlan;
+
+  @ApiProperty({
+    enum: ['USD', 'NGN'],
+    example: 'USD',
+    description: 'Billing currency. USD routes to Polar, NGN routes to Paystack.',
+  })
+  @IsIn(['USD', 'NGN'])
+  currency!: Currency;
 }

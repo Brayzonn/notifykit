@@ -67,7 +67,7 @@ describe('BillingService', () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE),
+        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -77,7 +77,7 @@ describe('BillingService', () => {
       );
 
       await expect(
-        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE),
+        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
       ).rejects.toThrow('Already on this plan');
     });
 
@@ -90,7 +90,7 @@ describe('BillingService', () => {
       );
 
       await expect(
-        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE),
+        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
       ).rejects.toThrow('Please cancel current subscription to downgrade');
     });
 
@@ -104,7 +104,7 @@ describe('BillingService', () => {
       );
 
       await expect(
-        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE),
+        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
       ).rejects.toThrow(
         'Please wait until your current subscription expires before subscribing to a lower plan',
       );
@@ -120,7 +120,7 @@ describe('BillingService', () => {
       paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
 
       await expect(
-        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE),
+        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
       ).resolves.toBeDefined();
 
       expect(paymentService.createCheckoutSession).toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe('BillingService', () => {
       paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
 
       await expect(
-        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE),
+        service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
       ).resolves.toBeDefined();
     });
 
@@ -155,7 +155,7 @@ describe('BillingService', () => {
 
       paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
 
-      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE);
+      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN');
 
       // downgradeToFreePlan must have run (two findUnique + one update)
       expect(prisma.customer.findUnique).toHaveBeenCalledTimes(2);
@@ -170,7 +170,7 @@ describe('BillingService', () => {
       );
       paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url/session');
 
-      const result = await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE);
+      const result = await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN');
 
       expect(result).toEqual({
         checkoutUrl: 'https://checkout.url/session',
