@@ -8,5 +8,5 @@ export class RegenerateApiKeyDto {
   })
   @IsNotEmpty()
   @IsString()
-  confirmEmail: string;
+  confirmEmail!: string;
 }

@@ -5,7 +5,7 @@ export class UpdateEmailDto {
   @ApiProperty({ example: 'newemail@example.com' })
   @IsNotEmpty()
   @IsEmail()
-  newEmail: string;
+  newEmail!: string;
 
   @ApiPropertyOptional({ example: 'Password123' })
   @IsOptional()

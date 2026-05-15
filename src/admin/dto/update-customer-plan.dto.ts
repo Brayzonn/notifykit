@@ -8,5 +8,5 @@ export class UpdateCustomerPlanDto {
     enum: CustomerPlan,
   })
   @IsEnum(CustomerPlan)
-  plan: CustomerPlan;
+  plan!: CustomerPlan;
 }

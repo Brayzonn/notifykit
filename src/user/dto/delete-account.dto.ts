@@ -8,5 +8,5 @@ export class DeleteAccountDto {
   })
   @IsNotEmpty()
   @IsEmail()
-  confirmEmail: string;
+  confirmEmail!: string;
 }

@@ -18,11 +18,17 @@ function MaxPayloadSize(options?: ValidationOptions) {
       name: 'maxPayloadSize',
       target: object.constructor,
       propertyName,
-      options: { message: `payload must not exceed ${MAX_PAYLOAD_BYTES / 1024}kb`, ...options },
+      options: {
+        message: `payload must not exceed ${MAX_PAYLOAD_BYTES / 1024}kb`,
+        ...options,
+      },
       validator: {
         validate(value: any) {
           try {
-            return Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_PAYLOAD_BYTES;
+            return (
+              Buffer.byteLength(JSON.stringify(value), 'utf8') <=
+              MAX_PAYLOAD_BYTES
+            );
           } catch {
             return false;
           }
@@ -39,7 +45,7 @@ export class SendWebhookDto {
   })
   @IsUrl({ protocols: ['https'], require_protocol: true })
   @IsNotEmpty()
-  url: string;
+  url!: string;
 
   @ApiPropertyOptional({
     example: 'POST',

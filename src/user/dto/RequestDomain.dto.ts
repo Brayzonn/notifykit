@@ -8,5 +8,5 @@ export class RequestDomainDto {
   })
   @IsString()
   @IsNotEmpty()
-  domain: string;
+  domain!: string;
 }

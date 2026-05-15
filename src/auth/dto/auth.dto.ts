@@ -26,7 +26,7 @@ export class JwtPayload {
 export class OAuthCallbackDto {
   @ApiProperty({ example: 'github_oauth_code_here' })
   @IsString()
-  code: string;
+  code!: string;
 
   @ApiProperty({
     example: 'http://localhost:3000/auth/callback',
@@ -40,7 +40,7 @@ export class OAuthCallbackDto {
 export class SignupDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'Password123', minLength: 6 })
   @IsString()
@@ -48,13 +48,13 @@ export class SignupDto {
   @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{6,}$/, {
     message: 'Password must contain at least 1 letter and 1 number',
   })
-  password: string;
+  password!: string;
 
   @ApiProperty({ example: 'John Doe', minLength: 2 })
   @IsString()
   @MinLength(2)
   @Matches(/^[\p{L}\p{N}\p{P}\p{Z}]+$/u, { message: 'name must not contain emojis or special symbols' })
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 'Acme Corp', required: false })
   @IsOptional()
@@ -66,17 +66,17 @@ export class SignupDto {
 export class SigninDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'Password123' })
   @IsString()
-  password: string;
+  password!: string;
 }
 
 export class VerifyOtpDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: '123456', minLength: 6, maxLength: 6 })
   @IsString()
@@ -85,32 +85,32 @@ export class VerifyOtpDto {
   @Matches(/^\d{6}$/, {
     message: 'OTP must be 6 digits',
   })
-  otp: string;
+  otp!: string;
 }
 
 export class ResendOtpDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
 export class RequestPasswordResetDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
 export class ConfirmPasswordResetDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: '123456', minLength: 6, maxLength: 6 })
   @IsString()
-  otp: string;
+  otp!: string;
 
   @ApiProperty({ example: 'NewPassword123', minLength: 8 })
   @IsString()
   @MinLength(8)
-  newPassword: string;
+  newPassword!: string;
 }
