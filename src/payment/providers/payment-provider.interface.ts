@@ -15,7 +15,7 @@ export interface PaymentProvider {
   /**
    * Get payment methods for a customer
    */
-  getPaymentMethods(providerCustomerId: string): Promise<any>;
+  getPaymentMethods?(providerCustomerId: string): Promise<any>;
 
   /**
    * Get invoices for a customer

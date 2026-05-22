@@ -5,9 +5,11 @@ import { PaymentController } from './payment.controller';
 import { PaymentService } from './payment.service';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { PaystackWebhookHandler } from './webhooks/paystack-webhook.handler';
+import { PolarWebhookHandler } from './webhooks/polar-webhook.handler';
 import { BillingModule } from '@/billing/billing.module';
 import { EmailModule } from '@/platform-email/email.module';
 import { PaystackPaymentProvider } from './providers/paystack-payment.provider';
+import { PolarPaymentProvider } from './providers/polar-payment.provider';
 import { PaymentProviderFactory } from './providers/payment-provider.factory';
 import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 import { PaystackSignatureGuard } from './guards/paystack-signature.guard';
@@ -29,7 +31,9 @@ import { PaymentWebhookEventService } from './payment-webhook-event.service';
   providers: [
     PaymentService,
     PaystackWebhookHandler,
+    PolarWebhookHandler,
     PaystackPaymentProvider,
+    PolarPaymentProvider,
     PaymentProviderFactory,
     PaystackSignatureGuard,
     PaystackSubscriptionLinkProcessor,

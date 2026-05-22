@@ -16,6 +16,7 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { User } from '@/common/decorators/user.decorator';
 import { AuthenticatedUser } from '@/common/interfaces/authenticated-user.interface';
 import { PaystackWebhookHandler } from './webhooks/paystack-webhook.handler';
+import { PolarWebhookHandler } from './webhooks/polar-webhook.handler';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 import { PaystackSignatureGuard } from './guards/paystack-signature.guard';
@@ -25,6 +26,7 @@ export class PaymentController {
   constructor(
     private readonly paymentService: PaymentService,
     private readonly paystackWebhookHandler: PaystackWebhookHandler,
+    private readonly polarWebhookHandler: PolarWebhookHandler,
   ) {}
 
   @Public()
@@ -45,6 +47,21 @@ export class PaymentController {
     }
 
     return this.paystackWebhookHandler.handle(req.rawBody, signature);
+  }
+
+  @Public()
+  @IpRateLimit(300)
+  @UseGuards(IpRateLimitGuard)
+  @Post('polar/webhook')
+  @HttpCode(HttpStatus.OK)
+  async handlePolarWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers() headers: Record<string, string>,
+  ) {
+    if (!req.rawBody) {
+      throw new BadRequestException('Missing request body');
+    }
+    return this.polarWebhookHandler.handle(req.rawBody, headers);
   }
 
   @IpRateLimit(60)

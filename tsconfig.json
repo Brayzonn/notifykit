@@ -19,7 +19,8 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"],
+      "@polar-sh/sdk/webhooks": ["./node_modules/@polar-sh/sdk/dist/commonjs/webhooks"]
     },
     "types": ["jest", "node"]
   }

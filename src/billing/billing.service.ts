@@ -46,7 +46,7 @@ export class BillingService {
     }
 
     // Lazy reconciliation: if payment providers expiry webhook was missed, the customer may
-    // still be CANCELLED with a past end date. Correct the DB state now so the
+    // still be CANCELLED with a past end date. Correct the DB state so the
     // downgrade check below operates on accurate data
     if (
       customer.subscriptionStatus === SubscriptionStatus.CANCELLED &&
@@ -283,7 +283,8 @@ export class BillingService {
       where: { id: customer.id },
       data: {
         subscriptionStatus: SubscriptionStatus.CANCELLED,
-        subscriptionEndDate: customer.nextBillingDate ?? customer.subscriptionEndDate,
+        subscriptionEndDate:
+          customer.nextBillingDate ?? customer.subscriptionEndDate,
       },
     });
 

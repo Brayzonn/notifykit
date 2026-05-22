@@ -51,6 +51,7 @@ export class PaymentService {
     }
 
     const provider = this.providerFactory.getProvider(customer.paymentProvider);
+    if (!provider.getPaymentMethods) return { methods: [] };
     return provider.getPaymentMethods(customer.providerCustomerId);
   }
 
