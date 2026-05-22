@@ -145,6 +145,21 @@ export class PolarWebhookHandler {
       return;
     }
 
+    const newPlan = this.mapProductToPlan(subscription.productId);
+    if (newPlan && newPlan !== customer.plan) {
+      await this.billingService.handleSubscriptionActivated(customer.id, {
+        providerSubscriptionId: subscription.id,
+        providerCustomerId: subscription.customerId,
+        plan: newPlan,
+        paymentProvider: PaymentProvider.POLAR,
+        nextBillingDate: subscription.currentPeriodEnd,
+      });
+      this.logger.log(
+        `Polar plan upgrade: customer ${customer.email} → ${newPlan}`,
+      );
+      return;
+    }
+
     await this.billingService.handleRenewalCharge(
       customer.id,
       subscription.currentPeriodEnd,

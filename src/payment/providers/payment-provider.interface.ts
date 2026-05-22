@@ -5,7 +5,7 @@ export interface PaymentProvider {
    * Create a checkout session for upgrading to a plan
    * @returns The checkout URL where the user should be redirected
    */
-  createCheckoutSession(request: CheckoutSessionRequest): Promise<string>;
+  createCheckoutSession(request: CheckoutSessionRequest): Promise<string | null>;
 
   /**
    * Cancel a subscription

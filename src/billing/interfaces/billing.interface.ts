@@ -12,6 +12,7 @@ export interface CheckoutSessionRequest {
   plan: CustomerPlan;
   currentPlan: CustomerPlan;
   currency: Currency;
+  providerSubscriptionId?: string | null;
 }
 
 export interface SubscriptionActivatedEvent {
@@ -23,7 +24,7 @@ export interface SubscriptionActivatedEvent {
 }
 
 export interface CreateCheckoutResponse {
-  checkoutUrl: string;
+  checkoutUrl: string | null;
   plan: CustomerPlan;
   price: number;
 }

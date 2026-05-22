@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentService } from '@/payment/payment.service';
-import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
+import { CustomerPlan, PaymentProvider, SubscriptionStatus } from '@prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
 import { getPlanLimit } from '@/common/constants/plans.constants';
 import {
@@ -79,6 +79,10 @@ export class BillingService {
       plan: targetPlan,
       currentPlan: customer.plan,
       currency,
+      providerSubscriptionId:
+        customer.paymentProvider === PaymentProvider.POLAR
+          ? customer.providerSubscriptionId
+          : null,
     });
 
     return {

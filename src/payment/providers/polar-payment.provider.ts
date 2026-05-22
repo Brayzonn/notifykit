@@ -42,9 +42,16 @@ export class PolarPaymentProvider implements PaymentProvider {
 
   async createCheckoutSession(
     request: CheckoutSessionRequest,
-  ): Promise<string> {
+  ): Promise<string | null> {
     if (!this.accessToken) {
       throw new InternalServerErrorException('Polar not configured');
+    }
+
+    if (request.providerSubscriptionId) {
+      return this.upgradeSubscription(
+        request.providerSubscriptionId,
+        request.plan,
+      );
     }
 
     try {
@@ -74,6 +81,29 @@ export class PolarPaymentProvider implements PaymentProvider {
       throw new InternalServerErrorException(
         'Failed to create checkout session',
       );
+    }
+  }
+
+  private async upgradeSubscription(
+    subscriptionId: string,
+    targetPlan: string,
+  ): Promise<null> {
+    try {
+      const productId = this.getProductId(targetPlan);
+      await this.polar.subscriptions.update({
+        id: subscriptionId,
+        subscriptionUpdate: { productId },
+      });
+      this.logger.log(
+        `Polar subscription ${subscriptionId} upgraded to ${targetPlan}`,
+      );
+      return null;
+    } catch (error) {
+      this.logger.error(
+        `Failed to upgrade Polar subscription: ${getErrorMessage(error)}`,
+        error,
+      );
+      throw new InternalServerErrorException('Failed to upgrade subscription');
     }
   }
 

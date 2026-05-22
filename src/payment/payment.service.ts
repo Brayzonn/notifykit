@@ -15,7 +15,7 @@ export class PaymentService {
 
   async createCheckoutSession(
     request: CheckoutSessionRequest,
-  ): Promise<string> {
+  ): Promise<string | null> {
     const provider = this.providerFactory.getProviderByCurrency(
       request.currency,
     );
