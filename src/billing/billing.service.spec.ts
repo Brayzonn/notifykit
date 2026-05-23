@@ -178,6 +178,108 @@ describe('BillingService', () => {
         price: PLAN_LIMITS[CustomerPlan.INDIE].price,
       });
     });
+
+    it('should return null checkoutUrl for an inline Polar upgrade', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          paymentProvider: PaymentProvider.POLAR,
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+          providerSubscriptionId: 'polar-sub-123',
+        }),
+      );
+      paymentService.createCheckoutSession.mockResolvedValue(null);
+
+      const result = await service.createUpgradeCheckout('user-123', CustomerPlan.STARTUP, 'USD');
+
+      expect(result.checkoutUrl).toBeNull();
+    });
+
+    it('should pass providerSubscriptionId when provider is POLAR and status is ACTIVE', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          paymentProvider: PaymentProvider.POLAR,
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+          providerSubscriptionId: 'polar-sub-123',
+        }),
+      );
+      paymentService.createCheckoutSession.mockResolvedValue(null);
+
+      await service.createUpgradeCheckout('user-123', CustomerPlan.STARTUP, 'USD');
+
+      expect(paymentService.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({ providerSubscriptionId: 'polar-sub-123' }),
+      );
+    });
+
+    it('should pass null providerSubscriptionId when POLAR subscription is not ACTIVE', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.FREE,
+          paymentProvider: PaymentProvider.POLAR,
+          subscriptionStatus: SubscriptionStatus.EXPIRED,
+          providerSubscriptionId: 'polar-sub-old',
+        }),
+      );
+      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+
+      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'USD');
+
+      expect(paymentService.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({ providerSubscriptionId: null }),
+      );
+    });
+
+    it('should pass null providerSubscriptionId for a Paystack customer upgrading via NGN', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.FREE,
+          paymentProvider: PaymentProvider.PAYSTACK,
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+          providerSubscriptionId: 'ps-sub-123',
+        }),
+      );
+      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+
+      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN');
+
+      expect(paymentService.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({ providerSubscriptionId: null }),
+      );
+    });
+
+    it('should block NGN upgrade when an active Polar subscription exists', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          paymentProvider: PaymentProvider.POLAR,
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+        }),
+      );
+
+      await expect(
+        service.createUpgradeCheckout('user-123', CustomerPlan.STARTUP, 'NGN'),
+      ).rejects.toThrow(
+        'You have an active subscription on a different billing method. Please cancel it before switching.',
+      );
+    });
+
+    it('should block USD upgrade when an active Paystack subscription exists', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          paymentProvider: PaymentProvider.PAYSTACK,
+          subscriptionStatus: SubscriptionStatus.ACTIVE,
+        }),
+      );
+
+      await expect(
+        service.createUpgradeCheckout('user-123', CustomerPlan.STARTUP, 'USD'),
+      ).rejects.toThrow(
+        'You have an active subscription on a different billing method. Please cancel it before switching.',
+      );
+    });
   });
 
   // ── cancelSubscription ───────────────────────────────────────────────────────
@@ -425,7 +527,7 @@ describe('BillingService', () => {
 
   describe('handleSubscriptionCancelled', () => {
     it('should warn and return without throwing when customer is not found', async () => {
-      prisma.customer.findFirst.mockResolvedValue(null);
+      prisma.customer.findUnique.mockResolvedValue(null);
 
       const loggerSpy = jest.spyOn(service['logger'], 'warn');
       await expect(
@@ -440,13 +542,15 @@ describe('BillingService', () => {
 
     it('should mark the subscription as CANCELLED', async () => {
       const customer = createMockCustomer({ providerSubscriptionId: 'sub_123' });
-      prisma.customer.findFirst.mockResolvedValue(customer);
+      prisma.customer.findUnique.mockResolvedValue(customer);
 
       await service.handleSubscriptionCancelled('sub_123');
 
       expect(prisma.customer.update).toHaveBeenCalledWith({
         where: { id: customer.id },
-        data: { subscriptionStatus: SubscriptionStatus.CANCELLED },
+        data: expect.objectContaining({
+          subscriptionStatus: SubscriptionStatus.CANCELLED,
+        }),
       });
     });
   });
@@ -455,7 +559,7 @@ describe('BillingService', () => {
 
   describe('handleSubscriptionExpired', () => {
     it('should warn and return without throwing when customer is not found', async () => {
-      prisma.customer.findFirst.mockResolvedValue(null);
+      prisma.customer.findUnique.mockResolvedValue(null);
 
       const loggerSpy = jest.spyOn(service['logger'], 'warn');
       await expect(
@@ -473,7 +577,7 @@ describe('BillingService', () => {
         plan: CustomerPlan.INDIE,
         providerSubscriptionId: 'sub_123',
       });
-      prisma.customer.findFirst.mockResolvedValue(customer);
+      prisma.customer.findUnique.mockResolvedValue(customer);
 
       await service.handleSubscriptionExpired('sub_123');
 
@@ -490,6 +594,57 @@ describe('BillingService', () => {
           billingCycleStartAt: expect.any(Date),
         }),
       });
+    });
+  });
+
+  // ── handleRenewalCharge ──────────────────────────────────────────────────────
+
+  describe('handleRenewalCharge', () => {
+    it('should warn and return without throwing when customer is not found', async () => {
+      prisma.customer.findUnique.mockResolvedValue(null);
+
+      const loggerSpy = jest.spyOn(service['logger'], 'warn');
+      await expect(
+        service.handleRenewalCharge('customer-123', new Date()),
+      ).resolves.toBeUndefined();
+
+      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('customer-123'));
+      expect(prisma.customer.update).not.toHaveBeenCalled();
+    });
+
+    it('should update billing dates, reset usage, and invalidate cache', async () => {
+      const nextBillingDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const customer = createMockCustomer({ userId: 'user-abc' });
+      prisma.customer.findUnique.mockResolvedValue(customer);
+
+      await service.handleRenewalCharge(customer.id, nextBillingDate);
+
+      expect(prisma.customer.update).toHaveBeenCalledWith({
+        where: { id: customer.id },
+        data: expect.objectContaining({
+          lastPaymentDate: expect.any(Date),
+          nextBillingDate,
+          subscriptionEndDate: nextBillingDate,
+          usageResetAt: nextBillingDate,
+          billingCycleStartAt: expect.any(Date),
+          usageCount: 0,
+        }),
+      });
+      expect(redis.del).toHaveBeenCalledWith('user:user-abc');
+    });
+
+    it('should fall back to +30 days when nextBillingDate is null', async () => {
+      const customer = createMockCustomer({ userId: 'user-abc' });
+      prisma.customer.findUnique.mockResolvedValue(customer);
+      const before = Date.now();
+
+      await service.handleRenewalCharge(customer.id, null);
+
+      const updateCall = prisma.customer.update.mock.calls[0][0];
+      const nextBillingDate: Date = updateCall.data.nextBillingDate;
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+
+      expect(nextBillingDate.getTime()).toBeGreaterThanOrEqual(before + thirtyDays - 1000);
     });
   });
 
