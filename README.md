@@ -11,7 +11,7 @@ The backend API for [NotifyKit](https://notifykit.dev) — notification infrastr
 - **Cache/Queue**: Redis
 - **Auth**: JWT (access + refresh tokens), GitHub OAuth
 - **Email**: SendGrid, Resend, Postmark (provider-agnostic, BYOK with priority fallback)
-- **Payments**: Multi-provider (Stripe, Paystack, with extensible architecture)
+- **Payments**: Multi-provider (Paystack for NGN, Polar for USD, with extensible architecture)
 - **Containerization**: Docker
 
 ---
@@ -73,7 +73,7 @@ src/
 ├── platform-email/                       # Internal platform email dispatch + HTML templates
 ├── health/                               # GET /health, GET /health/simple
 ├── notifications/                        # Customer-facing API — send email & webhook
-├── payment/                              # Stripe & Paystack providers + webhook handlers
+├── payment/                              # Paystack, Polar (& Stripe scaffold) providers + webhook handlers
 ├── prisma/                               # PrismaService
 ├── queues/                               # BullMQ workers — email & webhook processors
 ├── redis/                                # RedisService (ioredis wrapper + remember helper)
@@ -94,7 +94,7 @@ src/
 - Node.js 18+
 - Docker & Docker Compose
 - At least one of: SendGrid, Resend, or Postmark account (any combination — used in priority order for the FREE tier)
-- A Stripe account
+- A Paystack account (NGN billing) and/or a Polar account (USD billing)
 
 ---
 
@@ -147,18 +147,27 @@ GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
 GITHUB_CALLBACK_URL=http://localhost:3000/api/v1/auth/github/callback
 
-# Stripe
+# Paystack (NGN subscriptions)
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxx
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxx
+PAYSTACK_INDIE_PLAN_ID=PLN_xxxxxxxxxxxxx
+PAYSTACK_STARTUP_PLAN_ID=PLN_xxxxxxxxxxxxx
+PAYSTACK_INDIE_AMOUNT=500000
+PAYSTACK_STARTUP_AMOUNT=1000000
+
+# Polar (USD subscriptions)
+POLAR_ACCESS_TOKEN=polar_oat_...
+POLAR_WEBHOOK_SECRET=polar_whs_...
+POLAR_SERVER=sandbox
+POLAR_INDIE_PRODUCT_ID=
+POLAR_STARTUP_PRODUCT_ID=
+
+# Stripe (unused — scaffold only)
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_PUBLIC_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_INDIE_PRICE_ID=price_...
 STRIPE_STARTUP_PRICE_ID=price_...
-
-# Paystack
-PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxx
-PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxx
-PAYSTACK_INDIE_PLAN_ID=PLN_xxxxxxxxxxxxx
-PAYSTACK_STARTUP_PLAN_ID=PLN_xxxxxxxxxxxxx
 
 # Slack (optional — Incoming Webhook URL for platform email failure alerts)
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
@@ -230,7 +239,7 @@ The API will be available at `http://localhost:3000/api/v1`.
 cp .env.example .env.production
 ```
 
-Fill in production values — make sure to use live Stripe keys and a strong `COOKIE_SECRET`.
+Fill in production values — use live Paystack/Polar keys, set `POLAR_SERVER=production`, and use a strong `COOKIE_SECRET`.
 
 ### 2. Build and start with Docker Compose
 
@@ -254,26 +263,19 @@ docker-compose -f docker-compose.prod.yml logs -f api
 
 ---
 
-## Testing Stripe Webhooks Locally
+## Testing Webhooks Locally
 
-Install the [Stripe CLI](https://stripe.com/docs/stripe-cli) then run:
+**Paystack** — use ngrok or similar to expose your local server, then set the tunnel URL as the webhook endpoint in your Paystack dashboard.
+
+**Polar** — use the Polar CLI:
 
 ```bash
-stripe listen --forward-to localhost:3000/api/v1/payment/stripe/webhook
+npm install -g @polar-sh/cli
+polar login
+polar webhooks listen --forward-to localhost:3000/api/v1/payment/polar/webhook
 ```
 
-Copy the webhook signing secret it outputs and set it as `STRIPE_WEBHOOK_SECRET` in your `.env.development`.
-
-**Test cards:**
-
-| Scenario           | Card Number           |
-| ------------------ | --------------------- |
-| Successful payment | `4242 4242 4242 4242` |
-| Card declined      | `4000 0000 0000 0002` |
-| Requires 3D Secure | `4000 0025 0000 3155` |
-| Insufficient funds | `4000 0000 0000 9995` |
-
-Use any future expiry, any CVC, any billing zip.
+This forwards all Polar webhook events to your local server. Use the sandbox dashboard to trigger test events.
 
 ---
 
