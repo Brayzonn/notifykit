@@ -58,6 +58,16 @@ export class BillingService {
       customer.subscriptionStatus = SubscriptionStatus.EXPIRED;
     }
 
+    if (
+      customer.subscriptionStatus === SubscriptionStatus.ACTIVE &&
+      customer.paymentProvider !== null &&
+      customer.paymentProvider !== this.getProviderForCurrency(currency)
+    ) {
+      throw new BadRequestException(
+        'You have an active subscription on a different billing method. Please cancel it before switching.',
+      );
+    }
+
     if (this.isDowngrade(customer.plan, targetPlan)) {
       const canDowngrade =
         customer.subscriptionStatus === SubscriptionStatus.EXPIRED ||
@@ -80,7 +90,8 @@ export class BillingService {
       currentPlan: customer.plan,
       currency,
       providerSubscriptionId:
-        customer.paymentProvider === PaymentProvider.POLAR
+        customer.paymentProvider === PaymentProvider.POLAR &&
+        customer.subscriptionStatus === SubscriptionStatus.ACTIVE
           ? customer.providerSubscriptionId
           : null,
     });
@@ -326,6 +337,10 @@ export class BillingService {
     this.logger.warn(
       `Customer ${customer.email} downgraded to FREE due to expired subscription`,
     );
+  }
+
+  private getProviderForCurrency(currency: Currency): PaymentProvider {
+    return currency === 'USD' ? PaymentProvider.POLAR : PaymentProvider.PAYSTACK;
   }
 
   private isDowngrade(
