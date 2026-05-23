@@ -48,7 +48,7 @@ export class PolarWebhookHandler {
 
     this.logger.log(`Processing Polar webhook: ${event.type}`);
 
-    const dedupKey = `${event.type}:${(event.data as { id: string }).id}`;
+    const dedupKey = headers['webhook-id'] ?? `${event.type}:${(event.data as { id: string }).id}`;
 
     const isNew = await this.webhookEventLog.markProcessed(
       PaymentProvider.POLAR,

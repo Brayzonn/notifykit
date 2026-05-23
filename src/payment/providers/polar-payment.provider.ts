@@ -92,7 +92,7 @@ export class PolarPaymentProvider implements PaymentProvider {
       const productId = this.getProductId(targetPlan);
       await this.polar.subscriptions.update({
         id: subscriptionId,
-        subscriptionUpdate: { productId },
+        subscriptionUpdate: { productId, prorationBehavior: 'invoice' },
       });
       this.logger.log(
         `Polar subscription ${subscriptionId} upgraded to ${targetPlan}`,
