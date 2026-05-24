@@ -5,9 +5,10 @@ import { QueueModule } from '../queues/queue.module';
 import { AuthModule } from '../auth/auth.module';
 import { BillingModule } from '@/billing/billing.module';
 import { CommonModule } from '@/common/common.module';
+import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 
 @Module({
-  imports: [QueueModule, AuthModule, CommonModule, BillingModule],
+  imports: [QueueModule, AuthModule, CommonModule, BillingModule, RateLimitModule],
   controllers: [NotificationsController],
   providers: [NotificationsService],
   exports: [NotificationsService],

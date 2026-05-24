@@ -14,6 +14,8 @@ import { NotificationsService } from '@/notifications/notifications.service';
 import { ApiKeyGuard } from '@/auth/guards/api-key.guard';
 import { CustomerRateLimitGuard } from '@/auth/guards/customer-rate-limit.guard';
 import { QuotaGuard } from '@/auth/guards/api-quota.guard';
+import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
+import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 import {
   CurrentCustomer,
   AuthenticatedCustomer,
@@ -24,7 +26,8 @@ import { Public } from '@/auth/decorators/public.decorator';
 
 @Public()
 @Controller('notifications')
-@UseGuards(ApiKeyGuard, CustomerRateLimitGuard)
+@IpRateLimit(300)
+@UseGuards(IpRateLimitGuard, ApiKeyGuard, CustomerRateLimitGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
