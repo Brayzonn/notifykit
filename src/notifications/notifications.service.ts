@@ -10,7 +10,7 @@ import { QueueService } from '../queues/queue.service';
 import { QUEUE_PRIORITIES } from '../queues/queue.constants';
 import { SendEmailDto } from './dto/send-email.dto';
 import { SendWebhookDto } from './dto/send-webhook.dto';
-import { JobType, JobStatus, CustomerPlan } from '@prisma/client';
+import { JobType, JobStatus, CustomerPlan, Prisma, Job } from '@prisma/client';
 import { toApiStatus } from '@/common/utils/enum.util';
 import {
   JobResponse,
@@ -21,7 +21,6 @@ import {
   EmailPayloadData,
   WebhookPayloadData,
 } from '@/notifications/interfaces/notification.interface';
-import { planUsesOwnApiKey } from '@/common/constants/plans.constants';
 import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
 
 @Injectable()
@@ -38,23 +37,6 @@ export class NotificationsService {
    * Create and queue an email notification job
    */
   async sendEmail(customerId: string, dto: SendEmailDto): Promise<JobResponse> {
-    if (dto.idempotencyKey) {
-      const existing = await this.prisma.job.findFirst({
-        where: {
-          customerId,
-          idempotencyKey: dto.idempotencyKey,
-        },
-      });
-
-      if (existing) {
-        this.logger.warn(`Duplicate email job detected: ${dto.idempotencyKey}`);
-        throw new ConflictException({
-          message: 'Duplicate request detected',
-          existingJobId: existing.id,
-        });
-      }
-    }
-
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
       select: {
@@ -68,7 +50,10 @@ export class NotificationsService {
     if (!customer) {
       throw new Error(`Customer not found: ${customerId}`);
     }
-    this.featureGate.assertCanSendEmail({ ...customer, emailProviderCount: customer._count.emailProviders });
+    this.featureGate.assertCanSendEmail({
+      ...customer,
+      emailProviderCount: customer._count.emailProviders,
+    });
     this.featureGate.assertCanSendEmailFromDomain({
       plan: customer.plan,
       hasDomain: customer.sendingDomains.length > 0,
@@ -111,25 +96,37 @@ export class NotificationsService {
         ? QUEUE_PRIORITIES.LOW
         : dto.priority || QUEUE_PRIORITIES.NORMAL;
 
-    const job = await this.prisma.job.create({
-      data: {
-        customerId,
-        type: JobType.EMAIL,
-        status: JobStatus.PENDING,
-        priority,
-        payload: {
-          to: dto.to,
-          subject: dto.subject,
-          body: dto.body,
-          from: dto.from,
-          provider: dto.provider,
-          fallback: dto.fallback,
-        } as EmailPayloadData,
-        idempotencyKey: dto.idempotencyKey,
-        attempts: 0,
-        maxAttempts: 3,
-      },
-    });
+    let job: Job;
+    try {
+      job = await this.prisma.job.create({
+        data: {
+          customerId,
+          type: JobType.EMAIL,
+          status: JobStatus.PENDING,
+          priority,
+          payload: {
+            to: dto.to,
+            subject: dto.subject,
+            body: dto.body,
+            from: dto.from,
+            provider: dto.provider,
+            fallback: dto.fallback,
+          } as EmailPayloadData,
+          idempotencyKey: dto.idempotencyKey,
+          attempts: 0,
+          maxAttempts: 3,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.warn(`Duplicate email job detected: ${dto.idempotencyKey}`);
+        throw new ConflictException('Duplicate request detected');
+      }
+      throw error;
+    }
 
     await this.queueService.addEmailJob(
       {
@@ -162,25 +159,6 @@ export class NotificationsService {
     customerId: string,
     dto: SendWebhookDto,
   ): Promise<JobResponse> {
-    if (dto.idempotencyKey) {
-      const existing = await this.prisma.job.findFirst({
-        where: {
-          customerId,
-          idempotencyKey: dto.idempotencyKey,
-        },
-      });
-
-      if (existing) {
-        this.logger.warn(
-          `Duplicate webhook job detected: ${dto.idempotencyKey}`,
-        );
-        throw new ConflictException({
-          message: 'Duplicate request detected',
-          existingJobId: existing.id,
-        });
-      }
-    }
-
     const webhookCustomer = await this.prisma.customer.findUnique({
       where: { id: customerId },
       select: { plan: true },
@@ -191,23 +169,37 @@ export class NotificationsService {
         ? QUEUE_PRIORITIES.LOW
         : dto.priority || QUEUE_PRIORITIES.NORMAL;
 
-    const job = await this.prisma.job.create({
-      data: {
-        customerId,
-        type: JobType.WEBHOOK,
-        status: JobStatus.PENDING,
-        priority: webhookPriority,
-        payload: {
-          url: dto.url,
-          method: dto.method || 'POST',
-          headers: dto.headers,
-          payload: dto.payload,
-        } as WebhookPayloadData,
-        idempotencyKey: dto.idempotencyKey,
-        attempts: 0,
-        maxAttempts: 3,
-      },
-    });
+    let job: Job;
+    try {
+      job = await this.prisma.job.create({
+        data: {
+          customerId,
+          type: JobType.WEBHOOK,
+          status: JobStatus.PENDING,
+          priority: webhookPriority,
+          payload: {
+            url: dto.url,
+            method: dto.method || 'POST',
+            headers: dto.headers,
+            payload: dto.payload,
+          } as WebhookPayloadData,
+          idempotencyKey: dto.idempotencyKey,
+          attempts: 0,
+          maxAttempts: 3,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.warn(
+          `Duplicate webhook job detected: ${dto.idempotencyKey}`,
+        );
+        throw new ConflictException('Duplicate request detected');
+      }
+      throw error;
+    }
 
     await this.queueService.addWebhookJob(
       {
@@ -381,7 +373,10 @@ export class NotificationsService {
         throw new Error(`Customer not found: ${customerId}`);
       }
 
-      this.featureGate.assertCanSendEmail({ ...customer, emailProviderCount: customer._count.emailProviders });
+      this.featureGate.assertCanSendEmail({
+        ...customer,
+        emailProviderCount: customer._count.emailProviders,
+      });
       this.featureGate.assertCanSendEmailFromDomain({
         plan: customer.plan,
         hasDomain: customer.sendingDomains.length > 0,

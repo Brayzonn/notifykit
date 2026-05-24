@@ -9,8 +9,15 @@ import {
   createMockPrismaService,
   type MockedPrismaService,
 } from '../../test/helpers/test-utils';
-import { CustomerPlan, EmailProviderType, JobStatus, JobType } from '@prisma/client';
+import { CustomerPlan, EmailProviderType, JobStatus, JobType, Prisma } from '@prisma/client';
 import { QUEUE_PRIORITIES } from '@/queues/queue.constants';
+
+// Simulates a unique-constraint (customerId, idempotencyKey) violation.
+const uniqueViolation = () =>
+  new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: '5.22.0',
+  });
 
 type MockedQueueService = {
   addEmailJob: jest.Mock;
@@ -96,9 +103,8 @@ describe('NotificationsService', () => {
       queueService.addEmailJob.mockResolvedValue(undefined);
     });
 
-    it('should throw ConflictException when an idempotency duplicate exists', async () => {
-      const existingJob = makeJob({ id: 'job-existing' });
-      prisma.job.findFirst.mockResolvedValue(existingJob);
+    it('should throw ConflictException on a unique-constraint (idempotency) violation', async () => {
+      prisma.job.create.mockRejectedValue(uniqueViolation());
 
       await expect(
         service.sendEmail('customer-123', {
@@ -108,20 +114,24 @@ describe('NotificationsService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should include the existingJobId in the ConflictException response', async () => {
-      prisma.job.findFirst.mockResolvedValue(makeJob({ id: 'job-existing' }));
+    it('should report a generic duplicate message (no existingJobId)', async () => {
+      prisma.job.create.mockRejectedValue(uniqueViolation());
 
       const error = await service
         .sendEmail('customer-123', { ...emailDto, idempotencyKey: 'idem-key-1' })
         .catch((e) => e);
 
-      expect(error.getResponse()).toMatchObject({ existingJobId: 'job-existing' });
+      expect(error).toBeInstanceOf(ConflictException);
+      expect(error.getResponse()).not.toHaveProperty('existingJobId');
     });
 
-    it('should not check idempotency when no key is provided', async () => {
-      await service.sendEmail('customer-123', emailDto);
+    it('should rethrow non-P2002 create errors unchanged', async () => {
+      const boom = new Error('db exploded');
+      prisma.job.create.mockRejectedValue(boom);
 
-      expect(prisma.job.findFirst).not.toHaveBeenCalled();
+      await expect(
+        service.sendEmail('customer-123', { ...emailDto, idempotencyKey: 'k' }),
+      ).rejects.toThrow('db exploded');
     });
 
     it('should throw when customer is not found', async () => {
@@ -397,8 +407,8 @@ describe('NotificationsService', () => {
       queueService.addWebhookJob.mockResolvedValue(undefined);
     });
 
-    it('should throw ConflictException when an idempotency duplicate exists', async () => {
-      prisma.job.findFirst.mockResolvedValue(makeJob({ id: 'job-existing' }));
+    it('should throw ConflictException on a unique-constraint (idempotency) violation', async () => {
+      prisma.job.create.mockRejectedValue(uniqueViolation());
 
       await expect(
         service.sendWebhook('customer-123', { ...webhookDto, idempotencyKey: 'idem-key-2' }),
