@@ -246,6 +246,7 @@ export const createMockEmailService = (): MockedEmailService => {
     sendEmailChangeCancelled: resolved(),
     sendEmailChangeSuccess: resolved(),
     sendPaymentFailedEmail: resolved(),
+    sendPlanDowngradedEmail: resolved(),
     sendDomainProviderAddedEmail: resolved(),
   } satisfies MockedEmailService;
 };

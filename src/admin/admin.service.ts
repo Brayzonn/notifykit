@@ -458,6 +458,9 @@ export class AdminService {
       data: {
         usageCount: dto.usageCount ?? 0,
         usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        // Rotate the billing cycle so the Redis usage counter (keyed by
+        // billingCycleStartAt) starts a fresh window and reseeds from this value.
+        billingCycleStartAt: new Date(),
       },
       select: {
         id: true,

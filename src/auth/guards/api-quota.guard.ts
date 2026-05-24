@@ -42,32 +42,35 @@ export class QuotaGuard implements CanActivate {
 
     const now = new Date();
 
-    // Handle billing cycle reset
     if (customer.usageResetAt < now) {
       await this.handleBillingCycleReset(customer, now);
     }
 
-    // Check usage limit
-    const currentUsage = customer.usageCount ?? 0;
     const effectiveLimit = customer.customMonthlyLimit ?? customer.monthlyLimit;
-    if (currentUsage >= effectiveLimit) {
+    const { allowed, usage } = await this.billingService.consumeQuota(
+      {
+        id: customer.id,
+        usageCount: customer.usageCount,
+        billingCycleStartAt: customer.billingCycleStartAt,
+        usageResetAt: customer.usageResetAt,
+      },
+      effectiveLimit,
+    );
+
+    if (!allowed) {
       this.logger.warn(
-        `Usage limit exceeded for ${customer.email}: ${currentUsage}/${effectiveLimit}`,
+        `Usage limit exceeded for ${customer.email}: ${usage}/${effectiveLimit}`,
       );
       throw new ForbiddenException({
         statusCode: 403,
-        message: `Monthly usage limit exceeded (${currentUsage}/${effectiveLimit}). Upgrade your plan or wait for reset on ${customer.usageResetAt.toLocaleDateString()}.`,
+        message: `Monthly usage limit exceeded (${usage}/${effectiveLimit}). Upgrade your plan or wait for reset on ${customer.usageResetAt.toLocaleDateString()}.`,
         error: 'Forbidden',
       });
     }
 
-    // Increment usage
-    await this.billingService.incrementUsage(customer.id);
-    customer.usageCount = currentUsage + 1;
+    customer.usageCount = usage;
 
-    this.logger.debug(
-      `Usage: ${customer.email} ${customer.usageCount}/${customer.monthlyLimit}`,
-    );
+    this.logger.debug(`Usage: ${customer.email} ${usage}/${effectiveLimit}`);
 
     return true;
   }
@@ -77,22 +80,21 @@ export class QuotaGuard implements CanActivate {
     now: Date,
   ): Promise<void> {
     if (customer.plan === CustomerPlan.FREE) {
-      await this.billingService.resetMonthlyUsage(customer.id);
-      this.syncCustomerInMemory(customer);
+      const dates = await this.billingService.resetMonthlyUsage(customer.id);
+      this.syncCustomerInMemory(customer, dates);
 
       this.logger.log(`Reset FREE plan customer: ${customer.email}`);
       return;
     }
 
-    // Paid plans - check subscription
     const hasActiveSubscription =
       customer.subscriptionStatus === SubscriptionStatus.ACTIVE &&
       customer.subscriptionEndDate &&
       customer.subscriptionEndDate > now;
 
     if (hasActiveSubscription) {
-      await this.billingService.resetMonthlyUsage(customer.id);
-      this.syncCustomerInMemory(customer);
+      const dates = await this.billingService.resetMonthlyUsage(customer.id);
+      this.syncCustomerInMemory(customer, dates);
 
       this.logger.log(`Reset ${customer.plan} customer: ${customer.email}`);
       return;
@@ -105,8 +107,8 @@ export class QuotaGuard implements CanActivate {
     );
 
     if (isInGracePeriod) {
-      await this.billingService.resetMonthlyUsage(customer.id);
-      this.syncCustomerInMemory(customer);
+      const dates = await this.billingService.resetMonthlyUsage(customer.id);
+      this.syncCustomerInMemory(customer, dates);
 
       const daysLeft = this.getDaysLeft(customer.subscriptionEndDate, now);
       this.logger.warn(
@@ -114,15 +116,14 @@ export class QuotaGuard implements CanActivate {
       );
     } else {
       // Grace period over - downgrade
-      await this.billingService.downgradeToFreePlan(
+      const dates = await this.billingService.downgradeToFreePlan(
         customer.id,
         'SUBSCRIPTION_EXPIRED',
       );
 
-      // Sync in-memory for current request
       customer.plan = CustomerPlan.FREE;
       customer.monthlyLimit = getPlanLimit(CustomerPlan.FREE);
-      this.syncCustomerInMemory(customer);
+      this.syncCustomerInMemory(customer, dates);
 
       this.logger.warn(
         `Customer ${customer.email} downgraded to FREE (subscription expired)`,
@@ -160,12 +161,12 @@ export class QuotaGuard implements CanActivate {
     );
   }
 
-  private syncCustomerInMemory(customer: AuthenticatedCustomer): void {
-    const resetDate = new Date();
-    resetDate.setDate(resetDate.getDate() + 30);
-
+  private syncCustomerInMemory(
+    customer: AuthenticatedCustomer,
+    dates: { billingCycleStartAt: Date; usageResetAt: Date },
+  ): void {
     customer.usageCount = 0;
-    customer.usageResetAt = resetDate;
-    customer.billingCycleStartAt = new Date();
+    customer.usageResetAt = dates.usageResetAt;
+    customer.billingCycleStartAt = dates.billingCycleStartAt;
   }
 }

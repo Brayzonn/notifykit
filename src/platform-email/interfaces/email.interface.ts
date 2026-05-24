@@ -53,6 +53,14 @@ export interface PaymentFailedEmailData {
   retryDate: Date | null;
 }
 
+export interface PlanDowngradedEmailData {
+  email: string;
+  name: string;
+  previousPlan: string;
+  reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED';
+  resetDate: Date;
+}
+
 export interface DomainProviderAddedEmailData {
   email: string;
   name: string;

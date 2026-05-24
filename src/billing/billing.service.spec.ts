@@ -4,10 +4,13 @@ import { BillingService } from './billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentService } from '@/payment/payment.service';
 import { RedisService } from '@/redis/redis.service';
+import { EmailService } from '@/platform-email/email.service';
 import { createMockCustomer } from '../../test/helpers/mock-factories';
 import {
   createMockPrismaService,
+  createMockEmailService,
   type MockedPrismaService,
+  type MockedEmailService,
 } from '../../test/helpers/test-utils';
 import { CustomerPlan, PaymentProvider, SubscriptionStatus } from '@prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
@@ -20,6 +23,7 @@ type MockedPaymentService = {
 
 type MockedRedisService = {
   del: jest.Mock;
+  getClient: jest.Mock;
 };
 
 describe('BillingService', () => {
@@ -27,6 +31,7 @@ describe('BillingService', () => {
   let prisma: MockedPrismaService;
   let paymentService: MockedPaymentService;
   let redis: MockedRedisService;
+  let emailService: MockedEmailService;
 
   const mockPaymentService: MockedPaymentService = {
     createCheckoutSession: jest.fn(),
@@ -36,9 +41,11 @@ describe('BillingService', () => {
 
   const mockRedisService: MockedRedisService = {
     del: jest.fn(),
+    getClient: jest.fn(),
   };
 
   const mockPrismaService = createMockPrismaService();
+  const mockEmailService = createMockEmailService();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -47,6 +54,7 @@ describe('BillingService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: PaymentService, useValue: mockPaymentService },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 
@@ -54,6 +62,7 @@ describe('BillingService', () => {
     prisma = module.get(PrismaService);
     paymentService = module.get(PaymentService);
     redis = module.get(RedisService);
+    emailService = module.get(EmailService);
   });
 
   afterEach(() => {
@@ -663,6 +672,7 @@ describe('BillingService', () => {
       prisma.customer.findUnique.mockResolvedValue({
         plan: CustomerPlan.INDIE,
         email: 'customer@example.com',
+        user: { name: 'Ada' },
       });
 
       await service.downgradeToFreePlan('customer-123', 'SUBSCRIPTION_EXPIRED');
@@ -680,6 +690,46 @@ describe('BillingService', () => {
           billingCycleStartAt: expect.any(Date),
         }),
       });
+    });
+
+    it('should send a downgrade email to the customer', async () => {
+      prisma.customer.findUnique.mockResolvedValue({
+        plan: CustomerPlan.STARTUP,
+        email: 'customer@example.com',
+        user: { name: 'Ada' },
+      });
+
+      await service.downgradeToFreePlan('customer-123', 'PAYMENT_FAILED');
+
+      expect(emailService.sendPlanDowngradedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'customer@example.com',
+          name: 'Ada',
+          previousPlan: CustomerPlan.STARTUP,
+          reason: 'PAYMENT_FAILED',
+          resetDate: expect.any(Date),
+        }),
+      );
+    });
+
+    it('should not fail the downgrade if the email cannot be queued', async () => {
+      prisma.customer.findUnique.mockResolvedValue({
+        plan: CustomerPlan.INDIE,
+        email: 'customer@example.com',
+        user: { name: 'Ada' },
+      });
+      emailService.sendPlanDowngradedEmail.mockRejectedValueOnce(
+        new Error('queue down'),
+      );
+
+      await expect(
+        service.downgradeToFreePlan('customer-123', 'SUBSCRIPTION_EXPIRED'),
+      ).resolves.toMatchObject({
+        billingCycleStartAt: expect.any(Date),
+        usageResetAt: expect.any(Date),
+      });
+
+      expect(prisma.customer.update).toHaveBeenCalled();
     });
   });
 
@@ -719,6 +769,102 @@ describe('BillingService', () => {
         where: { id: 'customer-123' },
         data: { usageCount: { increment: 1 } },
       });
+    });
+  });
+
+  // ── consumeQuota ─────────────────────────────────────────────────────────────
+
+  describe('consumeQuota', () => {
+    const customer = {
+      id: 'customer-123',
+      usageCount: 5,
+      billingCycleStartAt: new Date('2026-05-01T00:00:00Z'),
+      usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    };
+
+    const mockEval = (value: number) => {
+      const evalFn = jest.fn().mockResolvedValue(value);
+      redis.getClient.mockReturnValue({ eval: evalFn });
+      return evalFn;
+    };
+
+    it('keys the counter by customer id and billing cycle start', async () => {
+      const evalFn = mockEval(6);
+
+      await service.consumeQuota(customer, 100);
+
+      const expectedKey = `usage:customer-123:${customer.billingCycleStartAt.getTime()}`;
+      expect(evalFn).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        expectedKey,
+        '5', // baseline seeded from snapshot usageCount
+        '100', // limit
+        expect.any(String), // ttl
+      );
+    });
+
+    it('allows and returns the new usage when under the limit', async () => {
+      mockEval(6);
+
+      const result = await service.consumeQuota(customer, 100);
+
+      expect(result).toEqual({ allowed: true, usage: 6 });
+    });
+
+    it('rejects without incrementing when the script returns -1', async () => {
+      mockEval(-1);
+
+      const result = await service.consumeQuota(customer, 100);
+
+      expect(result).toEqual({ allowed: false, usage: 5 });
+      expect(prisma.customer.update).not.toHaveBeenCalled();
+    });
+
+    it('flushes to the DB every Nth increment', async () => {
+      mockEval(10);
+      prisma.customer.update.mockResolvedValue({} as any);
+
+      await service.consumeQuota(customer, 100);
+
+      expect(prisma.customer.update).toHaveBeenCalledWith({
+        where: { id: 'customer-123' },
+        data: { usageCount: 10 },
+      });
+    });
+
+    it('does not flush on a non-Nth increment', async () => {
+      mockEval(7);
+
+      await service.consumeQuota(customer, 100);
+
+      expect(prisma.customer.update).not.toHaveBeenCalled();
+    });
+
+    it('fails open to a DB increment when Redis errors', async () => {
+      redis.getClient.mockReturnValue({
+        eval: jest.fn().mockRejectedValue(new Error('redis down')),
+      });
+      prisma.customer.update.mockResolvedValue({} as any);
+
+      const result = await service.consumeQuota(customer, 100);
+
+      expect(result).toEqual({ allowed: true, usage: 6 });
+      expect(prisma.customer.update).toHaveBeenCalledWith({
+        where: { id: 'customer-123' },
+        data: { usageCount: { increment: 1 } },
+      });
+    });
+
+    it('fails closed when Redis errors and the snapshot is already at the limit', async () => {
+      redis.getClient.mockReturnValue({
+        eval: jest.fn().mockRejectedValue(new Error('redis down')),
+      });
+
+      const result = await service.consumeQuota({ ...customer, usageCount: 100 }, 100);
+
+      expect(result).toEqual({ allowed: false, usage: 100 });
+      expect(prisma.customer.update).not.toHaveBeenCalled();
     });
   });
 });

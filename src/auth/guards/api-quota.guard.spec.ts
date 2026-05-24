@@ -11,9 +11,17 @@ import { createMockAuthenticatedCustomer } from '../../../test/helpers/mock-fact
 import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
 
 type MockedBillingService = {
+  consumeQuota: jest.Mock;
   incrementUsage: jest.Mock;
   resetMonthlyUsage: jest.Mock;
   downgradeToFreePlan: jest.Mock;
+};
+
+const newCycleDates = () => {
+  const now = new Date();
+  const usageResetAt = new Date(now);
+  usageResetAt.setDate(usageResetAt.getDate() + 30);
+  return { billingCycleStartAt: now, usageResetAt };
 };
 
 describe('QuotaGuard', () => {
@@ -21,9 +29,18 @@ describe('QuotaGuard', () => {
   let authService: MockedBillingService;
 
   const mockAuthService: MockedBillingService = {
+    // Emulates the real Redis-backed atomic check-and-increment.
+    consumeQuota: jest.fn((c: { usageCount?: number }, limit: number) => {
+      const usage = c.usageCount ?? 0;
+      return Promise.resolve(
+        usage >= limit
+          ? { allowed: false, usage }
+          : { allowed: true, usage: usage + 1 },
+      );
+    }),
     incrementUsage: jest.fn(),
-    resetMonthlyUsage: jest.fn(),
-    downgradeToFreePlan: jest.fn(),
+    resetMonthlyUsage: jest.fn(() => Promise.resolve(newCycleDates())),
+    downgradeToFreePlan: jest.fn(() => Promise.resolve(newCycleDates())),
   };
 
   const createMockExecutionContext = (request: any): ExecutionContext => {
@@ -367,7 +384,7 @@ describe('QuotaGuard', () => {
   });
 
   describe('Usage Increment', () => {
-    it('should call authService.incrementUsage on success', async () => {
+    it('should consume quota on success', async () => {
       const customer = createMockAuthenticatedCustomer({
         id: 'customer-123',
         usageCount: 500,
@@ -380,7 +397,10 @@ describe('QuotaGuard', () => {
 
       await guard.canActivate(context);
 
-      expect(authService.incrementUsage).toHaveBeenCalledWith('customer-123');
+      expect(authService.consumeQuota).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'customer-123' }),
+        1000,
+      );
     });
 
     it('should update customer.usageCount in-memory', async () => {

@@ -7,6 +7,7 @@ import {
   EmailChangeVerificationData,
   OtpEmailData,
   PaymentFailedEmailData,
+  PlanDowngradedEmailData,
   WelcomeEmailData,
 } from '@/platform-email/interfaces/email.interface';
 import { otpEmailTemplate } from '@/platform-email/templates/otp.template';
@@ -17,6 +18,7 @@ import { emailChangeConfirmationTemplate } from '@/platform-email/templates/emai
 import { emailChangeCancelledTemplate } from '@/platform-email/templates/email-change-cancelled.template';
 import { emailChangeSuccessTemplate } from '@/platform-email/templates/email-change-success.template';
 import { paymentFailedEmailTemplate } from './templates/payment-failed.template';
+import { planDowngradedEmailTemplate } from './templates/downgrade.template';
 import { resetPasswordEmailTemplate } from './templates/reset-password.template';
 import { domainProviderAddedTemplate } from '@/platform-email/templates/domain-provider-added.template';
 import { QueueService } from '@/queues/queue.service';
@@ -119,6 +121,21 @@ export class EmailService {
       'payment-failed',
     );
     this.logger.log(`Payment failed email queued for ${data.email}`);
+  }
+
+  async sendPlanDowngradedEmail(data: PlanDowngradedEmailData): Promise<void> {
+    await this.enqueue(
+      data.email,
+      'Your NotifyKit plan has changed',
+      planDowngradedEmailTemplate(
+        data.name,
+        data.previousPlan,
+        data.reason,
+        data.resetDate,
+      ),
+      'plan-downgraded',
+    );
+    this.logger.log(`Plan downgraded email queued for ${data.email}`);
   }
 
   async sendDomainProviderAddedEmail(data: DomainProviderAddedEmailData): Promise<void> {

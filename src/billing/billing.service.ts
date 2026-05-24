@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentService } from '@/payment/payment.service';
-import { CustomerPlan, PaymentProvider, SubscriptionStatus } from '@prisma/client';
+import {
+  CustomerPlan,
+  PaymentProvider,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
 import { getPlanLimit } from '@/common/constants/plans.constants';
 import {
@@ -17,15 +21,19 @@ import {
   SubscriptionDetailsResponse,
 } from '@/billing/interfaces/billing.interface';
 import { RedisService } from '@/redis/redis.service';
+import { getErrorMessage } from '@/common/utils/error.util';
+import { EmailService } from '@/platform-email/email.service';
 
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
+  private readonly USAGE_FLUSH_INTERVAL = 10;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentService: PaymentService,
     private readonly redis: RedisService,
+    private readonly emailService: EmailService,
   ) {}
 
   async createUpgradeCheckout(
@@ -340,7 +348,9 @@ export class BillingService {
   }
 
   private getProviderForCurrency(currency: Currency): PaymentProvider {
-    return currency === 'USD' ? PaymentProvider.POLAR : PaymentProvider.PAYSTACK;
+    return currency === 'USD'
+      ? PaymentProvider.POLAR
+      : PaymentProvider.PAYSTACK;
   }
 
   private isDowngrade(
@@ -362,10 +372,10 @@ export class BillingService {
   async downgradeToFreePlan(
     customerId: string,
     reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED',
-  ): Promise<void> {
+  ): Promise<{ billingCycleStartAt: Date; usageResetAt: Date }> {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      select: { plan: true, email: true },
+      select: { plan: true, email: true, user: { select: { name: true } } },
     });
 
     if (!customer) {
@@ -392,36 +402,137 @@ export class BillingService {
       },
     });
 
-    //do later-------send user downgrade email--------------------------------------
+    try {
+      await this.emailService.sendPlanDowngradedEmail({
+        email: customer.email,
+        name: customer.user?.name ?? 'there',
+        previousPlan: originalPlan,
+        reason,
+        resetDate,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to queue downgrade email for ${customer.email}: ${getErrorMessage(error)}`,
+      );
+    }
 
-    this.logger.warn(
-      `Customer ${customer.email} downgraded from ${originalPlan} to FREE. Reason: ${reason}. Next reset: ${resetDate.toISOString()}`,
-    );
+    return { billingCycleStartAt: now, usageResetAt: resetDate };
   }
 
   /**
-   * Reset customer usage for new billing cycle
+   * Reset customer usage for new billing cycle.
    */
-  async resetMonthlyUsage(customerId: string): Promise<void> {
-    const resetDate = new Date();
-    resetDate.setDate(resetDate.getDate() + 30); // 30 days from now
+  async resetMonthlyUsage(
+    customerId: string,
+  ): Promise<{ billingCycleStartAt: Date; usageResetAt: Date }> {
+    const now = new Date();
+    const resetDate = new Date(now);
+    resetDate.setDate(resetDate.getDate() + 30);
 
     await this.prisma.customer.update({
       where: { id: customerId },
       data: {
         usageCount: 0,
         usageResetAt: resetDate,
-        billingCycleStartAt: new Date(),
+        billingCycleStartAt: now,
       },
     });
 
     this.logger.log(
       `Reset usage for customer ${customerId}. Next reset: ${resetDate.toISOString()}`,
     );
+
+    return { billingCycleStartAt: now, usageResetAt: resetDate };
   }
 
   /**
-   * Increment usage counter
+   * Atomically check the monthly limit and consume one unit of quota.
+   */
+  async consumeQuota(
+    customer: {
+      id: string;
+      usageCount?: number;
+      billingCycleStartAt: Date;
+      usageResetAt: Date;
+    },
+    limit: number,
+  ): Promise<{ allowed: boolean; usage: number }> {
+    const key = `usage:${customer.id}:${customer.billingCycleStartAt.getTime()}`;
+    const baseline = customer.usageCount ?? 0;
+    const ttlSeconds = Math.min(
+      Math.max(
+        60,
+        Math.ceil((customer.usageResetAt.getTime() - Date.now()) / 1000),
+      ),
+      40 * 24 * 60 * 60,
+    );
+
+    // Seed the window from the DB baseline on first use, then atomically
+    // check-and-increment.
+    const script = `
+      local key = KEYS[1]
+      local baseline = tonumber(ARGV[1])
+      local limit = tonumber(ARGV[2])
+      local ttl = tonumber(ARGV[3])
+      if redis.call('EXISTS', key) == 0 then
+        redis.call('SET', key, baseline, 'EX', ttl)
+      end
+      local current = tonumber(redis.call('GET', key))
+      if current >= limit then
+        return -1
+      end
+      return redis.call('INCR', key)
+    `;
+
+    let result: number;
+    try {
+      const client = this.redis.getClient();
+      result = Number(
+        await client.eval(
+          script,
+          1,
+          key,
+          String(baseline),
+          String(limit),
+          String(ttlSeconds),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(`consumeQuota Redis error: ${getErrorMessage(error)}`);
+      if (baseline >= limit) {
+        return { allowed: false, usage: baseline };
+      }
+      await this.incrementUsage(customer.id);
+      return { allowed: true, usage: baseline + 1 };
+    }
+
+    if (result === -1) {
+      return { allowed: false, usage: baseline };
+    }
+
+    if (result % this.USAGE_FLUSH_INTERVAL === 0) {
+      this.flushUsage(customer.id, result);
+    }
+
+    return { allowed: true, usage: result };
+  }
+
+  /**
+   * Write-behind flush of the Redis counter to Postgres.
+   */
+  private flushUsage(customerId: string, usage: number): void {
+    this.prisma.customer
+      .update({ where: { id: customerId }, data: { usageCount: usage } })
+      .catch((error) =>
+        this.logger.error(
+          `Failed to flush usage for ${customerId}: ${getErrorMessage(error)}`,
+        ),
+      );
+  }
+
+  /**
+   * Increment usage counter (DB fallback path only — the hot path uses
+   * consumeQuota / Redis).
    */
   async incrementUsage(customerId: string): Promise<void> {
     await this.prisma.customer.update({

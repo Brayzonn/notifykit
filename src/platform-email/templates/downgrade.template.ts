@@ -1,16 +1,19 @@
-export const paymentFailedEmailTemplate = (
+export const planDowngradedEmailTemplate = (
   name: string,
-  plan: string,
-  amount: number,
-  retryDate: Date | null,
+  previousPlan: string,
+  reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED',
+  resetDate: Date,
 ): string => {
-  const retryDateStr = retryDate
-    ? new Date(retryDate).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : 'soon';
+  const resetDateStr = new Date(resetDate).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const reasonText =
+    reason === 'PAYMENT_FAILED'
+      ? "we weren't able to process your payment after several attempts"
+      : 'your subscription expired';
 
   return `
     <!DOCTYPE html>
@@ -27,51 +30,45 @@ export const paymentFailedEmailTemplate = (
               <!-- Header -->
               <tr>
                 <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px 8px 0 0;">
-                  <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">⚠️ Payment Failed</h1>
+                  <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">Your plan has changed</h1>
                 </td>
               </tr>
-              
+
               <!-- Content -->
               <tr>
                 <td style="padding: 40px;">
                   <p style="margin: 0 0 20px; color: #333333; font-size: 16px; line-height: 1.5;">
                     Hi ${name},
                   </p>
-                  
+
                   <p style="margin: 0 0 20px; color: #333333; font-size: 16px; line-height: 1.5;">
-                    We weren't able to process your payment for your <strong>${plan}</strong> plan subscription ($${amount.toFixed(2)}).
+                    Because ${reasonText}, your <strong>${previousPlan}</strong> plan has been downgraded to the <strong>FREE</strong> plan.
                   </p>
-                  
+
                   <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
                     <p style="margin: 0; color: #856404; font-size: 14px;">
-                      <strong>What happens next?</strong><br>
-                      We'll automatically retry the payment ${retryDate ? `on ${retryDateStr}` : 'soon'}. Please ensure your payment method has sufficient funds.
+                      <strong>What this means for your account</strong><br>
+                      You now have the FREE plan limits: 100 notifications per month, a 5 requests/minute rate limit, shared email infrastructure, and 14-day log retention. Your usage allowance resets on ${resetDateStr}.
                     </p>
                   </div>
-                  
+
                   <p style="margin: 0 0 20px; color: #333333; font-size: 16px; line-height: 1.5;">
-                    <strong>To update your payment method:</strong>
+                    Want your higher limits back? You can reactivate a paid plan at any time:
                   </p>
-                  
-                  <ol style="margin: 0 0 20px; padding-left: 20px; color: #333333; font-size: 16px; line-height: 1.8;">
-                    <li>Log in to your NotifyKit dashboard</li>
-                    <li>Go to Billing settings</li>
-                    <li>Update your payment method</li>
-                  </ol>
-                  
+
                   <div style="text-align: center; margin: 30px 0;">
                     <a href="${process.env.FRONTEND_URL || 'https://notifykit.dev'}/dashboard/usage"
                        style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                      Update Payment Method
+                      Reactivate Your Plan
                     </a>
                   </div>
-                  
+
                   <p style="margin: 20px 0 0; color: #666666; font-size: 14px; line-height: 1.5;">
-                    If we're unable to process your payment after multiple attempts, your subscription may be cancelled and your account will be downgraded to the FREE plan.
+                    Your account, API keys, and historical data remain intact. Nothing has been deleted.
                   </p>
                 </td>
               </tr>
-              
+
               <!-- Footer -->
               <tr>
                 <td style="padding: 30px 40px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; text-align: center;">
