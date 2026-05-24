@@ -2,7 +2,13 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job, UnrecoverableError } from 'bullmq';
 import { ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CustomerPlan, DeliveryStatus, EmailProviderType, JobStatus, Prisma } from '@prisma/client';
+import {
+  CustomerPlan,
+  DeliveryStatus,
+  EmailProviderType,
+  JobStatus,
+  Prisma,
+} from '@prisma/client';
 import { QUEUE_NAMES } from '@/queues/queue.constants';
 import { EmailJobData, QueueService } from '@/queues/queue.service';
 import {
@@ -51,12 +57,8 @@ export class EmailWorkerProcessor extends WorkerHost {
       fallback,
     } = job.data;
 
-    const currentJob = await this.prisma.job.findUnique({
-      where: { id: jobId },
-      select: { attempts: true },
-    });
-
-    const nextAttempt = (currentJob?.attempts || 0) + 1;
+    // BullMQ tracks the attempt count; no need to read it back from the DB.
+    const nextAttempt = job.attemptsMade + 1;
 
     this.logger.log(`Processing email job: ${jobId} (attempt ${nextAttempt})`);
 
@@ -100,7 +102,10 @@ export class EmailWorkerProcessor extends WorkerHost {
         this.featureGate.assertCanUseCustomDomain(customer);
       }
 
-      const fromAddress = this.determineFromAddress(from, customer.sendingDomains);
+      const fromAddress = this.determineFromAddress(
+        from,
+        customer.sendingDomains,
+      );
 
       await this.prisma.job.update({
         where: { id: jobId },
@@ -175,8 +180,6 @@ export class EmailWorkerProcessor extends WorkerHost {
       }
 
       if (lastError) {
-        // Forced routing is a contract — don't let BullMQ retry through
-        // providers the customer didn't authorize.
         if (forcedProvider) {
           throw new UnrecoverableError(
             `Configured provider(s) failed: ${getErrorMessage(lastError)}`,
@@ -185,29 +188,40 @@ export class EmailWorkerProcessor extends WorkerHost {
         throw lastError;
       }
 
-      await this.prisma.job.update({
-        where: { id: jobId },
-        data: { status: JobStatus.COMPLETED, completedAt: new Date(), payload: Prisma.DbNull },
-      });
-
-      await this.prisma.deliveryLog.create({
-        data: {
-          jobId,
-          attempt: nextAttempt,
-          status: DeliveryStatus.SUCCESS,
-          response,
-          usedProvider: successfulProvider,
-        },
-      });
+      await this.prisma.$transaction([
+        this.prisma.job.update({
+          where: { id: jobId },
+          data: {
+            status: JobStatus.COMPLETED,
+            completedAt: new Date(),
+            payload: Prisma.DbNull,
+          },
+        }),
+        this.prisma.deliveryLog.create({
+          data: {
+            jobId,
+            attempt: nextAttempt,
+            status: DeliveryStatus.SUCCESS,
+            response,
+            usedProvider: successfulProvider,
+          },
+        }),
+      ]);
 
       this.logger.log(`Email sent successfully from ${fromAddress}: ${jobId}`);
       return { success: true };
     } catch (error) {
       if (error instanceof UnrecoverableError) {
-        this.logger.error(`Email job permanently failed: ${jobId} - ${error.message}`);
+        this.logger.error(
+          `Email job permanently failed: ${jobId} - ${error.message}`,
+        );
         await this.prisma.job.update({
           where: { id: jobId },
-          data: { status: JobStatus.FAILED, errorMessage: error.message, attempts: nextAttempt },
+          data: {
+            status: JobStatus.FAILED,
+            errorMessage: error.message,
+            attempts: nextAttempt,
+          },
         });
         await this.prisma.deliveryLog.create({
           data: {
@@ -222,10 +236,16 @@ export class EmailWorkerProcessor extends WorkerHost {
       }
 
       if (error instanceof ForbiddenException) {
-        this.logger.error(`Email job permanently failed: ${jobId} - ${error.message}`);
+        this.logger.error(
+          `Email job permanently failed: ${jobId} - ${error.message}`,
+        );
         await this.prisma.job.update({
           where: { id: jobId },
-          data: { status: JobStatus.FAILED, errorMessage: error.message, attempts: nextAttempt },
+          data: {
+            status: JobStatus.FAILED,
+            errorMessage: error.message,
+            attempts: nextAttempt,
+          },
         });
         await this.prisma.deliveryLog.create({
           data: {
@@ -239,15 +259,20 @@ export class EmailWorkerProcessor extends WorkerHost {
         throw new UnrecoverableError(error.message);
       }
 
-      this.logger.error(`Email job failed: ${jobId} - ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Email job failed: ${jobId} - ${getErrorMessage(error)}`,
+      );
 
       let errorMessage = getErrorMessage(error);
       const status = getAxiosErrorStatus(error);
-      const data = getAxiosErrorData<{
-        errors?: Array<{ message?: string } | string>;
-        error?: { message?: string };
-        message?: string;
-      } | string>(error);
+      const data = getAxiosErrorData<
+        | {
+            errors?: Array<{ message?: string } | string>;
+            error?: { message?: string };
+            message?: string;
+          }
+        | string
+      >(error);
 
       if (status !== undefined) {
         if (
@@ -300,7 +325,11 @@ export class EmailWorkerProcessor extends WorkerHost {
 
   private determineFromAddress(
     requestedFrom: string | undefined,
-    sendingDomains: Array<{ domain: string; provider: string; verified: boolean }>,
+    sendingDomains: Array<{
+      domain: string;
+      provider: string;
+      verified: boolean;
+    }>,
   ): string {
     const verifiedDomains = sendingDomains.filter((d) => d.verified);
 
@@ -333,7 +362,9 @@ export class EmailWorkerProcessor extends WorkerHost {
     );
 
     const pendingDomain = sendingDomains.find(
-      (d) => !d.verified && (fromDomain === d.domain || fromDomain === `em.${d.domain}`),
+      (d) =>
+        !d.verified &&
+        (fromDomain === d.domain || fromDomain === `em.${d.domain}`),
     );
 
     if (pendingDomain && !matchedDomain) {

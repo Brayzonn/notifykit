@@ -33,15 +33,10 @@ export class WebhookWorkerProcessor extends WorkerHost {
   async process(job: Job<WebhookJobData>): Promise<any> {
     const { jobId, customerId, url, method, headers, payload } = job.data;
 
-    const currentJob = await this.prisma.job.findUnique({
-      where: { id: jobId },
-      select: { attempts: true },
-    });
-
-    const nextAttempt = (currentJob?.attempts || 0) + 1;
+    const nextAttempt = job.attemptsMade + 1;
 
     this.logger.log(
-      `Processing webhook job: ${jobId} (attempt ${job.attemptsMade + 1})`,
+      `Processing webhook job: ${jobId} (attempt ${nextAttempt})`,
     );
 
     try {
@@ -80,39 +75,45 @@ export class WebhookWorkerProcessor extends WorkerHost {
         }),
       );
 
-      await this.prisma.job.update({
-        where: { id: jobId },
-        data: {
-          status: JobStatus.COMPLETED,
-          completedAt: new Date(),
-          payload: Prisma.DbNull,
-        },
-      });
-
-      await this.prisma.deliveryLog.create({
-        data: {
-          jobId,
-          attempt: nextAttempt,
-          status: DeliveryStatus.SUCCESS,
-          response: {
-            statusCode: response.status,
-            body: response.data,
+      await this.prisma.$transaction([
+        this.prisma.job.update({
+          where: { id: jobId },
+          data: {
+            status: JobStatus.COMPLETED,
+            completedAt: new Date(),
+            payload: Prisma.DbNull,
           },
-        },
-      });
+        }),
+        this.prisma.deliveryLog.create({
+          data: {
+            jobId,
+            attempt: nextAttempt,
+            status: DeliveryStatus.SUCCESS,
+            response: {
+              statusCode: response.status,
+              body: response.data,
+            },
+          },
+        }),
+      ]);
 
       this.logger.log(
         `Webhook delivered successfully: ${jobId} - Status: ${response.status}`,
       );
       return { success: true };
     } catch (error) {
-      this.logger.error(`Webhook job failed: ${jobId} - ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Webhook job failed: ${jobId} - ${getErrorMessage(error)}`,
+      );
 
       const status = getAxiosErrorStatus(error);
-      const data = getAxiosErrorData<{
-        error?: { message?: string };
-        message?: string;
-      } | string>(error);
+      const data = getAxiosErrorData<
+        | {
+            error?: { message?: string };
+            message?: string;
+          }
+        | string
+      >(error);
 
       const errorResponse =
         status !== undefined ? { statusCode: status, body: data } : null;
