@@ -136,7 +136,8 @@ export class AdminService {
         ...user,
         customer: {
           ...user.customer,
-          effectiveLimit: user.customer.customMonthlyLimit ?? user.customer.monthlyLimit,
+          effectiveLimit:
+            user.customer.customMonthlyLimit ?? user.customer.monthlyLimit,
         },
       };
     }
@@ -251,7 +252,9 @@ export class AdminService {
 
     await this.invalidateApiKeyCache(user.customer?.apiKeyHash);
 
-    this.logger.warn(`Admin permanently deleted user ${userId} (${user.email})`);
+    this.logger.warn(
+      `Admin permanently deleted user ${userId} (${user.email})`,
+    );
 
     return {
       message: 'User permanently deleted',
@@ -767,7 +770,9 @@ export class AdminService {
 
     await this.prisma.platformEmailLog.delete({ where: { id } });
 
-    this.logger.warn(`Admin deleted platform email log ${id} [${log.label}] to ${log.to}`);
+    this.logger.warn(
+      `Admin deleted platform email log ${id} [${log.label}] to ${log.to}`,
+    );
 
     return { message: 'Platform email log deleted successfully', id };
   }
@@ -779,58 +784,60 @@ export class AdminService {
    */
 
   async getStats() {
-    const [
-      totalUsers,
-      activeUsers,
-      deletedUsers,
-      totalCustomers,
-      activeCustomers,
-      freeCustomers,
-      indieCustomers,
-      startupCustomers,
-      totalJobs,
-      pendingJobs,
-      processingJobs,
-      completedJobs,
-      failedJobs,
-    ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { deletedAt: null } }),
-      this.prisma.user.count({ where: { deletedAt: { not: null } } }),
-      this.prisma.customer.count(),
-      this.prisma.customer.count({ where: { isActive: true } }),
-      this.prisma.customer.count({ where: { plan: 'FREE' } }),
-      this.prisma.customer.count({ where: { plan: 'INDIE' } }),
-      this.prisma.customer.count({ where: { plan: 'STARTUP' } }),
-      this.prisma.job.count(),
-      this.prisma.job.count({ where: { status: 'PENDING' } }),
-      this.prisma.job.count({ where: { status: 'PROCESSING' } }),
-      this.prisma.job.count({ where: { status: 'COMPLETED' } }),
-      this.prisma.job.count({ where: { status: 'FAILED' } }),
-    ]);
+    return this.redis.remember('admin:stats', 60, async () => {
+      const [
+        totalUsers,
+        activeUsers,
+        deletedUsers,
+        totalCustomers,
+        activeCustomers,
+        freeCustomers,
+        indieCustomers,
+        startupCustomers,
+        totalJobs,
+        pendingJobs,
+        processingJobs,
+        completedJobs,
+        failedJobs,
+      ] = await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.user.count({ where: { deletedAt: null } }),
+        this.prisma.user.count({ where: { deletedAt: { not: null } } }),
+        this.prisma.customer.count(),
+        this.prisma.customer.count({ where: { isActive: true } }),
+        this.prisma.customer.count({ where: { plan: 'FREE' } }),
+        this.prisma.customer.count({ where: { plan: 'INDIE' } }),
+        this.prisma.customer.count({ where: { plan: 'STARTUP' } }),
+        this.prisma.job.count(),
+        this.prisma.job.count({ where: { status: 'PENDING' } }),
+        this.prisma.job.count({ where: { status: 'PROCESSING' } }),
+        this.prisma.job.count({ where: { status: 'COMPLETED' } }),
+        this.prisma.job.count({ where: { status: 'FAILED' } }),
+      ]);
 
-    return {
-      users: {
-        total: totalUsers,
-        active: activeUsers,
-        deleted: deletedUsers,
-      },
-      customers: {
-        total: totalCustomers,
-        active: activeCustomers,
-        byPlan: {
-          FREE: freeCustomers,
-          INDIE: indieCustomers,
-          STARTUP: startupCustomers,
+      return {
+        users: {
+          total: totalUsers,
+          active: activeUsers,
+          deleted: deletedUsers,
         },
-      },
-      jobs: {
-        total: totalJobs,
-        pending: pendingJobs,
-        processing: processingJobs,
-        completed: completedJobs,
-        failed: failedJobs,
-      },
-    };
+        customers: {
+          total: totalCustomers,
+          active: activeCustomers,
+          byPlan: {
+            FREE: freeCustomers,
+            INDIE: indieCustomers,
+            STARTUP: startupCustomers,
+          },
+        },
+        jobs: {
+          total: totalJobs,
+          pending: pendingJobs,
+          processing: processingJobs,
+          completed: completedJobs,
+          failed: failedJobs,
+        },
+      };
+    });
   }
 }
