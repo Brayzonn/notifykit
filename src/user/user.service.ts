@@ -466,10 +466,16 @@ export class UserService {
     await this.redis.del(`user:${userId}`);
 
     // Deactivate customer
-    await this.prisma.customer.update({
+    const customer = await this.prisma.customer.update({
       where: { userId },
       data: { isActive: false },
+      select: { apiKeyHash: true },
     });
+
+    // Revoke the cached API-key auth entry immediately.
+    if (customer.apiKeyHash) {
+      await this.redis.del(`apikey:${customer.apiKeyHash}`);
+    }
 
     await this.prisma.refreshToken.deleteMany({
       where: { userId },
@@ -617,6 +623,10 @@ export class UserService {
         createdAt: new Date(),
       },
     });
+
+    if (user.customer.apiKeyHash) {
+      await this.redis.del(`apikey:${user.customer.apiKeyHash}`);
+    }
 
     return {
       apiKey: newApiKey,
@@ -2452,7 +2462,9 @@ export class UserService {
   // WEBHOOK SIGNING SECRET
   // ============================================
 
-  async generateWebhookSigningSecret(userId: string): Promise<{ secret: string; createdAt: Date }> {
+  async generateWebhookSigningSecret(
+    userId: string,
+  ): Promise<{ secret: string; createdAt: Date }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: { id: true },
@@ -2472,7 +2484,9 @@ export class UserService {
     return { secret, createdAt: now };
   }
 
-  async getWebhookSigningSecretStatus(userId: string): Promise<{ hasSecret: boolean; createdAt: Date | null }> {
+  async getWebhookSigningSecretStatus(
+    userId: string,
+  ): Promise<{ hasSecret: boolean; createdAt: Date | null }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: { webhookSigningSecret: true, webhookSigningSecretAt: true },
@@ -2518,7 +2532,11 @@ export class UserService {
           where: { userId },
           data: { apiKey: null },
         });
-        apiKeyData = { apiKey: plaintext, firstTime: true, createdAt: customer.createdAt };
+        apiKeyData = {
+          apiKey: plaintext,
+          firstTime: true,
+          createdAt: customer.createdAt,
+        };
       } else {
         const lastFour = customer.apiKeyLastFour ?? '••••';
         apiKeyData = {
@@ -2552,24 +2570,36 @@ export class UserService {
       sendgrid: {
         hasKey: !!sendgrid,
         addedAt: sendgrid?.addedAt ?? null,
-        lastFour: sendgrid ? this.encryptionService.decrypt(sendgrid.apiKey).slice(-4) : null,
+        lastFour: sendgrid
+          ? this.encryptionService.decrypt(sendgrid.apiKey).slice(-4)
+          : null,
         priority: sendgrid?.priority ?? null,
         tracking: buildTracking(sendgrid, this.buildWebhookUrl(customer.id)),
       },
       resend: {
         hasKey: !!resend,
         addedAt: resend?.addedAt ?? null,
-        lastFour: resend ? this.encryptionService.decrypt(resend.apiKey).slice(-4) : null,
+        lastFour: resend
+          ? this.encryptionService.decrypt(resend.apiKey).slice(-4)
+          : null,
         priority: resend?.priority ?? null,
-        tracking: buildTracking(resend, this.buildResendWebhookUrl(customer.id)),
+        tracking: buildTracking(
+          resend,
+          this.buildResendWebhookUrl(customer.id),
+        ),
       },
       postmark: {
         hasKey: !!postmark,
         hasAccountKey: !!postmark?.accountApiKey,
         addedAt: postmark?.addedAt ?? null,
-        lastFour: postmark ? this.encryptionService.decrypt(postmark.apiKey).slice(-4) : null,
+        lastFour: postmark
+          ? this.encryptionService.decrypt(postmark.apiKey).slice(-4)
+          : null,
         priority: postmark?.priority ?? null,
-        tracking: buildTracking(postmark, this.buildPostmarkWebhookUrl(customer.id)),
+        tracking: buildTracking(
+          postmark,
+          this.buildPostmarkWebhookUrl(customer.id),
+        ),
       },
       emailProviders: customer.emailProviders.map((r) => ({
         provider: r.provider,
@@ -2584,7 +2614,9 @@ export class UserService {
     };
   }
 
-  async rotateWebhookSigningSecret(userId: string): Promise<{ secret: string; createdAt: Date }> {
+  async rotateWebhookSigningSecret(
+    userId: string,
+  ): Promise<{ secret: string; createdAt: Date }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: { id: true, webhookSigningSecret: true },
@@ -2592,13 +2624,17 @@ export class UserService {
 
     if (!customer) throw new NotFoundException('Customer not found');
     if (!customer.webhookSigningSecret) {
-      throw new BadRequestException('No webhook signing secret to rotate. Generate one first.');
+      throw new BadRequestException(
+        'No webhook signing secret to rotate. Generate one first.',
+      );
     }
 
     return this.generateWebhookSigningSecret(userId);
   }
 
-  async deleteWebhookSigningSecret(userId: string): Promise<{ message: string }> {
+  async deleteWebhookSigningSecret(
+    userId: string,
+  ): Promise<{ message: string }> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: { id: true },

@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { RedisService } from '@/redis/redis.service';
 import {
   QueryUsersDto,
   UpdateUserDto,
@@ -20,7 +21,18 @@ import { CustomerPlan } from '@prisma/client';
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private async invalidateApiKeyCache(
+    apiKeyHash: string | null | undefined,
+  ): Promise<void> {
+    if (apiKeyHash) {
+      await this.redis.del(`apikey:${apiKeyHash}`);
+    }
+  }
 
   /**
    * ================================
@@ -161,6 +173,7 @@ export class AdminService {
   async deleteUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { customer: { select: { apiKeyHash: true } } },
     });
 
     if (!user) {
@@ -180,6 +193,8 @@ export class AdminService {
         deletedAt: true,
       },
     });
+
+    await this.invalidateApiKeyCache(user.customer?.apiKeyHash);
 
     this.logger.warn(`Admin soft-deleted user ${userId} (${user.email})`);
 
@@ -223,6 +238,7 @@ export class AdminService {
   async permanentlyDeleteUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { customer: { select: { apiKeyHash: true } } },
     });
 
     if (!user) {
@@ -232,6 +248,8 @@ export class AdminService {
     await this.prisma.user.delete({
       where: { id: userId },
     });
+
+    await this.invalidateApiKeyCache(user.customer?.apiKeyHash);
 
     this.logger.warn(`Admin permanently deleted user ${userId} (${user.email})`);
 

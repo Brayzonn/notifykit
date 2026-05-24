@@ -493,6 +493,7 @@ describe('UserService', () => {
     it('should soft-delete the user by setting deletedAt', async () => {
       const user = createMockUser({ email: 'me@example.com' });
       prisma.user.findUnique.mockResolvedValue(user);
+      prisma.customer.update.mockResolvedValue({ apiKeyHash: 'hash-abc' });
 
       await service.deleteAccount('user-123', 'me@example.com');
 
@@ -504,24 +505,28 @@ describe('UserService', () => {
 
     it('should deactivate the customer and delete all refresh tokens', async () => {
       prisma.user.findUnique.mockResolvedValue(createMockUser({ email: 'me@example.com' }));
+      prisma.customer.update.mockResolvedValue({ apiKeyHash: 'hash-abc' });
 
       await service.deleteAccount('user-123', 'me@example.com');
 
       expect(prisma.customer.update).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
         data: { isActive: false },
+        select: { apiKeyHash: true },
       });
       expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
       });
     });
 
-    it('should invalidate the Redis cache and return a success message', async () => {
+    it('should invalidate both Redis caches and return a success message', async () => {
       prisma.user.findUnique.mockResolvedValue(createMockUser({ email: 'me@example.com' }));
+      prisma.customer.update.mockResolvedValue({ apiKeyHash: 'hash-abc' });
 
       const result = await service.deleteAccount('user-123', 'me@example.com');
 
       expect(redis.del).toHaveBeenCalledWith('user:user-123');
+      expect(redis.del).toHaveBeenCalledWith('apikey:hash-abc');
       expect(result).toEqual({ message: 'Account deleted successfully' });
     });
   });

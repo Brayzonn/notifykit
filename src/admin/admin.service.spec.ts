@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { RedisService } from '@/redis/redis.service';
 import { PlatformEmailStatus } from '@prisma/client';
 
 const makeLog = (overrides: Partial<Record<string, any>> = {}) => ({
@@ -36,6 +37,7 @@ describe('AdminService — platform email logs', () => {
       providers: [
         AdminService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RedisService, useValue: { del: jest.fn() } },
       ],
     }).compile();
 

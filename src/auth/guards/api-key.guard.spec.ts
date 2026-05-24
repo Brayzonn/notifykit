@@ -6,8 +6,15 @@ import {
 } from '@nestjs/common';
 import { ApiKeyGuard } from './api-key.guard';
 import { PrismaService } from '@/prisma/prisma.service';
-import { createMockCustomer, type CustomerWithRelations } from '../../../test/helpers/mock-factories';
-import { createMockPrismaService, type MockedPrismaService } from '../../../test/helpers/test-utils';
+import { RedisService } from '@/redis/redis.service';
+import {
+  createMockCustomer,
+  type CustomerWithRelations,
+} from '../../../test/helpers/mock-factories';
+import {
+  createMockPrismaService,
+  type MockedPrismaService,
+} from '../../../test/helpers/test-utils';
 import * as crypto from 'crypto';
 
 type RequestWithCustomer = {
@@ -21,7 +28,17 @@ describe('ApiKeyGuard', () => {
 
   const mockPrismaService = createMockPrismaService();
 
-  const createMockExecutionContext = (request: RequestWithCustomer): ExecutionContext => {
+  const mockRedisService = {
+    remember: jest.fn(
+      (_key: string, _ttl: number, cb: () => unknown): Promise<unknown> =>
+        Promise.resolve(cb()),
+    ),
+    del: jest.fn(),
+  };
+
+  const createMockExecutionContext = (
+    request: RequestWithCustomer,
+  ): ExecutionContext => {
     return {
       switchToHttp: jest.fn().mockReturnValue({
         getRequest: jest.fn().mockReturnValue(request),
@@ -37,6 +54,7 @@ describe('ApiKeyGuard', () => {
       providers: [
         ApiKeyGuard,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile();
 
@@ -550,6 +568,67 @@ describe('ApiKeyGuard', () => {
       const result = await guard.canActivate(context);
 
       expect(result).toBe(true);
+    });
+  });
+
+  describe('Auth caching', () => {
+    const validApiKey = 'nh_' + 'c'.repeat(64);
+    const apiKeyHash = crypto
+      .createHash('sha256')
+      .update(validApiKey)
+      .digest('hex');
+
+    it('reads through the apikey cache with a 60s TTL', async () => {
+      prisma.customer.findUnique.mockResolvedValue(
+        createMockCustomer({
+          apiKeyHash,
+          isActive: true,
+          user: { id: 'user-123', deletedAt: null },
+        }),
+      );
+
+      const context = createMockExecutionContext({
+        headers: { 'x-api-key': validApiKey },
+      });
+      await guard.canActivate(context);
+
+      expect(mockRedisService.remember).toHaveBeenCalledWith(
+        `apikey:${apiKeyHash}`,
+        60,
+        expect.any(Function),
+      );
+    });
+
+    it('coerces ISO-string dates from a cache hit back into Date objects', async () => {
+      // Simulate a cache HIT: remember returns a JSON-deserialized record
+      // where Date fields are ISO strings, bypassing the loader.
+      mockRedisService.remember.mockResolvedValueOnce({
+        id: 'cust-1',
+        email: 'c@example.com',
+        plan: 'FREE',
+        monthlyLimit: 100,
+        customMonthlyLimit: null,
+        usageCount: 5,
+        usageResetAt: '2026-06-01T00:00:00.000Z',
+        billingCycleStartAt: '2026-05-01T00:00:00.000Z',
+        isActive: true,
+        subscriptionStatus: null,
+        paymentProvider: null,
+        providerCustomerId: null,
+        providerSubscriptionId: null,
+        subscriptionEndDate: '2026-07-01T00:00:00.000Z',
+        user: { id: 'user-1', deletedAt: null },
+      });
+
+      const request: RequestWithCustomer = {
+        headers: { 'x-api-key': validApiKey },
+      };
+      const context = createMockExecutionContext(request);
+      await guard.canActivate(context);
+
+      expect(request.customer?.usageResetAt).toBeInstanceOf(Date);
+      expect(request.customer?.billingCycleStartAt).toBeInstanceOf(Date);
+      expect(request.customer?.subscriptionEndDate).toBeInstanceOf(Date);
     });
   });
 });

@@ -8,14 +8,19 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { PrismaService } from '@/prisma/prisma.service';
+import { RedisService } from '@/redis/redis.service';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
   private readonly logger = new Logger(ApiKeyGuard.name);
   private readonly API_KEY_REGEX = /^nh_[a-f0-9]{64}$/;
+  private readonly CACHE_TTL_SECONDS = 60;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -40,31 +45,38 @@ export class ApiKeyGuard implements CanActivate {
 
     const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
 
-    const customer = await this.prisma.customer.findUnique({
-      where: { apiKeyHash },
-      select: {
-        id: true,
-        email: true,
-        plan: true,
-        monthlyLimit: true,
-        customMonthlyLimit: true,
-        usageCount: true,
-        usageResetAt: true,
-        billingCycleStartAt: true,
-        isActive: true,
-        subscriptionStatus: true,
-        paymentProvider: true,
-        providerCustomerId: true,
-        providerSubscriptionId: true,
-        subscriptionEndDate: true,
-        user: {
+    // Read-through cache (60s). Invalidated explicitly on key regeneration and
+    // account deletion/deactivation; plan/subscription changes self-heal via TTL.
+    const customer = await this.redis.remember(
+      `apikey:${apiKeyHash}`,
+      this.CACHE_TTL_SECONDS,
+      () =>
+        this.prisma.customer.findUnique({
+          where: { apiKeyHash },
           select: {
             id: true,
-            deletedAt: true,
+            email: true,
+            plan: true,
+            monthlyLimit: true,
+            customMonthlyLimit: true,
+            usageCount: true,
+            usageResetAt: true,
+            billingCycleStartAt: true,
+            isActive: true,
+            subscriptionStatus: true,
+            paymentProvider: true,
+            providerCustomerId: true,
+            providerSubscriptionId: true,
+            subscriptionEndDate: true,
+            user: {
+              select: {
+                id: true,
+                deletedAt: true,
+              },
+            },
           },
-        },
-      },
-    });
+        }),
+    );
 
     if (!customer) {
       throw new UnauthorizedException({
@@ -97,13 +109,15 @@ export class ApiKeyGuard implements CanActivate {
       monthlyLimit: customer.monthlyLimit,
       customMonthlyLimit: customer.customMonthlyLimit,
       usageCount: customer.usageCount,
-      usageResetAt: customer.usageResetAt,
-      billingCycleStartAt: customer.billingCycleStartAt,
+      usageResetAt: new Date(customer.usageResetAt),
+      billingCycleStartAt: new Date(customer.billingCycleStartAt),
       subscriptionStatus: customer.subscriptionStatus ?? undefined,
       paymentProvider: customer.paymentProvider ?? undefined,
       providerCustomerId: customer.providerCustomerId ?? undefined,
       providerSubscriptionId: customer.providerSubscriptionId ?? undefined,
-      subscriptionEndDate: customer.subscriptionEndDate ?? undefined,
+      subscriptionEndDate: customer.subscriptionEndDate
+        ? new Date(customer.subscriptionEndDate)
+        : undefined,
     };
 
     return true;
