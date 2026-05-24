@@ -247,7 +247,8 @@ model Job {
   emailEvents  EmailEvent[]
 
   @@unique([customerId, idempotencyKey])
-  @@index([customerId])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([customerId, status, createdAt(sort: Desc)])
   @@index([status])
   @@index([type])
   @@index([createdAt(sort: Desc)])
