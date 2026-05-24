@@ -3,6 +3,7 @@ import { WebhookWorkerProcessor } from './webhook-worker.processor';
 import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '../queue.service';
+import { EncryptionService } from '@/common/encryption/encryption.service';
 import { Job } from 'bullmq';
 import { JobStatus, DeliveryStatus, JobType, Prisma } from '@prisma/client';
 import { of, throwError } from 'rxjs';
@@ -34,6 +35,11 @@ describe('WebhookWorkerProcessor', () => {
 
   const mockQueueService: MockedQueueService = {
     moveToDeadLetterQueue: jest.fn(),
+  };
+
+  const mockEncryptionService = {
+    decrypt: jest.fn((value: string) => value),
+    encrypt: jest.fn((value: string) => value),
   };
 
   const createMockJob = (data: any, attemptsMade = 0): Partial<Job> => ({
@@ -81,6 +87,7 @@ describe('WebhookWorkerProcessor', () => {
         { provide: HttpService, useValue: mockHttpService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: QueueService, useValue: mockQueueService },
+        { provide: EncryptionService, useValue: mockEncryptionService },
       ],
     }).compile();
 

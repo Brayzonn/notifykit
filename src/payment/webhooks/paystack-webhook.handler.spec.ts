@@ -17,7 +17,11 @@ import {
   type MockedConfigService,
   type MockedEmailService,
 } from '../../../test/helpers/test-utils';
-import { PaymentProvider, CustomerPlan, SubscriptionStatus } from '@prisma/client';
+import {
+  PaymentProvider,
+  CustomerPlan,
+  SubscriptionStatus,
+} from '@prisma/client';
 
 type MockedBillingService = {
   handleSubscriptionActivated: jest.Mock;
@@ -69,14 +73,26 @@ describe('PaystackWebhookHandler', () => {
     findActiveSubscriptionByCustomer: jest.fn(),
   };
   const mockQueueService = {
-    schedulePaystackSubscriptionLink: jest.fn().mockResolvedValue({ id: 'fake-job' }),
+    schedulePaystackSubscriptionLink: jest
+      .fn()
+      .mockResolvedValue({ id: 'fake-job' }),
   };
   const mockWebhookEventLog = {
     markProcessed: jest.fn().mockResolvedValue(true),
+    unmarkProcessed: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
     jest.useFakeTimers();
+
+    mockConfigService.get.mockImplementation((key: string) => {
+      const config: Record<string, string> = {
+        PAYSTACK_SECRET_KEY: PAYSTACK_SECRET,
+        PAYSTACK_INDIE_PLAN_ID: INDIE_PLAN_CODE,
+        PAYSTACK_STARTUP_PLAN_ID: STARTUP_PLAN_CODE,
+      };
+      return config[key];
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -97,16 +113,6 @@ describe('PaystackWebhookHandler', () => {
     configService = module.get(ConfigService);
     emailService = module.get(EmailService);
 
-    configService.get.mockImplementation((key: string) => {
-      const config: Record<string, string> = {
-        PAYSTACK_SECRET_KEY: PAYSTACK_SECRET,
-        PAYSTACK_INDIE_PLAN_ID: INDIE_PLAN_CODE,
-        PAYSTACK_STARTUP_PLAN_ID: STARTUP_PLAN_CODE,
-      };
-      return config[key];
-    });
-
-    // afterEach's jest.resetAllMocks wipes resolved values; re-prime here.
     mockWebhookEventLog.markProcessed.mockResolvedValue(true);
     mockQueueService.schedulePaystackSubscriptionLink.mockResolvedValue({
       id: 'fake-job',
@@ -153,7 +159,11 @@ describe('PaystackWebhookHandler', () => {
     const baseData = {
       reference: 'ref_123',
       metadata: { customerId: 'customer-123', plan: CustomerPlan.INDIE },
-      customer: { email: 'customer@example.com', customer_code: 'CUS_abc123', id: 42 },
+      customer: {
+        email: 'customer@example.com',
+        customer_code: 'CUS_abc123',
+        id: 42,
+      },
       plan: { plan_code: INDIE_PLAN_CODE, name: 'Indie' },
     };
 
@@ -167,7 +177,9 @@ describe('PaystackWebhookHandler', () => {
         }),
       );
 
-      const { payload, signature } = sign(makeEvent('charge.success', baseData));
+      const { payload, signature } = sign(
+        makeEvent('charge.success', baseData),
+      );
 
       await handler.handle(payload, signature);
 
@@ -181,7 +193,9 @@ describe('PaystackWebhookHandler', () => {
           nextBillingDate: null,
         },
       );
-      expect(mockQueueService.schedulePaystackSubscriptionLink).toHaveBeenCalledWith({
+      expect(
+        mockQueueService.schedulePaystackSubscriptionLink,
+      ).toHaveBeenCalledWith({
         customerId: 'customer-123',
         customerCode: 'CUS_abc123',
         customerNumericId: 42,
@@ -206,7 +220,9 @@ describe('PaystackWebhookHandler', () => {
         planCode: INDIE_PLAN_CODE,
       });
 
-      const { payload, signature } = sign(makeEvent('charge.success', baseData));
+      const { payload, signature } = sign(
+        makeEvent('charge.success', baseData),
+      );
 
       await handler.handle(payload, signature);
 
@@ -215,12 +231,16 @@ describe('PaystackWebhookHandler', () => {
         new Date('2026-06-04'),
       );
       expect(billingService.handleSubscriptionActivated).not.toHaveBeenCalled();
-      expect(mockQueueService.schedulePaystackSubscriptionLink).not.toHaveBeenCalled();
+      expect(
+        mockQueueService.schedulePaystackSubscriptionLink,
+      ).not.toHaveBeenCalled();
     });
 
     it('should warn and skip when the customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
-      const { payload, signature } = sign(makeEvent('charge.success', baseData));
+      const { payload, signature } = sign(
+        makeEvent('charge.success', baseData),
+      );
 
       await handler.handle(payload, signature);
 
@@ -237,7 +257,9 @@ describe('PaystackWebhookHandler', () => {
       await handler.handle(payload, signature);
 
       expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Payment received without subscription metadata'),
+        expect.stringContaining(
+          'Payment received without subscription metadata',
+        ),
       );
       expect(billingService.handleSubscriptionActivated).not.toHaveBeenCalled();
     });
@@ -251,7 +273,9 @@ describe('PaystackWebhookHandler', () => {
       await handler.handle(payload, signature);
 
       expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Payment received without subscription metadata'),
+        expect.stringContaining(
+          'Payment received without subscription metadata',
+        ),
       );
       expect(billingService.handleSubscriptionActivated).not.toHaveBeenCalled();
     });
@@ -265,7 +289,9 @@ describe('PaystackWebhookHandler', () => {
       await handler.handle(payload, signature);
 
       expect(loggerSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Payment received without subscription metadata'),
+        expect.stringContaining(
+          'Payment received without subscription metadata',
+        ),
       );
       expect(billingService.handleSubscriptionActivated).not.toHaveBeenCalled();
     });
@@ -287,13 +313,15 @@ describe('PaystackWebhookHandler', () => {
     };
 
     it('should update the customer with subscription code and next billing date', async () => {
-      prisma.customer.findFirst.mockResolvedValue(mockCustomer);
+      prisma.customer.findUnique.mockResolvedValue(mockCustomer);
 
-      const { payload, signature } = sign(makeEvent('subscription.create', baseData));
+      const { payload, signature } = sign(
+        makeEvent('subscription.create', baseData),
+      );
 
       await handler.handle(payload, signature);
 
-      expect(prisma.customer.findFirst).toHaveBeenCalledWith({
+      expect(prisma.customer.findUnique).toHaveBeenCalledWith({
         where: { providerCustomerId: 'CUS_abc123' },
       });
       expect(prisma.customer.update).toHaveBeenCalledWith({
@@ -308,7 +336,7 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should handle the STARTUP plan code correctly', async () => {
-      prisma.customer.findFirst.mockResolvedValue(mockCustomer);
+      prisma.customer.findUnique.mockResolvedValue(mockCustomer);
 
       const { payload, signature } = sign(
         makeEvent('subscription.create', {
@@ -323,7 +351,7 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should skip when the subscription is already linked', async () => {
-      prisma.customer.findFirst.mockResolvedValue(
+      prisma.customer.findUnique.mockResolvedValue(
         createMockCustomer({
           providerCustomerId: 'CUS_abc123',
           providerSubscriptionId: 'SUB_abc123',
@@ -331,7 +359,9 @@ describe('PaystackWebhookHandler', () => {
       );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'log');
-      const { payload, signature } = sign(makeEvent('subscription.create', baseData));
+      const { payload, signature } = sign(
+        makeEvent('subscription.create', baseData),
+      );
 
       await handler.handle(payload, signature);
 
@@ -343,7 +373,10 @@ describe('PaystackWebhookHandler', () => {
 
     it('should warn and skip when required data is missing', async () => {
       const { payload, signature } = sign(
-        makeEvent('subscription.create', { ...baseData, subscription_code: undefined }),
+        makeEvent('subscription.create', {
+          ...baseData,
+          subscription_code: undefined,
+        }),
       );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'warn');
@@ -371,9 +404,11 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should warn and skip when the customer is not found', async () => {
-      prisma.customer.findFirst.mockResolvedValue(null);
+      prisma.customer.findUnique.mockResolvedValue(null);
 
-      const { payload, signature } = sign(makeEvent('subscription.create', baseData));
+      const { payload, signature } = sign(
+        makeEvent('subscription.create', baseData),
+      );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'warn');
       await handler.handle(payload, signature);
@@ -385,10 +420,13 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should warn and skip when next_payment_date is absent', async () => {
-      prisma.customer.findFirst.mockResolvedValue(mockCustomer);
+      prisma.customer.findUnique.mockResolvedValue(mockCustomer);
 
       const { payload, signature } = sign(
-        makeEvent('subscription.create', { ...baseData, next_payment_date: undefined }),
+        makeEvent('subscription.create', {
+          ...baseData,
+          next_payment_date: undefined,
+        }),
       );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'warn');
@@ -411,11 +449,15 @@ describe('PaystackWebhookHandler', () => {
 
       await handler.handle(payload, signature);
 
-      expect(billingService.handleSubscriptionCancelled).toHaveBeenCalledWith('SUB_abc123');
+      expect(billingService.handleSubscriptionCancelled).toHaveBeenCalledWith(
+        'SUB_abc123',
+      );
     });
 
     it('should warn and skip when subscription code is missing', async () => {
-      const { payload, signature } = sign(makeEvent('subscription.disable', {}));
+      const { payload, signature } = sign(
+        makeEvent('subscription.disable', {}),
+      );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'warn');
       await handler.handle(payload, signature);
@@ -439,13 +481,15 @@ describe('PaystackWebhookHandler', () => {
     const baseData = { subscription_code: 'SUB_abc123', amount: 4900 };
 
     beforeEach(() => {
-      prisma.customer.findFirst.mockResolvedValue(mockCustomer);
+      prisma.customer.findUnique.mockResolvedValue(mockCustomer);
       prisma.customer.update.mockResolvedValue(mockCustomer);
       emailService.sendPaymentFailedEmail.mockResolvedValue(undefined);
     });
 
     it('should mark the subscription as PAST_DUE', async () => {
-      const { payload, signature } = sign(makeEvent('invoice.payment_failed', baseData));
+      const { payload, signature } = sign(
+        makeEvent('invoice.payment_failed', baseData),
+      );
 
       await handler.handle(payload, signature);
 
@@ -456,7 +500,9 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should send a payment failed email', async () => {
-      const { payload, signature } = sign(makeEvent('invoice.payment_failed', baseData));
+      const { payload, signature } = sign(
+        makeEvent('invoice.payment_failed', baseData),
+      );
 
       await handler.handle(payload, signature);
 
@@ -483,7 +529,9 @@ describe('PaystackWebhookHandler', () => {
 
     it('should default amount to 0 when absent', async () => {
       const { payload, signature } = sign(
-        makeEvent('invoice.payment_failed', { subscription_code: 'SUB_abc123' }),
+        makeEvent('invoice.payment_failed', {
+          subscription_code: 'SUB_abc123',
+        }),
       );
 
       await handler.handle(payload, signature);
@@ -494,7 +542,9 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should warn and skip when subscription code is missing', async () => {
-      const { payload, signature } = sign(makeEvent('invoice.payment_failed', {}));
+      const { payload, signature } = sign(
+        makeEvent('invoice.payment_failed', {}),
+      );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'warn');
       await handler.handle(payload, signature);
@@ -506,9 +556,11 @@ describe('PaystackWebhookHandler', () => {
     });
 
     it('should warn and skip when the customer is not found', async () => {
-      prisma.customer.findFirst.mockResolvedValue(null);
+      prisma.customer.findUnique.mockResolvedValue(null);
 
-      const { payload, signature } = sign(makeEvent('invoice.payment_failed', baseData));
+      const { payload, signature } = sign(
+        makeEvent('invoice.payment_failed', baseData),
+      );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'warn');
       await handler.handle(payload, signature);
@@ -525,7 +577,9 @@ describe('PaystackWebhookHandler', () => {
       );
 
       const loggerSpy = jest.spyOn(handler['logger'], 'error');
-      const { payload, signature } = sign(makeEvent('invoice.payment_failed', baseData));
+      const { payload, signature } = sign(
+        makeEvent('invoice.payment_failed', baseData),
+      );
 
       const result = await handler.handle(payload, signature);
 
@@ -574,7 +628,9 @@ describe('PaystackWebhookHandler', () => {
 
       const loggerSpy = jest.spyOn(handler['logger'], 'error');
 
-      await expect(handler.handle(payload, signature)).rejects.toThrow('Database error');
+      await expect(handler.handle(payload, signature)).rejects.toThrow(
+        'Database error',
+      );
       expect(loggerSpy).toHaveBeenCalledWith(
         'Error processing webhook: Database error',
         expect.any(Error),
