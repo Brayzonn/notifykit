@@ -1585,6 +1585,7 @@ export class UserService {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: {
+        id: true,
         plan: true,
         monthlyLimit: true,
         customMonthlyLimit: true,
@@ -1598,6 +1599,17 @@ export class UserService {
       throw new NotFoundException('Customer record not found');
     }
 
+    const emailsSent =
+      customer.plan === CustomerPlan.FREE
+        ? 0
+        : await this.prisma.job.count({
+            where: {
+              customerId: customer.id,
+              type: JobType.EMAIL,
+              createdAt: { gte: customer.billingCycleStartAt },
+            },
+          });
+
     const effectiveLimit = customer.customMonthlyLimit ?? customer.monthlyLimit;
     const usagePercentage = (customer.usageCount / effectiveLimit) * 100;
     const remaining = effectiveLimit - customer.usageCount;
@@ -1609,6 +1621,7 @@ export class UserService {
       plan: customer.plan,
       monthlyLimit: effectiveLimit,
       usageCount: customer.usageCount,
+      emailsSent,
       remaining: remaining > 0 ? remaining : 0,
       usagePercentage: formattedPercentage,
       usageResetAt: customer.usageResetAt,

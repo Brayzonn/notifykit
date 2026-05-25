@@ -105,6 +105,7 @@ export interface UsageStats {
   plan: 'FREE' | 'INDIE' | 'STARTUP';
   monthlyLimit: number;
   usageCount: number;
+  emailsSent: number;
   remaining: number;
   usagePercentage: string;
   usageResetAt: Date;
