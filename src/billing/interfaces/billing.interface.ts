@@ -56,3 +56,18 @@ export interface Invoice {
   date: Date;
   pdfUrl?: string | null;
 }
+
+/**
+ * Outcome of reconciling a stale local billing window against the payment
+ * provider (the source of truth when a renewal webhook was missed).
+ * - RENEWED: active with a future period end; advance the cycle to `periodEnd`.
+ * - ACTIVE: provider confirms active but exposes no advanceable period end;
+ *   keep the customer unblocked but don't advance dates or downgrade.
+ * - LAPSED: provider confirms no longer active; safe to downgrade.
+ * - UNKNOWN: provider unreachable or errored; take no authoritative action.
+ */
+export type ProviderCycleResolution =
+  | { action: 'RENEWED'; periodEnd: Date }
+  | { action: 'ACTIVE' }
+  | { action: 'LAPSED' }
+  | { action: 'UNKNOWN' };

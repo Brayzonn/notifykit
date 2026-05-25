@@ -79,12 +79,64 @@ export class QuotaGuard implements CanActivate {
     customer: AuthenticatedCustomer,
     now: Date,
   ): Promise<void> {
+    const hash = customer.apiKeyHash;
+
     if (customer.plan === CustomerPlan.FREE) {
-      const dates = await this.billingService.resetMonthlyUsage(customer.id);
+      const dates = await this.billingService.resetMonthlyUsage(
+        customer.id,
+        hash,
+      );
       this.syncCustomerInMemory(customer, dates);
 
       this.logger.log(`Reset FREE plan customer: ${customer.email}`);
       return;
+    }
+
+    if (customer.providerSubscriptionId && customer.paymentProvider) {
+      const cycle = await this.billingService.resolveProviderCycle(
+        customer.providerSubscriptionId,
+        customer.paymentProvider,
+      );
+
+      if (cycle.action === 'RENEWED') {
+        const dates = await this.billingService.handleRenewalCharge(
+          customer.id,
+          cycle.periodEnd,
+          hash,
+        );
+        if (dates) this.syncCustomerInMemory(customer, dates);
+        this.logger.log(
+          `Reconciled ${customer.plan} customer via provider: ${customer.email}`,
+        );
+        return;
+      }
+
+      if (cycle.action === 'LAPSED') {
+        const dates = await this.billingService.downgradeToFreePlan(
+          customer.id,
+          'SUBSCRIPTION_EXPIRED',
+          hash,
+        );
+        customer.plan = CustomerPlan.FREE;
+        customer.monthlyLimit = getPlanLimit(CustomerPlan.FREE);
+        this.syncCustomerInMemory(customer, dates);
+        this.logger.warn(
+          `Customer ${customer.email} downgraded to FREE (provider reports lapsed)`,
+        );
+        return;
+      }
+
+      if (cycle.action === 'ACTIVE') {
+        const dates = await this.billingService.resetMonthlyUsage(
+          customer.id,
+          hash,
+        );
+        this.syncCustomerInMemory(customer, dates);
+        this.logger.log(
+          `Kept ${customer.plan} customer active (provider active, no period end): ${customer.email}`,
+        );
+        return;
+      }
     }
 
     const hasActiveSubscription =
@@ -93,21 +145,26 @@ export class QuotaGuard implements CanActivate {
       customer.subscriptionEndDate > now;
 
     if (hasActiveSubscription) {
-      const dates = await this.billingService.resetMonthlyUsage(customer.id);
+      const dates = await this.billingService.resetMonthlyUsage(
+        customer.id,
+        hash,
+      );
       this.syncCustomerInMemory(customer, dates);
 
       this.logger.log(`Reset ${customer.plan} customer: ${customer.email}`);
       return;
     }
 
-    // Subscription expired - check grace period
     const isInGracePeriod = this.checkGracePeriod(
       customer.subscriptionEndDate,
       now,
     );
 
     if (isInGracePeriod) {
-      const dates = await this.billingService.resetMonthlyUsage(customer.id);
+      const dates = await this.billingService.resetMonthlyUsage(
+        customer.id,
+        hash,
+      );
       this.syncCustomerInMemory(customer, dates);
 
       const daysLeft = this.getDaysLeft(customer.subscriptionEndDate, now);
@@ -115,10 +172,10 @@ export class QuotaGuard implements CanActivate {
         `Customer ${customer.email} in grace period (${daysLeft} days left)`,
       );
     } else {
-      // Grace period over - downgrade
       const dates = await this.billingService.downgradeToFreePlan(
         customer.id,
         'SUBSCRIPTION_EXPIRED',
+        hash,
       );
 
       customer.plan = CustomerPlan.FREE;

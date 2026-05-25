@@ -18,6 +18,7 @@ import {
   CreateCheckoutResponse,
   Currency,
   InvoicesResponse,
+  ProviderCycleResolution,
   SubscriptionDetailsResponse,
 } from '@/billing/interfaces/billing.interface';
 import { RedisService } from '@/redis/redis.service';
@@ -254,7 +255,8 @@ export class BillingService {
   async handleRenewalCharge(
     customerId: string,
     nextBillingDate: Date | null,
-  ): Promise<void> {
+    apiKeyHash?: string,
+  ): Promise<{ billingCycleStartAt: Date; usageResetAt: Date } | null> {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
       select: { id: true, userId: true, email: true },
@@ -262,7 +264,7 @@ export class BillingService {
 
     if (!customer) {
       this.logger.warn(`Renewal: customer ${customerId} not found`);
-      return;
+      return null;
     }
 
     const now = new Date();
@@ -286,10 +288,53 @@ export class BillingService {
     });
 
     await this.redis.del(`user:${customer.userId}`);
+    await this.invalidateApiKeyCache(apiKeyHash);
 
     this.logger.log(
       `Renewal applied for ${customer.email}; next billing ${effectiveNext.toISOString()}`,
     );
+
+    return { billingCycleStartAt: now, usageResetAt: effectiveNext };
+  }
+
+  /**
+   * Ask the payment provider whether a subscription is still active and when its
+   * current paid period ends. This is the single source of truth used by both
+   * the request-path self-heal and the nightly reconcile cron when local billing
+   * dates have gone stale (a missed renewal webhook).
+   */
+  async resolveProviderCycle(
+    providerSubscriptionId: string,
+    paymentProvider: string,
+  ): Promise<ProviderCycleResolution> {
+    try {
+      const sub = await this.paymentService.getSubscriptionStatus(
+        providerSubscriptionId,
+        paymentProvider,
+      );
+
+      // Couldn't read the subscription — treat as undetermined, never as lapsed.
+      if (!sub) return { action: 'UNKNOWN' };
+
+      if (!sub.isActive) return { action: 'LAPSED' };
+
+      if (sub.currentPeriodEnd && sub.currentPeriodEnd > new Date()) {
+        return { action: 'RENEWED', periodEnd: sub.currentPeriodEnd };
+      }
+
+      // Provider confirms active but gives no future period end to advance to
+      // (e.g. next_payment_date not yet populated right after a renewal).
+      return { action: 'ACTIVE' };
+    } catch (error) {
+      this.logger.warn(
+        `resolveProviderCycle failed for ${providerSubscriptionId}: ${getErrorMessage(error)}`,
+      );
+      return { action: 'UNKNOWN' };
+    }
+  }
+
+  private async invalidateApiKeyCache(apiKeyHash?: string): Promise<void> {
+    if (apiKeyHash) await this.redis.del(`apikey:${apiKeyHash}`);
   }
 
   async handleSubscriptionCancelled(subscriptionId: string) {
@@ -372,6 +417,7 @@ export class BillingService {
   async downgradeToFreePlan(
     customerId: string,
     reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED',
+    apiKeyHash?: string,
   ): Promise<{ billingCycleStartAt: Date; usageResetAt: Date }> {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
@@ -402,6 +448,8 @@ export class BillingService {
       },
     });
 
+    await this.invalidateApiKeyCache(apiKeyHash);
+
     try {
       await this.emailService.sendPlanDowngradedEmail({
         email: customer.email,
@@ -424,6 +472,7 @@ export class BillingService {
    */
   async resetMonthlyUsage(
     customerId: string,
+    apiKeyHash?: string,
   ): Promise<{ billingCycleStartAt: Date; usageResetAt: Date }> {
     const now = new Date();
     const resetDate = new Date(now);
@@ -437,6 +486,8 @@ export class BillingService {
         billingCycleStartAt: now,
       },
     });
+
+    await this.invalidateApiKeyCache(apiKeyHash);
 
     this.logger.log(
       `Reset usage for customer ${customerId}. Next reset: ${resetDate.toISOString()}`,

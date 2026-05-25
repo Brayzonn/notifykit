@@ -18,4 +18,5 @@ export interface AuthenticatedCustomer {
   providerCustomerId?: string;
   providerSubscriptionId?: string;
   subscriptionEndDate?: Date;
+  apiKeyHash?: string;
 }

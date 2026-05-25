@@ -1,11 +1,23 @@
 import { CheckoutSessionRequest } from '@/billing/interfaces/billing.interface';
 
+/**
+ * Normalized snapshot of a subscription as it currently exists at the provider.
+ * Used to reconcile local billing state when a renewal webhook was missed.
+ */
+export interface ProviderSubscriptionStatus {
+  status: string;
+  isActive: boolean;
+  currentPeriodEnd: Date | null;
+}
+
 export interface PaymentProvider {
   /**
    * Create a checkout session for upgrading to a plan
    * @returns The checkout URL where the user should be redirected
    */
-  createCheckoutSession(request: CheckoutSessionRequest): Promise<string | null>;
+  createCheckoutSession(
+    request: CheckoutSessionRequest,
+  ): Promise<string | null>;
 
   /**
    * Cancel a subscription
@@ -21,4 +33,12 @@ export interface PaymentProvider {
    * Get invoices for a customer
    */
   getInvoices(providerCustomerId: string): Promise<any[]>;
+
+  /**
+   * Fetch the live status of a subscription from the provider. Source of truth
+   * for reconciling local billing dates after a missed renewal webhook.
+   */
+  getSubscriptionStatus(
+    subscriptionId: string,
+  ): Promise<ProviderSubscriptionStatus | null>;
 }

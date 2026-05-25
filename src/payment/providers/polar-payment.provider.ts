@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
-import { PaymentProvider } from './payment-provider.interface';
+import {
+  PaymentProvider,
+  ProviderSubscriptionStatus,
+} from './payment-provider.interface';
 import { CheckoutSessionRequest } from '@/billing/interfaces/billing.interface';
 import { getErrorMessage } from '@/common/utils/error.util';
 
@@ -158,6 +161,28 @@ export class PolarPaymentProvider implements PaymentProvider {
         error,
       );
       throw new InternalServerErrorException('Failed to fetch invoices');
+    }
+  }
+
+  async getSubscriptionStatus(
+    subscriptionId: string,
+  ): Promise<ProviderSubscriptionStatus | null> {
+    if (!this.accessToken) return null;
+
+    try {
+      const sub = await this.polar.subscriptions.get({ id: subscriptionId });
+      return {
+        status: sub.status,
+        isActive: sub.status === 'active',
+        currentPeriodEnd: sub.currentPeriodEnd
+          ? new Date(sub.currentPeriodEnd)
+          : null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch Polar subscription ${subscriptionId}: ${getErrorMessage(error)}`,
+      );
+      return null;
     }
   }
 

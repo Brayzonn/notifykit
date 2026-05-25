@@ -7,7 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { PaymentProvider } from './payment-provider.interface';
+import {
+  PaymentProvider,
+  ProviderSubscriptionStatus,
+} from './payment-provider.interface';
 import { CheckoutSessionRequest } from '@/billing/interfaces/billing.interface';
 import { getAxiosErrorData } from '@/common/utils/error.util';
 
@@ -278,6 +281,18 @@ export class PaystackPaymentProvider implements PaymentProvider {
       );
       return null;
     }
+  }
+
+  async getSubscriptionStatus(
+    subscriptionId: string,
+  ): Promise<ProviderSubscriptionStatus | null> {
+    const sub = await this.getSubscriptionByCode(subscriptionId);
+    if (!sub) return null;
+    return {
+      status: sub.status,
+      isActive: sub.status === 'active',
+      currentPeriodEnd: sub.nextBillingDate,
+    };
   }
 
   /**

@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { CheckoutSessionRequest } from '@/billing/interfaces/billing.interface';
 import { PaymentProviderFactory } from './providers/payment-provider.factory';
+import { ProviderSubscriptionStatus } from './providers/payment-provider.interface';
 import { PaymentProvider } from '@prisma/client';
 
 @Injectable()
@@ -63,5 +64,15 @@ export class PaymentService {
       paymentProvider as PaymentProvider,
     );
     return provider.getInvoices(providerCustomerId);
+  }
+
+  async getSubscriptionStatus(
+    subscriptionId: string,
+    paymentProvider: string,
+  ): Promise<ProviderSubscriptionStatus | null> {
+    const provider = this.providerFactory.getProvider(
+      paymentProvider as PaymentProvider,
+    );
+    return provider.getSubscriptionStatus(subscriptionId);
   }
 }

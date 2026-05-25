@@ -19,6 +19,7 @@ type MockedPaymentService = {
   createCheckoutSession: jest.Mock;
   cancelSubscription: jest.Mock;
   getInvoices: jest.Mock;
+  getSubscriptionStatus: jest.Mock;
 };
 
 type MockedRedisService = {
@@ -37,6 +38,7 @@ describe('BillingService', () => {
     createCheckoutSession: jest.fn(),
     cancelSubscription: jest.fn(),
     getInvoices: jest.fn(),
+    getSubscriptionStatus: jest.fn(),
   };
 
   const mockRedisService: MockedRedisService = {
@@ -615,7 +617,7 @@ describe('BillingService', () => {
       const loggerSpy = jest.spyOn(service['logger'], 'warn');
       await expect(
         service.handleRenewalCharge('customer-123', new Date()),
-      ).resolves.toBeUndefined();
+      ).resolves.toBeNull();
 
       expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('customer-123'));
       expect(prisma.customer.update).not.toHaveBeenCalled();
@@ -654,6 +656,77 @@ describe('BillingService', () => {
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
 
       expect(nextBillingDate.getTime()).toBeGreaterThanOrEqual(before + thirtyDays - 1000);
+    });
+  });
+
+  // ── resolveProviderCycle ─────────────────────────────────────────────────────
+
+  describe('resolveProviderCycle', () => {
+    it('returns RENEWED when active with a future period end', async () => {
+      const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      paymentService.getSubscriptionStatus.mockResolvedValue({
+        status: 'active',
+        isActive: true,
+        currentPeriodEnd: periodEnd,
+      });
+
+      const result = await service.resolveProviderCycle('sub_1', 'POLAR');
+
+      expect(result).toEqual({ action: 'RENEWED', periodEnd });
+    });
+
+    it('returns ACTIVE when active but the period end is not in the future', async () => {
+      paymentService.getSubscriptionStatus.mockResolvedValue({
+        status: 'active',
+        isActive: true,
+        currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      });
+
+      const result = await service.resolveProviderCycle('sub_1', 'PAYSTACK');
+
+      expect(result).toEqual({ action: 'ACTIVE' });
+    });
+
+    it('returns ACTIVE when active with a null period end', async () => {
+      paymentService.getSubscriptionStatus.mockResolvedValue({
+        status: 'active',
+        isActive: true,
+        currentPeriodEnd: null,
+      });
+
+      const result = await service.resolveProviderCycle('sub_1', 'PAYSTACK');
+
+      expect(result).toEqual({ action: 'ACTIVE' });
+    });
+
+    it('returns LAPSED when the provider reports not active', async () => {
+      paymentService.getSubscriptionStatus.mockResolvedValue({
+        status: 'cancelled',
+        isActive: false,
+        currentPeriodEnd: null,
+      });
+
+      const result = await service.resolveProviderCycle('sub_1', 'POLAR');
+
+      expect(result).toEqual({ action: 'LAPSED' });
+    });
+
+    it('returns UNKNOWN when the subscription cannot be read (null)', async () => {
+      paymentService.getSubscriptionStatus.mockResolvedValue(null);
+
+      const result = await service.resolveProviderCycle('sub_1', 'POLAR');
+
+      expect(result).toEqual({ action: 'UNKNOWN' });
+    });
+
+    it('returns UNKNOWN when the provider lookup throws', async () => {
+      paymentService.getSubscriptionStatus.mockRejectedValue(
+        new Error('provider not implemented'),
+      );
+
+      const result = await service.resolveProviderCycle('sub_1', 'STRIPE');
+
+      expect(result).toEqual({ action: 'UNKNOWN' });
     });
   });
 

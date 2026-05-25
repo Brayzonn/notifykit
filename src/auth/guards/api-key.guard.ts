@@ -118,6 +118,7 @@ export class ApiKeyGuard implements CanActivate {
       subscriptionEndDate: customer.subscriptionEndDate
         ? new Date(customer.subscriptionEndDate)
         : undefined,
+      apiKeyHash,
     };
 
     return true;

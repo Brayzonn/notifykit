@@ -15,6 +15,8 @@ type MockedBillingService = {
   incrementUsage: jest.Mock;
   resetMonthlyUsage: jest.Mock;
   downgradeToFreePlan: jest.Mock;
+  resolveProviderCycle: jest.Mock;
+  handleRenewalCharge: jest.Mock;
 };
 
 const newCycleDates = () => {
@@ -41,12 +43,16 @@ describe('QuotaGuard', () => {
     incrementUsage: jest.fn(),
     resetMonthlyUsage: jest.fn(() => Promise.resolve(newCycleDates())),
     downgradeToFreePlan: jest.fn(() => Promise.resolve(newCycleDates())),
+    resolveProviderCycle: jest.fn(() => Promise.resolve({ action: 'UNKNOWN' })),
+    handleRenewalCharge: jest.fn(() => Promise.resolve(newCycleDates())),
   };
 
   const createMockExecutionContext = (request: any): ExecutionContext => {
     return {
       switchToHttp: jest.fn().mockReturnValue({
-        getRequest: jest.fn().mockReturnValue({ url: '/notification', ...request }),
+        getRequest: jest
+          .fn()
+          .mockReturnValue({ url: '/notification', ...request }),
         getResponse: jest.fn(),
       }),
       getHandler: jest.fn(),
@@ -89,7 +95,9 @@ describe('QuotaGuard', () => {
         await guard.canActivate(context);
       } catch (error) {
         expect(error).toBeInstanceOf(HttpException);
-        expect(error.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+        expect((error as HttpException).getStatus()).toBe(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       }
     });
   });
@@ -109,7 +117,10 @@ describe('QuotaGuard', () => {
 
       await guard.canActivate(context);
 
-      expect(authService.resetMonthlyUsage).toHaveBeenCalledWith(customer.id);
+      expect(authService.resetMonthlyUsage).toHaveBeenCalledWith(
+        customer.id,
+        undefined,
+      );
       // After reset (0) + increment (1) = 1
       expect(customer.usageCount).toBe(1);
     });
@@ -131,7 +142,10 @@ describe('QuotaGuard', () => {
 
       await guard.canActivate(context);
 
-      expect(authService.resetMonthlyUsage).toHaveBeenCalledWith(customer.id);
+      expect(authService.resetMonthlyUsage).toHaveBeenCalledWith(
+        customer.id,
+        undefined,
+      );
       // After reset (0) + increment (1) = 1
       expect(customer.usageCount).toBe(1);
     });
@@ -223,6 +237,7 @@ describe('QuotaGuard', () => {
       expect(authService.downgradeToFreePlan).toHaveBeenCalledWith(
         'customer-789',
         'SUBSCRIPTION_EXPIRED',
+        undefined,
       );
       expect(customer.plan).toBe(CustomerPlan.FREE);
       expect(customer.monthlyLimit).toBe(100);
@@ -306,6 +321,124 @@ describe('QuotaGuard', () => {
     });
   });
 
+  describe('Provider-Authoritative Reconciliation', () => {
+    const paidStaleCustomer = (overrides?: any) =>
+      createMockAuthenticatedCustomer({
+        plan: CustomerPlan.INDIE,
+        usageResetAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        usageCount: 5000,
+        monthlyLimit: 10000,
+        subscriptionStatus: SubscriptionStatus.ACTIVE,
+        // Stale local end date — looks expired locally, but the provider is the
+        // source of truth.
+        subscriptionEndDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+        paymentProvider: 'POLAR',
+        providerSubscriptionId: 'sub_123',
+        apiKeyHash: 'hash_abc',
+        ...overrides,
+      });
+
+    it('renews via provider when subscription is still active (no wrongful downgrade)', async () => {
+      const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      authService.resolveProviderCycle.mockResolvedValueOnce({
+        action: 'RENEWED',
+        periodEnd,
+      });
+      const customer = paidStaleCustomer();
+      const context = createMockExecutionContext({ customer });
+
+      const result = await guard.canActivate(context);
+
+      expect(authService.resolveProviderCycle).toHaveBeenCalledWith(
+        'sub_123',
+        'POLAR',
+      );
+      expect(authService.handleRenewalCharge).toHaveBeenCalledWith(
+        customer.id,
+        periodEnd,
+        'hash_abc',
+      );
+      expect(authService.downgradeToFreePlan).not.toHaveBeenCalled();
+      expect(customer.plan).toBe(CustomerPlan.INDIE);
+      expect(result).toBe(true);
+    });
+
+    it('downgrades when the provider reports the subscription lapsed', async () => {
+      authService.resolveProviderCycle.mockResolvedValueOnce({
+        action: 'LAPSED',
+      });
+      const customer = paidStaleCustomer();
+      const context = createMockExecutionContext({ customer });
+
+      await guard.canActivate(context);
+
+      expect(authService.downgradeToFreePlan).toHaveBeenCalledWith(
+        customer.id,
+        'SUBSCRIPTION_EXPIRED',
+        'hash_abc',
+      );
+      expect(customer.plan).toBe(CustomerPlan.FREE);
+      expect(customer.monthlyLimit).toBe(100);
+    });
+
+    it('keeps the customer active without downgrading when provider is active but has no period end (ACTIVE)', async () => {
+      authService.resolveProviderCycle.mockResolvedValueOnce({
+        action: 'ACTIVE',
+      });
+      // Local end date is well past grace — legacy logic would have downgraded,
+      // but a provider-confirmed-active customer must not be.
+      const customer = paidStaleCustomer({
+        subscriptionEndDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      });
+      const context = createMockExecutionContext({ customer });
+
+      await guard.canActivate(context);
+
+      expect(authService.resetMonthlyUsage).toHaveBeenCalledWith(
+        customer.id,
+        'hash_abc',
+      );
+      expect(authService.downgradeToFreePlan).not.toHaveBeenCalled();
+      expect(authService.handleRenewalCharge).not.toHaveBeenCalled();
+      expect(customer.plan).toBe(CustomerPlan.INDIE);
+    });
+
+    it('falls back to legacy grace handling when the provider is unreachable (UNKNOWN)', async () => {
+      authService.resolveProviderCycle.mockResolvedValueOnce({
+        action: 'UNKNOWN',
+      });
+      // subscriptionEndDate within grace so the legacy path resets rather than downgrades.
+      const customer = paidStaleCustomer({
+        subscriptionEndDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      });
+      const context = createMockExecutionContext({ customer });
+
+      await guard.canActivate(context);
+
+      expect(authService.handleRenewalCharge).not.toHaveBeenCalled();
+      expect(authService.resetMonthlyUsage).toHaveBeenCalledWith(
+        customer.id,
+        'hash_abc',
+      );
+      expect(authService.downgradeToFreePlan).not.toHaveBeenCalled();
+    });
+
+    it('does not consult the provider for FREE plan customers', async () => {
+      const customer = createMockAuthenticatedCustomer({
+        plan: CustomerPlan.FREE,
+        usageResetAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        paymentProvider: 'POLAR',
+        providerSubscriptionId: 'sub_123',
+      });
+      const context = createMockExecutionContext({ customer });
+
+      await guard.canActivate(context);
+
+      expect(authService.resolveProviderCycle).not.toHaveBeenCalled();
+      expect(authService.resetMonthlyUsage).toHaveBeenCalled();
+    });
+  });
+
   describe('Usage Limit Enforcement', () => {
     it('should check usageCount >= monthlyLimit', async () => {
       const customer = createMockAuthenticatedCustomer({
@@ -353,9 +486,11 @@ describe('QuotaGuard', () => {
         await guard.canActivate(context);
       } catch (error) {
         expect(error).toBeInstanceOf(ForbiddenException);
-        expect(error.message).toContain('1500');
-        expect(error.message).toContain('1000');
-        expect(error.message).toContain('Monthly usage limit exceeded');
+        expect((error as ForbiddenException).message).toContain('1500');
+        expect((error as ForbiddenException).message).toContain('1000');
+        expect((error as ForbiddenException).message).toContain(
+          'Monthly usage limit exceeded',
+        );
       }
     });
 
