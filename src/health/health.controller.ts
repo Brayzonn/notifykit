@@ -1,74 +1,33 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
 import {
-  HealthCheckService,
-  HealthCheck,
-  MemoryHealthIndicator,
-  DiskHealthIndicator,
-  PrismaHealthIndicator,
-  HealthIndicatorResult,
-} from '@nestjs/terminus';
+  Controller,
+  Get,
+  UseGuards,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
-import { getErrorMessage } from '@/common/utils/error.util';
+import { Public } from '@/auth/decorators/public.decorator';
 
 @Controller('health')
 export class HealthController {
   constructor(
-    private health: HealthCheckService,
-    private prismaHealth: PrismaHealthIndicator,
-    private prismaService: PrismaService,
-    private redisService: RedisService,
-    private memory: MemoryHealthIndicator,
-    private disk: DiskHealthIndicator,
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
-  @Get()
-  @IpRateLimit(20)
-  @UseGuards(IpRateLimitGuard)
-  @HealthCheck()
-  check() {
-    return this.health.check([
-      () => this.prismaHealth.pingCheck('database', this.prismaService as any),
-      () => this.checkRedis(),
-      () => this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),
-      () =>
-        this.disk.checkStorage('storage', {
-          path: '/',
-          thresholdPercent: 0.9,
-        }),
-    ]);
-  }
-
-  private async checkRedis(): Promise<HealthIndicatorResult> {
-    try {
-      await this.redisService.getClient().ping();
-      return {
-        redis: {
-          status: 'up',
-        },
-      };
-    } catch (error) {
-      return {
-        redis: {
-          status: 'down',
-          message: getErrorMessage(error),
-        },
-      };
-    }
-  }
-
   @Get('simple')
+  @Public()
   @IpRateLimit(30)
   @UseGuards(IpRateLimitGuard)
-  simpleCheck() {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      environment: process.env.NODE_ENV || 'development',
-    };
+  async simpleCheck() {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      await this.redis.getClient().ping();
+    } catch {
+      throw new ServiceUnavailableException({ status: 'down' });
+    }
+    return { status: 'ok' };
   }
 }
