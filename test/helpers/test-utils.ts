@@ -210,20 +210,25 @@ export type MockedConfigService = {
   getOrThrow: jest.Mock;
 };
 
+const MOCK_ENV: Record<string, any> = {
+  JWT_SECRET: 'test-secret',
+  JWT_REFRESH_SECRET: 'test-refresh-secret',
+  JWT_EXPIRES_IN: '15m',
+  JWT_REFRESH_EXPIRES_IN: '7d',
+  STRIPE_SECRET_KEY: 'sk_test_mock',
+  STRIPE_WEBHOOK_SECRET: 'whsec_test_mock',
+  SENDGRID_FROM_EMAIL: 'noreply@notifykit.dev',
+};
+
 export const createMockConfigService = (): MockedConfigService => ({
-  get: jest.fn((key: string, defaultValue?: any) => {
-    const config: Record<string, any> = {
-      JWT_SECRET: 'test-secret',
-      JWT_REFRESH_SECRET: 'test-refresh-secret',
-      JWT_EXPIRES_IN: '15m',
-      JWT_REFRESH_EXPIRES_IN: '7d',
-      STRIPE_SECRET_KEY: 'sk_test_mock',
-      STRIPE_WEBHOOK_SECRET: 'whsec_test_mock',
-      SENDGRID_FROM_EMAIL: 'noreply@notifykit.dev',
-    };
-    return config[key] || defaultValue;
+  get: jest.fn((key: string, defaultValue?: any) => MOCK_ENV[key] ?? defaultValue),
+  getOrThrow: jest.fn((key: string) => {
+    const value = MOCK_ENV[key];
+    if (value === undefined) {
+      throw new Error(`Configuration key "${key}" does not exist`);
+    }
+    return value;
   }),
-  getOrThrow: jest.fn(),
 });
 
 // Derived from EmailService so a new send* method triggers a TS error here

@@ -43,7 +43,8 @@ export class AuthService {
     private redis: RedisService,
     private emailService: EmailService,
   ) {
-    this.JWT_REFRESH_SECRET = this.configService.get('JWT_REFRESH_SECRET', '');
+    this.JWT_REFRESH_SECRET =
+      this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
     this.JWT_REFRESH_EXPIRES_IN = this.configService.get(
       'JWT_REFRESH_EXPIRES_IN',
       '7d',

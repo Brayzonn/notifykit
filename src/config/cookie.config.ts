@@ -7,10 +7,7 @@ export function setupCookies(
   app: INestApplication,
   configService: ConfigService,
 ): void {
-  const cookieSecret = configService.get<string>(
-    'COOKIE_SECRET',
-    'dev-cookie-secret-change-in-production',
-  );
+  const cookieSecret = configService.getOrThrow<string>('COOKIE_SECRET');
   app.use(cookieParser(cookieSecret));
 }
 
