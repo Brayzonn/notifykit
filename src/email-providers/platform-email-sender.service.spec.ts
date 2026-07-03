@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { PlatformEmailSenderService } from './platform-email-sender.service';
 import { ResendService } from './resend/resend.service';
@@ -20,7 +20,9 @@ function buildModule(env: Record<string, string>) {
       { provide: PostmarkService, useValue: postmark },
       {
         provide: ConfigService,
-        useValue: { get: jest.fn((key: string, fallback = '') => env[key] ?? fallback) },
+        useValue: {
+          get: jest.fn((key: string, fallback = '') => env[key] ?? fallback),
+        },
       },
     ],
   })
@@ -36,7 +38,9 @@ function buildModule(env: Record<string, string>) {
 describe('PlatformEmailSenderService', () => {
   describe('provider resolution', () => {
     it('uses only providers whose API keys are set', async () => {
-      const { service, resend, sendgrid } = await buildModule({ RESEND_API_KEY: 're_key' });
+      const { service, resend, sendgrid } = await buildModule({
+        RESEND_API_KEY: 're_key',
+      });
       (resend.sendEmail as jest.Mock).mockResolvedValue(undefined);
 
       await service.send(params);
@@ -47,7 +51,9 @@ describe('PlatformEmailSenderService', () => {
 
     it('throws when no providers are configured', async () => {
       const { service } = await buildModule({});
-      await expect(service.send(params)).rejects.toThrow('All platform email providers failed');
+      await expect(service.send(params)).rejects.toThrow(
+        'All platform email providers failed',
+      );
     });
   });
 
@@ -60,9 +66,18 @@ describe('PlatformEmailSenderService', () => {
         POSTMARK_API_KEY: 'pm_key',
       });
 
-      (resend.sendEmail as jest.Mock).mockImplementation(() => { order.push('resend'); return Promise.resolve(); });
-      (sendgrid.sendEmail as jest.Mock).mockImplementation(() => { order.push('sendgrid'); return Promise.resolve(); });
-      (postmark.sendEmail as jest.Mock).mockImplementation(() => { order.push('postmark'); return Promise.resolve(); });
+      (resend.sendEmail as jest.Mock).mockImplementation(() => {
+        order.push('resend');
+        return Promise.resolve();
+      });
+      (sendgrid.sendEmail as jest.Mock).mockImplementation(() => {
+        order.push('sendgrid');
+        return Promise.resolve();
+      });
+      (postmark.sendEmail as jest.Mock).mockImplementation(() => {
+        order.push('postmark');
+        return Promise.resolve();
+      });
 
       await service.send(params);
 
@@ -77,7 +92,9 @@ describe('PlatformEmailSenderService', () => {
         RESEND_API_KEY: 're_key',
         SENDGRID_API_KEY: 'sg_key',
       });
-      (resend.sendEmail as jest.Mock).mockRejectedValue(new Error('resend down'));
+      (resend.sendEmail as jest.Mock).mockRejectedValue(
+        new Error('resend down'),
+      );
       (sendgrid.sendEmail as jest.Mock).mockResolvedValue(undefined);
 
       await service.send(params);
@@ -92,8 +109,12 @@ describe('PlatformEmailSenderService', () => {
         SENDGRID_API_KEY: 'sg_key',
         POSTMARK_API_KEY: 'pm_key',
       });
-      (resend.sendEmail as jest.Mock).mockRejectedValue(new Error('resend down'));
-      (sendgrid.sendEmail as jest.Mock).mockRejectedValue(new Error('sendgrid down'));
+      (resend.sendEmail as jest.Mock).mockRejectedValue(
+        new Error('resend down'),
+      );
+      (sendgrid.sendEmail as jest.Mock).mockRejectedValue(
+        new Error('sendgrid down'),
+      );
       (postmark.sendEmail as jest.Mock).mockResolvedValue(undefined);
 
       await service.send(params);
@@ -106,8 +127,12 @@ describe('PlatformEmailSenderService', () => {
         RESEND_API_KEY: 're_key',
         SENDGRID_API_KEY: 'sg_key',
       });
-      (resend.sendEmail as jest.Mock).mockRejectedValue(new Error('resend down'));
-      (sendgrid.sendEmail as jest.Mock).mockRejectedValue(new Error('sendgrid down'));
+      (resend.sendEmail as jest.Mock).mockRejectedValue(
+        new Error('resend down'),
+      );
+      (sendgrid.sendEmail as jest.Mock).mockRejectedValue(
+        new Error('sendgrid down'),
+      );
 
       await expect(service.send(params)).rejects.toThrow('resend: resend down');
     });

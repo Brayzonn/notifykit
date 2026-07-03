@@ -9,7 +9,6 @@ import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/platform-email/email.service';
 import {
   createMockUser,
-  createMockCustomer,
   createMockRefreshToken,
 } from '../../test/helpers/mock-factories';
 import {
@@ -32,7 +31,6 @@ describe('AuthService', () => {
   let redis: ReturnType<typeof createMockRedisService>;
   let jwtService: ReturnType<typeof createMockJwtService>;
   let emailService: ReturnType<typeof createMockEmailService>;
-  let configService: ReturnType<typeof createMockConfigService>;
 
   beforeEach(async () => {
     const mockPrisma = createMockPrismaService();
@@ -57,7 +55,6 @@ describe('AuthService', () => {
     redis = mockRedis;
     jwtService = mockJwt;
     emailService = mockEmail;
-    configService = mockConfig;
   });
 
   afterEach(() => {
@@ -415,7 +412,10 @@ describe('AuthService', () => {
 
       await service.refreshToken(refreshToken);
 
-      const expectedHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      const expectedHash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
       expect(prisma.refreshToken.findUnique).toHaveBeenCalledWith({
         where: { token: expectedHash },
         include: { user: true },
@@ -553,7 +553,10 @@ describe('AuthService', () => {
 
       await service.logout(refreshToken);
 
-      const expectedHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      const expectedHash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
       expect(prisma.refreshToken.delete).toHaveBeenCalledWith({
         where: { token: expectedHash },
       });

@@ -1,9 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BadRequestException,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from './user.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -14,7 +10,10 @@ import { PostmarkDomainService } from '@/email-providers/postmark/postmark-domai
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/platform-email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
-import { createMockUser, createMockCustomer } from '../../test/helpers/mock-factories';
+import {
+  createMockUser,
+  createMockCustomer,
+} from '../../test/helpers/mock-factories';
 import {
   createMockPrismaService,
   createMockRedisService,
@@ -54,8 +53,6 @@ describe('UserService', () => {
   let redis: MockedRedisService;
   let emailService: Record<string, jest.Mock>;
   let sendGridDomainService: Record<string, jest.Mock>;
-  let resendDomainService: Record<string, jest.Mock>;
-  let postmarkDomainService: Record<string, jest.Mock>;
   let encryptionService: Record<string, jest.Mock>;
   let configService: { get: jest.Mock };
 
@@ -118,8 +115,6 @@ describe('UserService', () => {
     redis = module.get(RedisService);
     emailService = module.get(EmailService);
     sendGridDomainService = module.get(SendGridDomainService);
-    resendDomainService = module.get(ResendDomainService);
-    postmarkDomainService = module.get(PostmarkDomainService);
     encryptionService = module.get(EncryptionService);
     configService = module.get(ConfigService);
 
@@ -132,7 +127,9 @@ describe('UserService', () => {
 
     // Re-apply implementations reset by jest.resetAllMocks()
     mockEncryptionService.encrypt.mockImplementation((v: string) => `enc:${v}`);
-    mockEncryptionService.decrypt.mockImplementation((v: string) => v.replace('enc:', ''));
+    mockEncryptionService.decrypt.mockImplementation((v: string) =>
+      v.replace('enc:', ''),
+    );
   });
 
   afterEach(() => {
@@ -144,7 +141,9 @@ describe('UserService', () => {
   describe('getUserProfile', () => {
     it('should throw NotFoundException when user is not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.getUserProfile('user-123')).rejects.toThrow(NotFoundException);
+      await expect(service.getUserProfile('user-123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return the user without the password field', async () => {
@@ -165,7 +164,9 @@ describe('UserService', () => {
 
     it('should throw NotFoundException when user is not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.changePassword('user-123', dto)).rejects.toThrow(NotFoundException);
+      await expect(service.changePassword('user-123', dto)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException for OAuth users', async () => {
@@ -187,7 +188,9 @@ describe('UserService', () => {
     });
 
     it('should throw UnauthorizedException for an incorrect current password', async () => {
-      prisma.user.findUnique.mockResolvedValue(createMockUser({ provider: AuthProvider.EMAIL }));
+      prisma.user.findUnique.mockResolvedValue(
+        createMockUser({ provider: AuthProvider.EMAIL }),
+      );
       mockedArgon2.verify.mockResolvedValue(false);
 
       await expect(service.changePassword('user-123', dto)).rejects.toThrow(
@@ -196,7 +199,9 @@ describe('UserService', () => {
     });
 
     it('should hash the new password and update the user', async () => {
-      prisma.user.findUnique.mockResolvedValue(createMockUser({ provider: AuthProvider.EMAIL }));
+      prisma.user.findUnique.mockResolvedValue(
+        createMockUser({ provider: AuthProvider.EMAIL }),
+      );
       mockedArgon2.verify.mockResolvedValue(true);
       mockedArgon2.hash.mockResolvedValue('new-hashed-password');
 
@@ -210,7 +215,9 @@ describe('UserService', () => {
     });
 
     it('should invalidate the Redis cache and return success', async () => {
-      prisma.user.findUnique.mockResolvedValue(createMockUser({ provider: AuthProvider.EMAIL }));
+      prisma.user.findUnique.mockResolvedValue(
+        createMockUser({ provider: AuthProvider.EMAIL }),
+      );
       mockedArgon2.verify.mockResolvedValue(true);
       mockedArgon2.hash.mockResolvedValue('new-hashed');
 
@@ -231,7 +238,11 @@ describe('UserService', () => {
 
     beforeEach(() => {
       prisma.user.findUnique.mockResolvedValueOnce(
-        createMockUser({ id: 'user-123', email: 'old@example.com', provider: AuthProvider.EMAIL }),
+        createMockUser({
+          id: 'user-123',
+          email: 'old@example.com',
+          provider: AuthProvider.EMAIL,
+        }),
       );
       // Second findUnique: new email not taken
       prisma.user.findUnique.mockResolvedValueOnce(null);
@@ -299,14 +310,19 @@ describe('UserService', () => {
         expect.objectContaining({ email: 'new@example.com' }),
       );
       expect(emailService.sendEmailChangeConfirmation).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'old@example.com', newEmail: 'new@example.com' }),
+        expect.objectContaining({
+          email: 'old@example.com',
+          newEmail: 'new@example.com',
+        }),
       );
     });
 
     it('should skip password check for OAuth provider users', async () => {
       prisma.user.findUnique.mockReset();
       prisma.user.findUnique
-        .mockResolvedValueOnce(createMockUser({ provider: AuthProvider.GITHUB }))
+        .mockResolvedValueOnce(
+          createMockUser({ provider: AuthProvider.GITHUB }),
+        )
         .mockResolvedValueOnce(null);
 
       await expect(
@@ -362,8 +378,8 @@ describe('UserService', () => {
 
       await service.verifyNewEmail(NEW_EMAIL_TOKEN);
 
-      const setCall = redis.set.mock.calls.find(([key]) =>
-        key === 'email-change:user-123',
+      const setCall = redis.set.mock.calls.find(
+        ([key]) => key === 'email-change:user-123',
       );
       expect(setCall).toBeDefined();
       const saved = JSON.parse(setCall![1]);
@@ -373,7 +389,7 @@ describe('UserService', () => {
     it('should complete the email change when both sides have confirmed', async () => {
       const data = makeChangeData({ oldEmailConfirmed: true }); // old already confirmed
       redis.get
-        .mockResolvedValueOnce('user-123')        // token lookup
+        .mockResolvedValueOnce('user-123') // token lookup
         .mockResolvedValueOnce(JSON.stringify(data)) // change data for verify
         .mockResolvedValueOnce(JSON.stringify(data)); // change data inside completeEmailChange
 
@@ -384,7 +400,9 @@ describe('UserService', () => {
       const result = await service.verifyNewEmail(NEW_EMAIL_TOKEN);
 
       expect(prisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { email: 'new@example.com', emailVerified: true } }),
+        expect.objectContaining({
+          data: { email: 'new@example.com', emailVerified: true },
+        }),
       );
       expect(result.bothConfirmed).toBe(true);
     });
@@ -409,8 +427,8 @@ describe('UserService', () => {
 
       await service.confirmOldEmail(OLD_EMAIL_TOKEN);
 
-      const setCall = redis.set.mock.calls.find(([key]) =>
-        key === 'email-change:user-123',
+      const setCall = redis.set.mock.calls.find(
+        ([key]) => key === 'email-change:user-123',
       );
       const saved = JSON.parse(setCall![1]);
       expect(saved.oldEmailConfirmed).toBe(true);
@@ -475,9 +493,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when user is not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.deleteAccount('user-123', 'me@example.com')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.deleteAccount('user-123', 'me@example.com'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw UnauthorizedException when the confirm email does not match', async () => {
@@ -485,9 +503,9 @@ describe('UserService', () => {
         createMockUser({ email: 'real@example.com' }),
       );
 
-      await expect(service.deleteAccount('user-123', 'wrong@example.com')).rejects.toThrow(
-        'Email confirmation does not match',
-      );
+      await expect(
+        service.deleteAccount('user-123', 'wrong@example.com'),
+      ).rejects.toThrow('Email confirmation does not match');
     });
 
     it('should soft-delete the user by setting deletedAt', async () => {
@@ -504,7 +522,9 @@ describe('UserService', () => {
     });
 
     it('should deactivate the customer and delete all refresh tokens', async () => {
-      prisma.user.findUnique.mockResolvedValue(createMockUser({ email: 'me@example.com' }));
+      prisma.user.findUnique.mockResolvedValue(
+        createMockUser({ email: 'me@example.com' }),
+      );
       prisma.customer.update.mockResolvedValue({ apiKeyHash: 'hash-abc' });
 
       await service.deleteAccount('user-123', 'me@example.com');
@@ -520,7 +540,9 @@ describe('UserService', () => {
     });
 
     it('should invalidate both Redis caches and return a success message', async () => {
-      prisma.user.findUnique.mockResolvedValue(createMockUser({ email: 'me@example.com' }));
+      prisma.user.findUnique.mockResolvedValue(
+        createMockUser({ email: 'me@example.com' }),
+      );
       prisma.customer.update.mockResolvedValue({ apiKeyHash: 'hash-abc' });
 
       const result = await service.deleteAccount('user-123', 'me@example.com');
@@ -537,7 +559,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
-      await expect(service.getApiKey('user-123')).rejects.toThrow(NotFoundException);
+      await expect(service.getApiKey('user-123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException when no API key has been generated yet', async () => {
@@ -560,7 +584,10 @@ describe('UserService', () => {
 
       const result = await service.getApiKey('user-123');
 
-      expect(result).toMatchObject({ apiKey: 'nh_plaintextkey1234', firstTime: true });
+      expect(result).toMatchObject({
+        apiKey: 'nh_plaintextkey1234',
+        firstTime: true,
+      });
       expect(prisma.customer.update).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
         data: { apiKey: null },
@@ -569,7 +596,11 @@ describe('UserService', () => {
 
     it('should return a masked key on subsequent requests', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ apiKey: null, apiKeyHash: 'somehash', apiKeyLastFour: 'abcd' }),
+        createMockCustomer({
+          apiKey: null,
+          apiKeyHash: 'somehash',
+          apiKeyLastFour: 'abcd',
+        }),
       );
 
       const result = await service.getApiKey('user-123');
@@ -584,7 +615,11 @@ describe('UserService', () => {
   describe('regenerateApiKey', () => {
     it('should throw BadRequestException when confirm email does not match', async () => {
       await expect(
-        service.regenerateApiKey('user-123', 'me@example.com', 'wrong@example.com'),
+        service.regenerateApiKey(
+          'user-123',
+          'me@example.com',
+          'wrong@example.com',
+        ),
       ).rejects.toThrow('Confirmation email does not match');
     });
 
@@ -592,7 +627,11 @@ describe('UserService', () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.regenerateApiKey('user-123', 'me@example.com', 'me@example.com'),
+        service.regenerateApiKey(
+          'user-123',
+          'me@example.com',
+          'me@example.com',
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -629,9 +668,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
-      await expect(service.saveCustomerSendgridKey('user-123', API_KEY)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.saveCustomerSendgridKey('user-123', API_KEY),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException for FREE plan customers', async () => {
@@ -639,9 +678,9 @@ describe('UserService', () => {
         createMockCustomer({ plan: CustomerPlan.FREE }),
       );
 
-      await expect(service.saveCustomerSendgridKey('user-123', API_KEY)).rejects.toThrow(
-        'SendGrid API key is only available for paid plans',
-      );
+      await expect(
+        service.saveCustomerSendgridKey('user-123', API_KEY),
+      ).rejects.toThrow('SendGrid API key is only available for paid plans');
     });
 
     it('should throw BadRequestException for an invalid SendGrid API key', async () => {
@@ -650,38 +689,60 @@ describe('UserService', () => {
       );
       mockedAxios.get.mockRejectedValue(new Error('Unauthorized'));
 
-      await expect(service.saveCustomerSendgridKey('user-123', API_KEY)).rejects.toThrow(
-        'Invalid SendGrid API key',
-      );
+      await expect(
+        service.saveCustomerSendgridKey('user-123', API_KEY),
+      ).rejects.toThrow('Invalid SendGrid API key');
     });
 
     it('should encrypt the key before saving', async () => {
-      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-123', plan: CustomerPlan.INDIE });
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'customer-123',
+        plan: CustomerPlan.INDIE,
+      });
       mockedAxios.get.mockResolvedValue({ status: 200 });
       prisma.customerEmailProvider.findUnique.mockResolvedValue(null);
-      prisma.customerEmailProvider.aggregate.mockResolvedValue({ _max: { priority: null } });
+      prisma.customerEmailProvider.aggregate.mockResolvedValue({
+        _max: { priority: null },
+      });
       prisma.customerEmailProvider.upsert.mockResolvedValue({});
 
       await service.saveCustomerSendgridKey('user-123', API_KEY);
 
       expect(encryptionService.encrypt).toHaveBeenCalledWith(API_KEY);
       expect(prisma.customerEmailProvider.upsert).toHaveBeenCalledWith({
-        where: { customerId_provider: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID } },
-        create: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID, apiKey: `enc:${API_KEY}`, priority: 1 },
+        where: {
+          customerId_provider: {
+            customerId: 'customer-123',
+            provider: EmailProviderType.SENDGRID,
+          },
+        },
+        create: {
+          customerId: 'customer-123',
+          provider: EmailProviderType.SENDGRID,
+          apiKey: `enc:${API_KEY}`,
+          priority: 1,
+        },
         update: { apiKey: `enc:${API_KEY}` },
       });
     });
 
     it('should return a success message', async () => {
-      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-123', plan: CustomerPlan.INDIE });
+      prisma.customer.findUnique.mockResolvedValue({
+        id: 'customer-123',
+        plan: CustomerPlan.INDIE,
+      });
       mockedAxios.get.mockResolvedValue({ status: 200 });
       prisma.customerEmailProvider.findUnique.mockResolvedValue(null);
-      prisma.customerEmailProvider.aggregate.mockResolvedValue({ _max: { priority: null } });
+      prisma.customerEmailProvider.aggregate.mockResolvedValue({
+        _max: { priority: null },
+      });
       prisma.customerEmailProvider.upsert.mockResolvedValue({});
 
       const result = await service.saveCustomerSendgridKey('user-123', API_KEY);
 
-      expect(result).toEqual({ message: 'SendGrid API key saved successfully' });
+      expect(result).toEqual({
+        message: 'SendGrid API key saved successfully',
+      });
     });
   });
 
@@ -707,7 +768,12 @@ describe('UserService', () => {
 
       const result = await service.getCustomerSendgridKey('user-123');
 
-      expect(result).toEqual({ hasKey: true, addedAt, lastFour: '_key', priority: 1 });
+      expect(result).toEqual({
+        hasKey: true,
+        addedAt,
+        lastFour: '_key',
+        priority: 1,
+      });
     });
 
     it('should return hasKey: false with null addedAt when no key exists', async () => {
@@ -716,7 +782,12 @@ describe('UserService', () => {
 
       const result = await service.getCustomerSendgridKey('user-123');
 
-      expect(result).toEqual({ hasKey: false, addedAt: null, lastFour: null, priority: null });
+      expect(result).toEqual({
+        hasKey: false,
+        addedAt: null,
+        lastFour: null,
+        priority: null,
+      });
     });
   });
 
@@ -726,9 +797,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
-      await expect(service.removeCustomerSendgridKey('user-123')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.removeCustomerSendgridKey('user-123'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should delete email provider and sending domains then return a success message', async () => {
@@ -741,12 +812,20 @@ describe('UserService', () => {
       const result = await service.removeCustomerSendgridKey('user-123');
 
       expect(prisma.customerEmailProvider.deleteMany).toHaveBeenCalledWith({
-        where: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID },
+        where: {
+          customerId: 'customer-123',
+          provider: EmailProviderType.SENDGRID,
+        },
       });
       expect(prisma.customerSendingDomain.deleteMany).toHaveBeenCalledWith({
-        where: { customerId: 'customer-123', provider: EmailProviderType.SENDGRID },
+        where: {
+          customerId: 'customer-123',
+          provider: EmailProviderType.SENDGRID,
+        },
       });
-      expect(result).toEqual({ message: 'SendGrid API key removed successfully' });
+      expect(result).toEqual({
+        message: 'SendGrid API key removed successfully',
+      });
     });
   });
 
@@ -758,8 +837,16 @@ describe('UserService', () => {
       domainId: 12345,
       dnsRecords: [
         { type: 'cname', host: 'em.mail.example.com', value: 'sendgrid.net' },
-        { type: 'cname', host: 'dkim1._domainkey.mail.example.com', value: 'dkim1.sendgrid.net' },
-        { type: 'cname', host: 'dkim2._domainkey.mail.example.com', value: 'dkim2.sendgrid.net' },
+        {
+          type: 'cname',
+          host: 'dkim1._domainkey.mail.example.com',
+          value: 'dkim1.sendgrid.net',
+        },
+        {
+          type: 'cname',
+          host: 'dkim2._domainkey.mail.example.com',
+          value: 'dkim2.sendgrid.net',
+        },
       ],
       valid: false,
     };
@@ -771,18 +858,25 @@ describe('UserService', () => {
       prisma.customerSendingDomain.findFirst.mockResolvedValue(null);
       prisma.customerSendingDomain.findUnique.mockResolvedValue(null);
       prisma.customerEmailProvider.findMany.mockResolvedValue([
-        { provider: EmailProviderType.SENDGRID, apiKey: 'enc:SG.valid_key', addedAt: new Date(), priority: 1 },
+        {
+          provider: EmailProviderType.SENDGRID,
+          apiKey: 'enc:SG.valid_key',
+          addedAt: new Date(),
+          priority: 1,
+        },
       ]);
       prisma.customerSendingDomain.upsert.mockResolvedValue({});
-      mockSendGridDomainService.authenticateDomain.mockResolvedValue(mockAuthResult);
+      mockSendGridDomainService.authenticateDomain.mockResolvedValue(
+        mockAuthResult,
+      );
     });
 
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
-      await expect(service.requestDomainVerification('user-123', DOMAIN)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.requestDomainVerification('user-123', DOMAIN),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException for FREE plan', async () => {
@@ -790,9 +884,9 @@ describe('UserService', () => {
         createMockCustomer({ plan: CustomerPlan.FREE }),
       );
 
-      await expect(service.requestDomainVerification('user-123', DOMAIN)).rejects.toThrow(
-        'Custom domain is only available for paid plans',
-      );
+      await expect(
+        service.requestDomainVerification('user-123', DOMAIN),
+      ).rejects.toThrow('Custom domain is only available for paid plans');
     });
 
     it('should throw BadRequestException for an invalid domain format', async () => {
@@ -802,9 +896,13 @@ describe('UserService', () => {
     });
 
     it('should throw BadRequestException when the domain is already verified by another customer', async () => {
-      prisma.customerSendingDomain.findFirst.mockResolvedValue({ id: 'other-domain-id' });
+      prisma.customerSendingDomain.findFirst.mockResolvedValue({
+        id: 'other-domain-id',
+      });
 
-      await expect(service.requestDomainVerification('user-123', DOMAIN)).rejects.toThrow(
+      await expect(
+        service.requestDomainVerification('user-123', DOMAIN),
+      ).rejects.toThrow(
         'This domain is already registered by another customer',
       );
     });
@@ -818,13 +916,19 @@ describe('UserService', () => {
 
       await service.requestDomainVerification('user-123', DOMAIN);
 
-      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(999, 'SG.valid_key');
+      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(
+        999,
+        'SG.valid_key',
+      );
     });
 
     it('should call authenticateDomain and upsert to CustomerSendingDomain', async () => {
       await service.requestDomainVerification('user-123', DOMAIN);
 
-      expect(sendGridDomainService.authenticateDomain).toHaveBeenCalledWith(DOMAIN, 'SG.valid_key');
+      expect(sendGridDomainService.authenticateDomain).toHaveBeenCalledWith(
+        DOMAIN,
+        'SG.valid_key',
+      );
       expect(prisma.customerSendingDomain.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({
@@ -837,7 +941,10 @@ describe('UserService', () => {
     });
 
     it('should return domain, status pending, and DNS records', async () => {
-      const result = await service.requestDomainVerification('user-123', DOMAIN);
+      const result = await service.requestDomainVerification(
+        'user-123',
+        DOMAIN,
+      );
 
       expect(result.domain).toBe(DOMAIN);
       expect(result.status).toBe('pending');
@@ -852,7 +959,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
-      await expect(service.getDomainStatus('user-123')).rejects.toThrow(NotFoundException);
+      await expect(service.getDomainStatus('user-123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return status: false when no domain is configured', async () => {
@@ -861,18 +970,35 @@ describe('UserService', () => {
 
       const result = await service.getDomainStatus('user-123');
 
-      expect(result).toEqual({ status: false, message: 'No custom domain configured' });
+      expect(result).toEqual({
+        status: false,
+        message: 'No custom domain configured',
+      });
     });
 
     it('should return domain list when domains are configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
       prisma.customerSendingDomain.findMany.mockResolvedValue([
-        { domain: 'mail.example.com', provider: 'SENDGRID', verified: true, dnsRecords: null, requestedAt: new Date(), verifiedAt: new Date() },
+        {
+          domain: 'mail.example.com',
+          provider: 'SENDGRID',
+          verified: true,
+          dnsRecords: null,
+          requestedAt: new Date(),
+          verifiedAt: new Date(),
+        },
       ]);
 
       const result = await service.getDomainStatus('user-123');
 
-      expect(result).toMatchObject({ domains: expect.arrayContaining([expect.objectContaining({ domain: 'mail.example.com', verified: true })]) });
+      expect(result).toMatchObject({
+        domains: expect.arrayContaining([
+          expect.objectContaining({
+            domain: 'mail.example.com',
+            verified: true,
+          }),
+        ]),
+      });
     });
   });
 
@@ -882,12 +1008,23 @@ describe('UserService', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
 
-      await expect(service.removeDomain('user-123')).rejects.toThrow(NotFoundException);
+      await expect(service.removeDomain('user-123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should call deleteDomain when providerDomainId is set on a SENDGRID domain', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ sendingDomains: [{ id: 'sd-1', provider: 'SENDGRID', providerDomainId: '999', domain: 'mail.example.com' }] as any }),
+        createMockCustomer({
+          sendingDomains: [
+            {
+              id: 'sd-1',
+              provider: 'SENDGRID',
+              providerDomainId: '999',
+              domain: 'mail.example.com',
+            },
+          ] as any,
+        }),
       );
       prisma.customerEmailProvider.findMany.mockResolvedValue([
         { provider: EmailProviderType.SENDGRID, apiKey: 'enc:SG.valid_key' },
@@ -897,7 +1034,10 @@ describe('UserService', () => {
 
       await service.removeDomain('user-123');
 
-      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(999, 'SG.valid_key');
+      expect(sendGridDomainService.deleteDomain).toHaveBeenCalledWith(
+        999,
+        'SG.valid_key',
+      );
     });
 
     it('should delete all sending domains and return success', async () => {

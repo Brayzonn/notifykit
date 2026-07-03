@@ -247,9 +247,7 @@ export class PaystackPaymentProvider implements PaymentProvider {
    * Fetch a single subscription by its code. Returns next_payment_date and
    * status. Used on renewal to bump dates without trusting webhook payload.
    */
-  async getSubscriptionByCode(
-    subscriptionCode: string,
-  ): Promise<{
+  async getSubscriptionByCode(subscriptionCode: string): Promise<{
     subscriptionCode: string;
     nextBillingDate: Date | null;
     status: string;
@@ -276,7 +274,8 @@ export class PaystackPaymentProvider implements PaymentProvider {
     } catch (error) {
       this.logger.warn(
         `Failed to fetch Paystack subscription ${subscriptionCode}: ${
-          (getAxiosErrorData(error) as any)?.message ?? (error as Error).message
+          getAxiosErrorData<{ message?: string }>(error)?.message ??
+          (error as Error).message
         }`,
       );
       return null;
@@ -331,7 +330,8 @@ export class PaystackPaymentProvider implements PaymentProvider {
     } catch (error) {
       this.logger.warn(
         `Failed to list Paystack subscriptions for customer ${customerCodeOrNumericId}: ${
-          (getAxiosErrorData(error) as any)?.message ?? (error as Error).message
+          getAxiosErrorData<{ message?: string }>(error)?.message ??
+          (error as Error).message
         }`,
       );
       return null;

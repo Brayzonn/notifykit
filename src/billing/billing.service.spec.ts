@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentService } from '@/payment/payment.service';
@@ -12,7 +12,11 @@ import {
   type MockedPrismaService,
   type MockedEmailService,
 } from '../../test/helpers/test-utils';
-import { CustomerPlan, PaymentProvider, SubscriptionStatus } from '@prisma/client';
+import {
+  CustomerPlan,
+  PaymentProvider,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
 
 type MockedPaymentService = {
@@ -128,7 +132,9 @@ describe('BillingService', () => {
           subscriptionStatus: SubscriptionStatus.EXPIRED,
         }),
       );
-      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+      paymentService.createCheckoutSession.mockResolvedValue(
+        'https://checkout.url',
+      );
 
       await expect(
         service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
@@ -144,7 +150,9 @@ describe('BillingService', () => {
           subscriptionStatus: SubscriptionStatus.PAST_DUE,
         }),
       );
-      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+      paymentService.createCheckoutSession.mockResolvedValue(
+        'https://checkout.url',
+      );
 
       await expect(
         service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN'),
@@ -162,11 +170,20 @@ describe('BillingService', () => {
       // Second call: downgradeToFreePlan fetches by id with select
       prisma.customer.findUnique
         .mockResolvedValueOnce(expiredCustomer)
-        .mockResolvedValueOnce({ plan: CustomerPlan.STARTUP, email: expiredCustomer.email });
+        .mockResolvedValueOnce({
+          plan: CustomerPlan.STARTUP,
+          email: expiredCustomer.email,
+        });
 
-      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+      paymentService.createCheckoutSession.mockResolvedValue(
+        'https://checkout.url',
+      );
 
-      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN');
+      await service.createUpgradeCheckout(
+        'user-123',
+        CustomerPlan.INDIE,
+        'NGN',
+      );
 
       // downgradeToFreePlan must have run (two findUnique + one update)
       expect(prisma.customer.findUnique).toHaveBeenCalledTimes(2);
@@ -179,9 +196,15 @@ describe('BillingService', () => {
       prisma.customer.findUnique.mockResolvedValue(
         createMockCustomer({ plan: CustomerPlan.FREE }),
       );
-      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url/session');
+      paymentService.createCheckoutSession.mockResolvedValue(
+        'https://checkout.url/session',
+      );
 
-      const result = await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN');
+      const result = await service.createUpgradeCheckout(
+        'user-123',
+        CustomerPlan.INDIE,
+        'NGN',
+      );
 
       expect(result).toEqual({
         checkoutUrl: 'https://checkout.url/session',
@@ -201,7 +224,11 @@ describe('BillingService', () => {
       );
       paymentService.createCheckoutSession.mockResolvedValue(null);
 
-      const result = await service.createUpgradeCheckout('user-123', CustomerPlan.STARTUP, 'USD');
+      const result = await service.createUpgradeCheckout(
+        'user-123',
+        CustomerPlan.STARTUP,
+        'USD',
+      );
 
       expect(result.checkoutUrl).toBeNull();
     });
@@ -217,7 +244,11 @@ describe('BillingService', () => {
       );
       paymentService.createCheckoutSession.mockResolvedValue(null);
 
-      await service.createUpgradeCheckout('user-123', CustomerPlan.STARTUP, 'USD');
+      await service.createUpgradeCheckout(
+        'user-123',
+        CustomerPlan.STARTUP,
+        'USD',
+      );
 
       expect(paymentService.createCheckoutSession).toHaveBeenCalledWith(
         expect.objectContaining({ providerSubscriptionId: 'polar-sub-123' }),
@@ -233,9 +264,15 @@ describe('BillingService', () => {
           providerSubscriptionId: 'polar-sub-old',
         }),
       );
-      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+      paymentService.createCheckoutSession.mockResolvedValue(
+        'https://checkout.url',
+      );
 
-      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'USD');
+      await service.createUpgradeCheckout(
+        'user-123',
+        CustomerPlan.INDIE,
+        'USD',
+      );
 
       expect(paymentService.createCheckoutSession).toHaveBeenCalledWith(
         expect.objectContaining({ providerSubscriptionId: null }),
@@ -251,9 +288,15 @@ describe('BillingService', () => {
           providerSubscriptionId: 'ps-sub-123',
         }),
       );
-      paymentService.createCheckoutSession.mockResolvedValue('https://checkout.url');
+      paymentService.createCheckoutSession.mockResolvedValue(
+        'https://checkout.url',
+      );
 
-      await service.createUpgradeCheckout('user-123', CustomerPlan.INDIE, 'NGN');
+      await service.createUpgradeCheckout(
+        'user-123',
+        CustomerPlan.INDIE,
+        'NGN',
+      );
 
       expect(paymentService.createCheckoutSession).toHaveBeenCalledWith(
         expect.objectContaining({ providerSubscriptionId: null }),
@@ -478,7 +521,10 @@ describe('BillingService', () => {
       const customer = createMockCustomer({ userId: 'user-123' });
       prisma.customer.findUnique.mockResolvedValue(customer);
 
-      await service.handleSubscriptionActivated('customer-123', subscriptionData);
+      await service.handleSubscriptionActivated(
+        'customer-123',
+        subscriptionData,
+      );
 
       expect(prisma.customer.update).toHaveBeenCalledWith({
         where: { id: 'customer-123' },
@@ -498,7 +544,10 @@ describe('BillingService', () => {
     it('should use nextBillingDate as usageResetAt when provided', async () => {
       prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
 
-      await service.handleSubscriptionActivated('customer-123', subscriptionData);
+      await service.handleSubscriptionActivated(
+        'customer-123',
+        subscriptionData,
+      );
 
       expect(prisma.customer.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -528,7 +577,10 @@ describe('BillingService', () => {
       const customer = createMockCustomer({ userId: 'user-abc' });
       prisma.customer.findUnique.mockResolvedValue(customer);
 
-      await service.handleSubscriptionActivated('customer-123', subscriptionData);
+      await service.handleSubscriptionActivated(
+        'customer-123',
+        subscriptionData,
+      );
 
       expect(redis.del).toHaveBeenCalledWith('user:user-abc');
     });
@@ -552,7 +604,9 @@ describe('BillingService', () => {
     });
 
     it('should mark the subscription as CANCELLED', async () => {
-      const customer = createMockCustomer({ providerSubscriptionId: 'sub_123' });
+      const customer = createMockCustomer({
+        providerSubscriptionId: 'sub_123',
+      });
       prisma.customer.findUnique.mockResolvedValue(customer);
 
       await service.handleSubscriptionCancelled('sub_123');
@@ -619,7 +673,9 @@ describe('BillingService', () => {
         service.handleRenewalCharge('customer-123', new Date()),
       ).resolves.toBeNull();
 
-      expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('customer-123'));
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('customer-123'),
+      );
       expect(prisma.customer.update).not.toHaveBeenCalled();
     });
 
@@ -655,7 +711,9 @@ describe('BillingService', () => {
       const nextBillingDate: Date = updateCall.data.nextBillingDate;
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
 
-      expect(nextBillingDate.getTime()).toBeGreaterThanOrEqual(before + thirtyDays - 1000);
+      expect(nextBillingDate.getTime()).toBeGreaterThanOrEqual(
+        before + thirtyDays - 1000,
+      );
     });
   });
 
@@ -827,8 +885,12 @@ describe('BillingService', () => {
       const resetAt: Date = updateCall.data.usageResetAt;
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
 
-      expect(resetAt.getTime()).toBeGreaterThanOrEqual(before + thirtyDays - 1000);
-      expect(resetAt.getTime()).toBeLessThanOrEqual(Date.now() + thirtyDays + 1000);
+      expect(resetAt.getTime()).toBeGreaterThanOrEqual(
+        before + thirtyDays - 1000,
+      );
+      expect(resetAt.getTime()).toBeLessThanOrEqual(
+        Date.now() + thirtyDays + 1000,
+      );
     });
   });
 
@@ -934,7 +996,10 @@ describe('BillingService', () => {
         eval: jest.fn().mockRejectedValue(new Error('redis down')),
       });
 
-      const result = await service.consumeQuota({ ...customer, usageCount: 100 }, 100);
+      const result = await service.consumeQuota(
+        { ...customer, usageCount: 100 },
+        100,
+      );
 
       expect(result).toEqual({ allowed: false, usage: 100 });
       expect(prisma.customer.update).not.toHaveBeenCalled();

@@ -27,7 +27,10 @@ export class EmailProviderFactory {
     private readonly configService: ConfigService,
   ) {}
 
-  resolveAll(plan: CustomerPlan, providers: ProviderConfig[]): ResolvedProvider[] {
+  resolveAll(
+    plan: CustomerPlan,
+    providers: ProviderConfig[],
+  ): ResolvedProvider[] {
     if (plan === CustomerPlan.FREE) {
       const resolved: ResolvedProvider[] = [];
       const sendGridKey = this.configService.get<string>('SENDGRID_API_KEY');
@@ -81,8 +84,7 @@ export class EmailProviderFactory {
     requested: EmailProviderType,
   ): ResolvedProvider | null {
     return (
-      this.resolveAll(plan, providers).find((r) => r.type === requested) ??
-      null
+      this.resolveAll(plan, providers).find((r) => r.type === requested) ?? null
     );
   }
 
@@ -95,7 +97,7 @@ export class EmailProviderFactory {
       case EmailProviderType.POSTMARK:
         return this.postmarkService;
       default:
-        throw new Error(`Unsupported email provider: ${type}`);
+        throw new Error(`Unsupported email provider: ${String(type)}`);
     }
   }
 }

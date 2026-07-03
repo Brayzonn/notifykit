@@ -599,35 +599,6 @@ describe('WebhookWorkerProcessor', () => {
         },
       });
     });
-
-    it('should immediately move to DLQ for non-retryable 4xx errors', async () => {
-      const webhookData = createMockWebhookData();
-
-      const mockJob = {
-        id: 'job-123',
-        data: webhookData,
-        attemptsMade: 0, // First attempt, but error is non-retryable
-        opts: { attempts: 3 },
-        failedReason: 'Request failed with status code 400',
-      } as Job;
-
-      // Note: onError is called by BullMQ, but DLQ move happens in process() method
-      // This test verifies the logic exists, actual DLQ move tested in process() tests
-    });
-
-    it('should handle job failure event after all retries', () => {
-      const webhookData = createMockWebhookData();
-
-      const mockJob = {
-        id: 'job-123',
-        data: webhookData,
-        attemptsMade: 3,
-        opts: { attempts: 3 },
-        failedReason: 'All attempts failed',
-      } as Job;
-
-      // Note: DLQ move happens in process() method, not in onError handler
-    });
   });
 
   describe('Worker Event Handlers', () => {

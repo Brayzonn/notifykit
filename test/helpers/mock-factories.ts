@@ -8,8 +8,6 @@ import {
   AuthProvider,
   CustomerPlan,
   EmailProviderType,
-  PaymentProvider,
-  SubscriptionStatus,
 } from '@prisma/client';
 import Stripe from 'stripe';
 
@@ -41,7 +39,10 @@ export const createMockUser = (overrides?: Partial<User>): User => ({
  */
 export type CustomerWithRelations = Customer & {
   emailProviders?: CustomerEmailProvider[];
-  sendingDomains?: Pick<CustomerSendingDomain, 'domain' | 'provider' | 'verified' | 'requestedAt' | 'verifiedAt'>[];
+  sendingDomains?: Pick<
+    CustomerSendingDomain,
+    'domain' | 'provider' | 'verified' | 'requestedAt' | 'verifiedAt'
+  >[];
   _count?: { emailProviders: number };
   user?: {
     id: string;
@@ -59,7 +60,8 @@ export const createMockCustomer = (
     id: 'customer-123',
     userId: 'user-123',
     email: 'test@example.com',
-    apiKey: 'nh_test_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
+    apiKey:
+      'nh_test_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
     apiKeyHash:
       'hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
     apiKeyLastFour: 'abcd',
@@ -95,7 +97,10 @@ export const makeSendingDomain = (
   domain: string,
   provider: EmailProviderType = EmailProviderType.SENDGRID,
   verified = true,
-): Pick<CustomerSendingDomain, 'domain' | 'provider' | 'verified' | 'requestedAt' | 'verifiedAt'> => ({
+): Pick<
+  CustomerSendingDomain,
+  'domain' | 'provider' | 'verified' | 'requestedAt' | 'verifiedAt'
+> => ({
   domain,
   provider,
   verified,
@@ -162,64 +167,64 @@ export const createMockStripeSubscription = (
  */
 export const createMockStripeCheckoutSession = (
   overrides?: Partial<Stripe.Checkout.Session>,
-): Stripe.Checkout.Session => ({
-  id: 'cs_123',
-  object: 'checkout.session',
-  mode: 'subscription',
-  customer: 'cus_123',
-  subscription: 'sub_123',
-  payment_status: 'paid',
-  status: 'complete',
-  metadata: {
-    customerId: 'customer-123',
-    plan: 'INDIE',
-  },
-  ...overrides,
-} as Stripe.Checkout.Session);
+): Stripe.Checkout.Session =>
+  ({
+    id: 'cs_123',
+    object: 'checkout.session',
+    mode: 'subscription',
+    customer: 'cus_123',
+    subscription: 'sub_123',
+    payment_status: 'paid',
+    status: 'complete',
+    metadata: {
+      customerId: 'customer-123',
+      plan: 'INDIE',
+    },
+    ...overrides,
+  }) as Stripe.Checkout.Session;
 
 /**
  * Create a mock Stripe invoice object for testing
  */
 export const createMockStripeInvoice = (
   overrides?: Partial<Stripe.Invoice>,
-): Stripe.Invoice => ({
-  id: 'in_123',
-  object: 'invoice',
-  subscription: 'sub_123',
-  customer: 'cus_123',
-  amount_due: 2900,
-  status: 'paid',
-  parent: {
-    subscription_details: {
-      subscription: 'sub_123',
-    },
-  } as any,
-  next_payment_attempt: null,
-  ...overrides,
-} as Stripe.Invoice);
+): Stripe.Invoice =>
+  ({
+    id: 'in_123',
+    object: 'invoice',
+    subscription: 'sub_123',
+    customer: 'cus_123',
+    amount_due: 2900,
+    status: 'paid',
+    parent: {
+      subscription_details: {
+        subscription: 'sub_123',
+      },
+    } as any,
+    next_payment_attempt: null,
+    ...overrides,
+  }) as Stripe.Invoice;
 
 /**
  * Create a mock Stripe webhook event object for testing
  */
-export const createMockStripeEvent = (
-  type: string,
-  data: any,
-): Stripe.Event => ({
-  id: 'evt_123',
-  object: 'event',
-  type,
-  data: {
-    object: data,
-  },
-  api_version: '2023-10-16',
-  created: Math.floor(Date.now() / 1000),
-  livemode: false,
-  pending_webhooks: 0,
-  request: {
-    id: 'req_123',
-    idempotency_key: 'key_123',
-  },
-} as Stripe.Event);
+export const createMockStripeEvent = (type: string, data: any): Stripe.Event =>
+  ({
+    id: 'evt_123',
+    object: 'event',
+    type,
+    data: {
+      object: data,
+    },
+    api_version: '2023-10-16',
+    created: Math.floor(Date.now() / 1000),
+    livemode: false,
+    pending_webhooks: 0,
+    request: {
+      id: 'req_123',
+      idempotency_key: 'key_123',
+    },
+  }) as Stripe.Event;
 
 /**
  * Create a mock authenticated customer for guard testing

@@ -18,7 +18,6 @@ import {
   EmailProviderType,
   JobStatus,
   JobType,
-  Prisma,
 } from '@prisma/client';
 import {
   UpdateProfileDto,
@@ -37,7 +36,6 @@ import {
   DashboardSummary,
   ApiKeyResponse,
   RegenerateApiKeyResponse,
-  Job,
   JobDetailsResponse,
   JobsHistoryResponse,
 } from './interfaces/user.interface';
@@ -1876,7 +1874,7 @@ export class UserService {
             })
             .catch((err) =>
               this.logger.error(
-                `Failed to send domain-provider-added email to ${owner.user!.email}: ${getErrorMessage(err)}`,
+                `Failed to send domain-provider-added email to ${owner.user.email}: ${getErrorMessage(err)}`,
               ),
             );
         }

@@ -26,7 +26,9 @@ export class PaymentProviderFactory {
           `Payment provider ${provider} not yet implemented`,
         );
       default:
-        throw new BadRequestException(`Unknown payment provider: ${provider}`);
+        throw new BadRequestException(
+          `Unknown payment provider: ${String(provider)}`,
+        );
     }
   }
 
@@ -41,7 +43,9 @@ export class PaymentProviderFactory {
       case 'USD':
         return this.polarProvider;
       default:
-        throw new BadRequestException(`Unsupported currency: ${currency}`);
+        throw new BadRequestException(
+          `Unsupported currency: ${String(currency)}`,
+        );
     }
   }
 }

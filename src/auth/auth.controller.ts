@@ -26,7 +26,6 @@ import { ConfigService } from '@nestjs/config';
 import { Public } from '@/auth/decorators/public.decorator';
 import { AuthGuard } from '@nestjs/passport';
 import { GithubProfile } from '@/auth/interfaces/auth.interface';
-import { access } from 'fs';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 
