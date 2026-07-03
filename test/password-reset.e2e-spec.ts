@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/config/configure-app';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { RedisService } from '../src/redis/redis.service';
 import { EmailService } from '../src/platform-email/email.service';
@@ -42,14 +42,7 @@ describe('Password Reset Flow (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
 
-    app.use(cookieParser());
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    configureApp(app);
 
     await app.init();
 
@@ -75,17 +68,19 @@ describe('Password Reset Flow (e2e)', () => {
 
   const createVerifiedUser = async () => {
     // Signup
-    await request(app.getHttpServer()).post('/auth/signup').send(testUser);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/signup')
+      .send(testUser);
 
     // Verify OTP
     const otp = await redis.get(`otp:${testUser.email}`);
     await request(app.getHttpServer())
-      .post('/auth/verify-otp')
+      .post('/api/v1/auth/verify-otp')
       .send({ email: testUser.email, otp });
 
     // Sign in to create refresh tokens
     const signinResponse = await request(app.getHttpServer())
-      .post('/auth/signin')
+      .post('/api/v1/auth/signin')
       .send({
         email: testUser.email,
         password: testUser.password,
@@ -100,11 +95,11 @@ describe('Password Reset Flow (e2e)', () => {
 
       // Step 1: Request password reset
       const requestResponse = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email })
         .expect(200);
 
-      expect(requestResponse.body.message).toBe(
+      expect(requestResponse.body.data.message).toBe(
         'If this email exists, a reset code has been sent',
       );
       expect(mockEmailService.sendResetPasswordEmail).toHaveBeenCalled();
@@ -117,7 +112,7 @@ describe('Password Reset Flow (e2e)', () => {
       // Step 2: Confirm password reset with OTP
       const newPassword = 'NewPassword456!';
       const confirmResponse = await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -125,7 +120,9 @@ describe('Password Reset Flow (e2e)', () => {
         })
         .expect(200);
 
-      expect(confirmResponse.body.message).toBe('Password reset successfully');
+      expect(confirmResponse.body.data.message).toBe(
+        'Password reset successfully',
+      );
 
       // Verify password updated in database
       const user = await prisma.user.findUnique({
@@ -137,14 +134,14 @@ describe('Password Reset Flow (e2e)', () => {
 
       // Verify can sign in with new password
       const signinResponse = await request(app.getHttpServer())
-        .post('/auth/signin')
+        .post('/api/v1/auth/signin')
         .send({
           email: testUser.email,
           password: newPassword,
         })
         .expect(200);
 
-      expect(signinResponse.body).toHaveProperty('accessToken');
+      expect(signinResponse.body.data).toHaveProperty('accessToken');
     });
 
     it('should delete all refresh tokens after password reset', async () => {
@@ -152,11 +149,11 @@ describe('Password Reset Flow (e2e)', () => {
 
       // Create multiple sessions
       await request(app.getHttpServer())
-        .post('/auth/signin')
+        .post('/api/v1/auth/signin')
         .send({ email: testUser.email, password: testUser.password });
 
       await request(app.getHttpServer())
-        .post('/auth/signin')
+        .post('/api/v1/auth/signin')
         .send({ email: testUser.email, password: testUser.password });
 
       const user = await prisma.user.findUnique({
@@ -171,13 +168,13 @@ describe('Password Reset Flow (e2e)', () => {
 
       // Request and confirm password reset
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -193,7 +190,7 @@ describe('Password Reset Flow (e2e)', () => {
       // Old refresh token should not work
       const oldRefreshToken = signinResponse.headers['set-cookie'][0];
       await request(app.getHttpServer())
-        .post('/auth/refresh-token')
+        .post('/api/v1/auth/refresh-token')
         .set('Cookie', oldRefreshToken)
         .expect(401);
     });
@@ -202,14 +199,14 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
       expect(resetOtp).toBeTruthy();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -225,11 +222,11 @@ describe('Password Reset Flow (e2e)', () => {
   describe('Security: Information Disclosure Prevention', () => {
     it('should return generic message for non-existent email', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: 'nonexistent@example.com' })
         .expect(200);
 
-      expect(response.body.message).toBe(
+      expect(response.body.data.message).toBe(
         'If this email exists, a reset code has been sent',
       );
       expect(mockEmailService.sendResetPasswordEmail).not.toHaveBeenCalled();
@@ -237,14 +234,16 @@ describe('Password Reset Flow (e2e)', () => {
 
     it('should return generic message for unverified email', async () => {
       // Create unverified user
-      await request(app.getHttpServer()).post('/auth/signup').send(testUser);
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/signup')
+        .send(testUser);
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email })
         .expect(200);
 
-      expect(response.body.message).toBe(
+      expect(response.body.data.message).toBe(
         'If this email exists, a reset code has been sent',
       );
       expect(mockEmailService.sendResetPasswordEmail).not.toHaveBeenCalled();
@@ -264,11 +263,11 @@ describe('Password Reset Flow (e2e)', () => {
       });
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email })
         .expect(200);
 
-      expect(response.body.message).toBe(
+      expect(response.body.data.message).toBe(
         'If this email exists, a reset code has been sent',
       );
       expect(mockEmailService.sendResetPasswordEmail).not.toHaveBeenCalled();
@@ -280,11 +279,11 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: '000000',
@@ -292,14 +291,14 @@ describe('Password Reset Flow (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body.message).toContain('Invalid or expired reset code');
+      expect(response.body.error).toContain('Invalid or expired reset code');
     });
 
     it('should reject expired OTP', async () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
@@ -308,7 +307,7 @@ describe('Password Reset Flow (e2e)', () => {
       await redis.del(`reset-password:${testUser.email}`);
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -316,7 +315,7 @@ describe('Password Reset Flow (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body.message).toContain('Invalid or expired reset code');
+      expect(response.body.error).toContain('Invalid or expired reset code');
     });
 
     it('should reject if user not found', async () => {
@@ -324,7 +323,7 @@ describe('Password Reset Flow (e2e)', () => {
       await redis.set('reset-password:ghost@example.com', '123456', 600);
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: 'ghost@example.com',
           otp: '123456',
@@ -332,7 +331,7 @@ describe('Password Reset Flow (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body.message).toContain('Invalid or expired reset code');
+      expect(response.body.error).toContain('Invalid or expired reset code');
 
       // Cleanup
       await redis.del('reset-password:ghost@example.com');
@@ -355,11 +354,11 @@ describe('Password Reset Flow (e2e)', () => {
       });
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email })
         .expect(400);
 
-      expect(response.body.message).toContain('social login');
+      expect(response.body.error).toContain('social login');
       expect(mockEmailService.sendResetPasswordEmail).not.toHaveBeenCalled();
 
       // Cleanup
@@ -381,11 +380,11 @@ describe('Password Reset Flow (e2e)', () => {
       });
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email })
         .expect(400);
 
-      expect(response.body.message).toContain('social login');
+      expect(response.body.error).toContain('social login');
 
       // Cleanup
       await prisma.user.delete({ where: { id: googleUser.id } });
@@ -397,7 +396,7 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
@@ -409,7 +408,7 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const ttl = await redis
@@ -423,7 +422,7 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       expect(mockEmailService.sendResetPasswordEmail).toHaveBeenCalledWith({
@@ -439,14 +438,14 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
       const newPassword = 'SecureNewPassword123!';
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -470,13 +469,13 @@ describe('Password Reset Flow (e2e)', () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -485,7 +484,7 @@ describe('Password Reset Flow (e2e)', () => {
 
       // Try to sign in with old password
       await request(app.getHttpServer())
-        .post('/auth/signin')
+        .post('/api/v1/auth/signin')
         .send({
           email: testUser.email,
           password: testUser.password,
@@ -497,24 +496,24 @@ describe('Password Reset Flow (e2e)', () => {
   describe('Validation', () => {
     it('should validate email format', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: 'invalid-email' })
         .expect(400);
 
-      expect(response.body.message).toBeDefined();
+      expect(response.body.error).toBeDefined();
     });
 
     it('should validate new password strength', async () => {
       await createVerifiedUser();
 
       await request(app.getHttpServer())
-        .post('/auth/reset-password/request')
+        .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
 
       const response = await request(app.getHttpServer())
-        .post('/auth/reset-password/confirm')
+        .post('/api/v1/auth/reset-password/confirm')
         .send({
           email: testUser.email,
           otp: resetOtp,
@@ -522,7 +521,7 @@ describe('Password Reset Flow (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body.message).toBeDefined();
+      expect(response.body.error).toBeDefined();
     });
   });
 });

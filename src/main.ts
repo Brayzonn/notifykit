@@ -1,14 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from '@/app.module';
-import { createCorsConfig } from '@/config/cors.config';
-import { validationPipeOptions } from '@/config/validation.config';
-import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
-import { setupRequestSizeLimit } from '@/config/request-size.config';
-import { setupCookies } from '@/config/cookie.config';
+import { configureApp } from '@/config/configure-app';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -26,19 +21,7 @@ async function bootstrap() {
   logger.log(`Environment: ${nodeEnv}`);
   logger.log(`Starting application on port ${port}`);
 
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
-  setupRequestSizeLimit(app, configService);
-  setupCookies(app, configService);
-
-  app.enableCors(createCorsConfig(configService));
-  app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(new ResponseInterceptor());
-  app.useGlobalPipes(new ValidationPipe(validationPipeOptions));
-  app.setGlobalPrefix('api');
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
+  configureApp(app);
 
   // Swagger setup
   if (nodeEnv !== 'production') {
