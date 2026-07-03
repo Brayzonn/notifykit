@@ -23,11 +23,11 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
     });
   }
 
-  async validate(
+  validate(
     _accessToken: string,
     _refreshToken: string,
     profile: Profile,
-  ): Promise<GithubProfile> {
+  ): GithubProfile {
     const { id, username, emails, displayName, photos } = profile;
 
     const email = emails?.[0]?.value;

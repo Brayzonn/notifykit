@@ -50,7 +50,7 @@ export default tseslint.config(
       ],
       // Nest lifecycle hooks / async factories are legitimately async without
       // await for signature consistency; a hint, not a blocker.
-      '@typescript-eslint/require-await': 'warn',
+      '@typescript-eslint/require-await': 'error',
     },
   },
   {

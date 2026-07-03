@@ -112,7 +112,7 @@ export class AuthService {
         );
     }
 
-    const tokens = await this.generateTokens(user);
+    const tokens = this.generateTokens(user);
 
     await this.createRefreshTokenWithLimit(user.id, tokens.refreshToken);
 
@@ -202,7 +202,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.generateTokens(user);
+    const tokens = this.generateTokens(user);
 
     await this.createRefreshTokenWithLimit(user.id, tokens.refreshToken);
 
@@ -358,7 +358,7 @@ export class AuthService {
         this.logger.error('Failed to send welcome email', err?.message),
       );
 
-    const tokens = await this.generateTokens(user);
+    const tokens = this.generateTokens(user);
 
     await this.createRefreshTokenWithLimit(user.id, tokens.refreshToken);
 
@@ -443,7 +443,7 @@ export class AuthService {
         };
       }
 
-      const { accessToken } = await this.generateTokens(storedToken.user);
+      const { accessToken } = this.generateTokens(storedToken.user);
       return {
         user: this.sanitizeUser(storedToken.user),
         tokens: { accessToken },
@@ -569,7 +569,7 @@ export class AuthService {
   private async rotateRefreshToken(
     storedToken: RefreshTokenWithUser,
   ): Promise<AuthTokens> {
-    const newTokens = await this.generateTokens(storedToken.user);
+    const newTokens = this.generateTokens(storedToken.user);
 
     await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
 
@@ -659,12 +659,9 @@ export class AuthService {
   /**
    * Generate access and refresh tokens
    */
-
-  private async generateTokens(user: User): Promise<AuthTokens> {
+  private generateTokens(user: User): AuthTokens {
     const accessToken = this.jwtService.sign({ sub: user.id });
 
-    // jti prevents two same-second signings from hashing to the same value
-    // and colliding on the `token` unique index.
     const refreshToken = this.jwtService.sign(
       { sub: user.id, jti: crypto.randomUUID() },
       {

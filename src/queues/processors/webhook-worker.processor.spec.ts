@@ -470,7 +470,7 @@ describe('WebhookWorkerProcessor', () => {
       expect(shouldRetry).toBe(false);
     });
 
-    it('should retry on 5xx server errors', async () => {
+    it('should retry on 5xx server errors', () => {
       const serverError = {
         response: {
           status: 503,
@@ -482,7 +482,7 @@ describe('WebhookWorkerProcessor', () => {
       expect(shouldRetry).toBe(true);
     });
 
-    it('should retry on network errors', async () => {
+    it('should retry on network errors', () => {
       const networkError = {
         code: 'ECONNREFUSED',
         message: 'Connection refused',
@@ -492,7 +492,7 @@ describe('WebhookWorkerProcessor', () => {
       expect(shouldRetry).toBe(true);
     });
 
-    it('should NOT retry on 404 Not Found', async () => {
+    it('should NOT retry on 404 Not Found', () => {
       const notFoundError = {
         response: {
           status: 404,
@@ -504,7 +504,7 @@ describe('WebhookWorkerProcessor', () => {
       expect(shouldRetry).toBe(false);
     });
 
-    it('should NOT retry on 401 Unauthorized', async () => {
+    it('should NOT retry on 401 Unauthorized', () => {
       const authError = {
         response: {
           status: 401,
