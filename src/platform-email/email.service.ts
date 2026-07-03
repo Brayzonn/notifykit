@@ -29,7 +29,12 @@ export class EmailService {
 
   constructor(private readonly queueService: QueueService) {}
 
-  private enqueue(to: string, subject: string, html: string, label: string): Promise<void> {
+  private enqueue(
+    to: string,
+    subject: string,
+    html: string,
+    label: string,
+  ): Promise<void> {
     return this.queueService.enqueuePlatformEmail({ to, subject, html, label });
   }
 
@@ -73,7 +78,9 @@ export class EmailService {
     this.logger.log(`Password reset email queued for ${email}`);
   }
 
-  async sendEmailChangeVerification(data: EmailChangeVerificationData): Promise<void> {
+  async sendEmailChangeVerification(
+    data: EmailChangeVerificationData,
+  ): Promise<void> {
     await this.enqueue(
       data.email,
       'Verify Your New Email Address - NotifyKit',
@@ -83,24 +90,36 @@ export class EmailService {
     this.logger.log(`Email change verification queued for ${data.email}`);
   }
 
-  async sendEmailChangeConfirmation(data: EmailChangeConfirmationData): Promise<void> {
+  async sendEmailChangeConfirmation(
+    data: EmailChangeConfirmationData,
+  ): Promise<void> {
     await this.enqueue(
       data.email,
       'Confirm Email Change Request - NotifyKit',
-      emailChangeConfirmationTemplate(data.name, data.email, data.newEmail, data.confirmLink, data.cancelLink),
+      emailChangeConfirmationTemplate(
+        data.name,
+        data.email,
+        data.newEmail,
+        data.confirmLink,
+        data.cancelLink,
+      ),
       'email-change-confirm',
     );
     this.logger.log(`Email change confirmation queued for ${data.email}`);
   }
 
-  async sendEmailChangeCancelled(data: EmailChangeCancelledData): Promise<void> {
+  async sendEmailChangeCancelled(
+    data: EmailChangeCancelledData,
+  ): Promise<void> {
     await this.enqueue(
       data.email,
       'Email Change Cancelled - NotifyKit',
       emailChangeCancelledTemplate(data.email, data.newEmail),
       'email-change-cancelled',
     );
-    this.logger.log(`Email change cancelled notification queued for ${data.email}`);
+    this.logger.log(
+      `Email change cancelled notification queued for ${data.email}`,
+    );
   }
 
   async sendEmailChangeSuccess(data: EmailChangeSuccessData): Promise<void> {
@@ -110,14 +129,21 @@ export class EmailService {
       emailChangeSuccessTemplate(data.email),
       'email-change-success',
     );
-    this.logger.log(`Email change success notification queued for ${data.email}`);
+    this.logger.log(
+      `Email change success notification queued for ${data.email}`,
+    );
   }
 
   async sendPaymentFailedEmail(data: PaymentFailedEmailData): Promise<void> {
     await this.enqueue(
       data.email,
       'Payment Failed - Action Required - NotifyKit',
-      paymentFailedEmailTemplate(data.name, data.plan, data.amount, data.retryDate),
+      paymentFailedEmailTemplate(
+        data.name,
+        data.plan,
+        data.amount,
+        data.retryDate,
+      ),
       'payment-failed',
     );
     this.logger.log(`Payment failed email queued for ${data.email}`);
@@ -138,13 +164,22 @@ export class EmailService {
     this.logger.log(`Plan downgraded email queued for ${data.email}`);
   }
 
-  async sendDomainProviderAddedEmail(data: DomainProviderAddedEmailData): Promise<void> {
+  async sendDomainProviderAddedEmail(
+    data: DomainProviderAddedEmailData,
+  ): Promise<void> {
     await this.enqueue(
       data.email,
       `Action needed: publish DNS records for ${data.provider} - NotifyKit`,
-      domainProviderAddedTemplate(data.name, data.domain, data.provider, data.dnsRecords),
+      domainProviderAddedTemplate(
+        data.name,
+        data.domain,
+        data.provider,
+        data.dnsRecords,
+      ),
       'domain-provider-added',
     );
-    this.logger.log(`Domain-provider-added email queued for ${data.email} (${data.domain})`);
+    this.logger.log(
+      `Domain-provider-added email queued for ${data.email} (${data.domain})`,
+    );
   }
 }

@@ -16,7 +16,9 @@ export class PaystackSignatureGuard implements CanActivate {
   constructor(private readonly configService: ConfigService) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request & { rawBody?: Buffer }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { rawBody?: Buffer }>();
     const signature = request.headers['x-paystack-signature'] as string;
     const secret = this.configService.get<string>('PAYSTACK_SECRET_KEY');
 

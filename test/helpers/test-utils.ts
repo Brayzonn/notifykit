@@ -221,7 +221,9 @@ const MOCK_ENV: Record<string, any> = {
 };
 
 export const createMockConfigService = (): MockedConfigService => ({
-  get: jest.fn((key: string, defaultValue?: any) => MOCK_ENV[key] ?? defaultValue),
+  get: jest.fn(
+    (key: string, defaultValue?: any) => MOCK_ENV[key] ?? defaultValue,
+  ),
   getOrThrow: jest.fn((key: string) => {
     const value = MOCK_ENV[key];
     if (value === undefined) {

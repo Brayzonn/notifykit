@@ -75,7 +75,10 @@ export class SendGridDomainService {
    * previous attempt that failed before saving to DB), fetch the existing
    * record and return it instead of erroring.
    */
-  async authenticateDomain(domain: string, apiKey?: string): Promise<{
+  async authenticateDomain(
+    domain: string,
+    apiKey?: string,
+  ): Promise<{
     domainId: number;
     dnsRecords: Array<{ type: string; host: string; value: string }>;
     valid: boolean;
@@ -134,7 +137,10 @@ export class SendGridDomainService {
   /**
    * Look up an existing authenticated domain in SendGrid by domain name.
    */
-  private async findExistingDomain(domain: string, apiKey?: string): Promise<{
+  private async findExistingDomain(
+    domain: string,
+    apiKey?: string,
+  ): Promise<{
     domainId: number;
     dnsRecords: Array<{ type: string; host: string; value: string }>;
     valid: boolean;
@@ -158,7 +164,9 @@ export class SendGridDomainService {
         );
       }
 
-      this.logger.log(`Retrieved existing SendGrid domain record for: ${domain}`);
+      this.logger.log(
+        `Retrieved existing SendGrid domain record for: ${domain}`,
+      );
 
       return {
         domainId: existing.id,
@@ -176,7 +184,10 @@ export class SendGridDomainService {
   /**
    * Validate domain DNS records
    */
-  async validateDomain(domainId: number, apiKey?: string): Promise<{
+  async validateDomain(
+    domainId: number,
+    apiKey?: string,
+  ): Promise<{
     valid: boolean;
     validationResults: any;
   }> {
@@ -227,7 +238,9 @@ export class SendGridDomainService {
 
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to get domain details: ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Failed to get domain details: ${getErrorMessage(error)}`,
+      );
       throw error;
     }
   }

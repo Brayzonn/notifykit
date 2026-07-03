@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class RequestDomainDto {
   @ApiProperty({
     example: 'notifications.example.com',
-    description: 'Domain to verify for sending emails'
+    description: 'Domain to verify for sending emails',
   })
   @IsString()
   @IsNotEmpty()

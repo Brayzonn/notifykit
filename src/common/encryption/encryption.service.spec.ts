@@ -10,7 +10,9 @@ const createConfigService = (key: string | undefined) => ({
 });
 
 describe('EncryptionService', () => {
-  const buildService = async (key: string | undefined): Promise<EncryptionService> => {
+  const buildService = async (
+    key: string | undefined,
+  ): Promise<EncryptionService> => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EncryptionService,

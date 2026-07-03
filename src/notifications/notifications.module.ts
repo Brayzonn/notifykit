@@ -8,7 +8,13 @@ import { CommonModule } from '@/common/common.module';
 import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
 
 @Module({
-  imports: [QueueModule, AuthModule, CommonModule, BillingModule, RateLimitModule],
+  imports: [
+    QueueModule,
+    AuthModule,
+    CommonModule,
+    BillingModule,
+    RateLimitModule,
+  ],
   controllers: [NotificationsController],
   providers: [NotificationsService],
   exports: [NotificationsService],

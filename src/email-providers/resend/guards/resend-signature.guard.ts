@@ -36,7 +36,12 @@ export class ResendSignatureGuard implements CanActivate {
     }
 
     const providerRecord = await this.prisma.customerEmailProvider.findUnique({
-      where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.RESEND } },
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.RESEND,
+        },
+      },
       select: { webhookSecret: true },
     });
 

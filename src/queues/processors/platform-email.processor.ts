@@ -32,7 +32,9 @@ export class PlatformEmailProcessor extends WorkerHost {
     const attempt = job.attemptsMade + 1;
     const maxAttempts = job.opts.attempts ?? 3;
 
-    this.logger.log(`Processing platform email [${label}] to ${to} (attempt ${attempt})`);
+    this.logger.log(
+      `Processing platform email [${label}] to ${to} (attempt ${attempt})`,
+    );
 
     try {
       await this.sender.send({ to, subject, html });
@@ -57,7 +59,9 @@ export class PlatformEmailProcessor extends WorkerHost {
       });
 
       if (isFinal) {
-        this.logger.error(`Platform email [${label}] to ${to} exhausted all retries`);
+        this.logger.error(
+          `Platform email [${label}] to ${to} exhausted all retries`,
+        );
         await this.slack.alert({
           title: ':rotating_light: Platform Email Failed',
           fields: [

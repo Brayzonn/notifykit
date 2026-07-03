@@ -59,7 +59,9 @@ export class PolarPaymentProvider implements PaymentProvider {
 
     try {
       const productId = this.getProductId(request.plan);
-      const frontendUrl = (this.configService.get<string>('FRONTEND_URL') ?? '').split(',')[0].trim();
+      const frontendUrl = (this.configService.get<string>('FRONTEND_URL') ?? '')
+        .split(',')[0]
+        .trim();
       const successUrl = `${frontendUrl}/user/dashboard/usage?success=true`;
 
       const checkout = await this.polar.checkouts.create({

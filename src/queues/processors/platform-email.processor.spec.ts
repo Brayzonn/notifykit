@@ -1,12 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PlatformEmailProcessor, PlatformEmailJobData } from './platform-email.processor';
+import {
+  PlatformEmailProcessor,
+  PlatformEmailJobData,
+} from './platform-email.processor';
 import { PlatformEmailSenderService } from '@/email-providers/platform-email-sender.service';
 import { SlackService } from '@/common/slack/slack.service';
 import { PrismaService } from '@/prisma/prisma.service';
 
 const LOG_ID = 'log-abc-123';
 
-function makeJob(overrides: Partial<{ attemptsMade: number; maxAttempts: number }> = {}) {
+function makeJob(
+  overrides: Partial<{ attemptsMade: number; maxAttempts: number }> = {},
+) {
   const { attemptsMade = 0, maxAttempts = 3 } = overrides;
   return {
     data: {
@@ -30,7 +35,9 @@ describe('PlatformEmailProcessor', () => {
   beforeEach(async () => {
     sender = { send: jest.fn() } as any;
     slack = { alert: jest.fn() } as any;
-    prisma = { platformEmailLog: { update: jest.fn().mockResolvedValue(undefined) } };
+    prisma = {
+      platformEmailLog: { update: jest.fn().mockResolvedValue(undefined) },
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -82,7 +89,9 @@ describe('PlatformEmailProcessor', () => {
 
   it('updates attempts and errorMessage on an intermediate failure', async () => {
     sender.send.mockRejectedValue(new Error('provider down'));
-    await expect(processor.process(makeJob({ attemptsMade: 0, maxAttempts: 3 }))).rejects.toThrow();
+    await expect(
+      processor.process(makeJob({ attemptsMade: 0, maxAttempts: 3 })),
+    ).rejects.toThrow();
     expect(prisma.platformEmailLog.update).toHaveBeenCalledWith({
       where: { id: LOG_ID },
       data: { attempts: 1, errorMessage: 'provider down' },
@@ -91,37 +100,55 @@ describe('PlatformEmailProcessor', () => {
 
   it('does not set status FAILED on an intermediate failure', async () => {
     sender.send.mockRejectedValue(new Error('provider down'));
-    await expect(processor.process(makeJob({ attemptsMade: 0, maxAttempts: 3 }))).rejects.toThrow();
+    await expect(
+      processor.process(makeJob({ attemptsMade: 0, maxAttempts: 3 })),
+    ).rejects.toThrow();
     const updateCall = prisma.platformEmailLog.update.mock.calls[0][0];
     expect(updateCall.data.status).toBeUndefined();
   });
 
   it('sets status FAILED on the final attempt', async () => {
     sender.send.mockRejectedValue(new Error('all providers down'));
-    await expect(processor.process(makeJob({ attemptsMade: 2, maxAttempts: 3 }))).rejects.toThrow();
+    await expect(
+      processor.process(makeJob({ attemptsMade: 2, maxAttempts: 3 })),
+    ).rejects.toThrow();
     expect(prisma.platformEmailLog.update).toHaveBeenCalledWith({
       where: { id: LOG_ID },
-      data: { attempts: 3, errorMessage: 'all providers down', status: 'FAILED' },
+      data: {
+        attempts: 3,
+        errorMessage: 'all providers down',
+        status: 'FAILED',
+      },
     });
   });
 
   it('does not alert Slack on an intermediate failure', async () => {
     sender.send.mockRejectedValue(new Error('provider down'));
-    await expect(processor.process(makeJob({ attemptsMade: 0, maxAttempts: 3 }))).rejects.toThrow();
+    await expect(
+      processor.process(makeJob({ attemptsMade: 0, maxAttempts: 3 })),
+    ).rejects.toThrow();
     expect(slack.alert).not.toHaveBeenCalled();
   });
 
   it('fires a Slack alert on the final failed attempt', async () => {
     sender.send.mockRejectedValue(new Error('all providers down'));
-    await expect(processor.process(makeJob({ attemptsMade: 2, maxAttempts: 3 }))).rejects.toThrow();
+    await expect(
+      processor.process(makeJob({ attemptsMade: 2, maxAttempts: 3 })),
+    ).rejects.toThrow();
     expect(slack.alert).toHaveBeenCalledTimes(1);
     const call = slack.alert.mock.calls[0][0];
     expect(call.title).toContain('Platform Email Failed');
     expect(call.fields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'Type', value: 'otp' }),
-        expect.objectContaining({ label: 'Recipient', value: 'user@example.com' }),
-        expect.objectContaining({ label: 'Error', value: 'all providers down' }),
+        expect.objectContaining({
+          label: 'Recipient',
+          value: 'user@example.com',
+        }),
+        expect.objectContaining({
+          label: 'Error',
+          value: 'all providers down',
+        }),
         expect.objectContaining({ label: 'Attempts', value: '3 / 3' }),
       ]),
     );

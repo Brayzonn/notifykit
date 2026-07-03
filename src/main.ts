@@ -65,7 +65,9 @@ async function bootstrap() {
       },
     });
 
-    logger.log(`Swagger documentation will be available at: http://localhost:${port}/docs`);
+    logger.log(
+      `Swagger documentation will be available at: http://localhost:${port}/docs`,
+    );
   }
 
   app.enableShutdownHooks();

@@ -129,9 +129,9 @@ describe('SendgridCustomerSignatureGuard', () => {
       throw new Error('blew up');
     });
 
-    await expect(guard.canActivate(buildContext(validRequest()))).rejects.toThrow(
-      'Invalid SendGrid webhook signature',
-    );
+    await expect(
+      guard.canActivate(buildContext(validRequest())),
+    ).rejects.toThrow('Invalid SendGrid webhook signature');
   });
 
   it('returns true when the library verifies the signature', async () => {
@@ -141,9 +141,9 @@ describe('SendgridCustomerSignatureGuard', () => {
     });
     verifySignature.mockReturnValue(true);
 
-    await expect(
-      guard.canActivate(buildContext(validRequest())),
-    ).resolves.toBe(true);
+    await expect(guard.canActivate(buildContext(validRequest()))).resolves.toBe(
+      true,
+    );
     expect(convertPublicKeyToECDSA).toHaveBeenCalledWith('pubkey');
   });
 });

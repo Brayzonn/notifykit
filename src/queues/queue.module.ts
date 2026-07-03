@@ -46,7 +46,12 @@ import { CommonModule } from '@/common/common.module';
       { name: 'platform-email' },
     ),
   ],
-  providers: [QueueService, EmailWorkerProcessor, WebhookWorkerProcessor, PlatformEmailProcessor],
+  providers: [
+    QueueService,
+    EmailWorkerProcessor,
+    WebhookWorkerProcessor,
+    PlatformEmailProcessor,
+  ],
   exports: [QueueService, BullModule],
 })
 export class QueueModule {}

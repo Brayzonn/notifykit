@@ -122,9 +122,9 @@ describe('ResendSignatureGuard', () => {
       throw new Error('bad signature');
     });
 
-    await expect(guard.canActivate(buildContext(validRequest()))).rejects.toThrow(
-      'Invalid Resend webhook signature',
-    );
+    await expect(
+      guard.canActivate(buildContext(validRequest())),
+    ).rejects.toThrow('Invalid Resend webhook signature');
   });
 
   it('returns true when svix.verify succeeds', async () => {
@@ -134,9 +134,9 @@ describe('ResendSignatureGuard', () => {
     });
     verify.mockReturnValue(undefined);
 
-    await expect(
-      guard.canActivate(buildContext(validRequest())),
-    ).resolves.toBe(true);
+    await expect(guard.canActivate(buildContext(validRequest()))).resolves.toBe(
+      true,
+    );
 
     expect(WebhookCtor).toHaveBeenCalledWith('whsec_x');
     expect(verify).toHaveBeenCalledWith(expect.any(Buffer), {

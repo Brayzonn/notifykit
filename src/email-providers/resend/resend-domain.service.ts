@@ -63,7 +63,9 @@ export class ResendDomainService {
     const { error: verifyError } = await resend.domains.verify(domainId);
 
     if (verifyError) {
-      this.logger.error(`Resend domain verify call failed: ${verifyError.message}`);
+      this.logger.error(
+        `Resend domain verify call failed: ${verifyError.message}`,
+      );
       throw new BadGatewayException(
         `Failed to verify domain with Resend: ${verifyError.message}`,
       );
@@ -80,7 +82,11 @@ export class ResendDomainService {
 
     const valid = data.status === 'verified';
     const validationResults = data.records
-      ? data.records.map((r) => ({ record: r.record, name: r.name, status: r.status }))
+      ? data.records.map((r) => ({
+          record: r.record,
+          name: r.name,
+          status: r.status,
+        }))
       : null;
 
     return { valid, validationResults };
@@ -95,7 +101,9 @@ export class ResendDomainService {
     const { error } = await resend.domains.remove(domainId);
 
     if (error) {
-      this.logger.error(`Failed to delete Resend domain ${domainId}: ${error.message}`);
+      this.logger.error(
+        `Failed to delete Resend domain ${domainId}: ${error.message}`,
+      );
       throw new Error(error.message);
     }
 
@@ -127,7 +135,9 @@ export class ResendDomainService {
       );
     }
 
-    const { data: full, error: getError } = await resend.domains.get(existing.id);
+    const { data: full, error: getError } = await resend.domains.get(
+      existing.id,
+    );
 
     if (getError) {
       throw new BadGatewayException(

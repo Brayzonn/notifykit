@@ -57,7 +57,9 @@ export class QueueService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async enqueuePlatformEmail(data: Omit<PlatformEmailJobData, 'logId'>): Promise<void> {
+  async enqueuePlatformEmail(
+    data: Omit<PlatformEmailJobData, 'logId'>,
+  ): Promise<void> {
     const log = await this.prisma.platformEmailLog.create({
       data: {
         label: data.label,
@@ -173,7 +175,9 @@ export class QueueService {
       );
       return job;
     } catch (error) {
-      this.logger.error(`Failed to queue webhook job: ${getErrorMessage(error)}`);
+      this.logger.error(
+        `Failed to queue webhook job: ${getErrorMessage(error)}`,
+      );
       throw error;
     }
   }

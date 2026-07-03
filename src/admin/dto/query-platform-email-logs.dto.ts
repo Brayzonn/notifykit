@@ -11,7 +11,12 @@ export class QueryPlatformEmailLogsDto {
   @Min(1)
   page?: number = 1;
 
-  @ApiPropertyOptional({ description: 'Items per page', default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    description: 'Items per page',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -19,12 +24,17 @@ export class QueryPlatformEmailLogsDto {
   @Max(100)
   limit?: number = 20;
 
-  @ApiPropertyOptional({ description: 'Filter by status', enum: PlatformEmailStatus })
+  @ApiPropertyOptional({
+    description: 'Filter by status',
+    enum: PlatformEmailStatus,
+  })
   @IsOptional()
   @IsEnum(PlatformEmailStatus)
   status?: PlatformEmailStatus;
 
-  @ApiPropertyOptional({ description: 'Filter by email type (e.g. otp, welcome, password-reset)' })
+  @ApiPropertyOptional({
+    description: 'Filter by email type (e.g. otp, welcome, password-reset)',
+  })
   @IsOptional()
   @IsString()
   label?: string;

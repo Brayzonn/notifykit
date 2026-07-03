@@ -30,8 +30,9 @@ export class PolarWebhookHandler {
     private readonly configService: ConfigService,
     private readonly webhookEventLog: PaymentWebhookEventService,
   ) {
-    this.webhookSecret =
-      this.configService.getOrThrow<string>('POLAR_WEBHOOK_SECRET');
+    this.webhookSecret = this.configService.getOrThrow<string>(
+      'POLAR_WEBHOOK_SECRET',
+    );
     this.indiePlanId =
       this.configService.get<string>('POLAR_INDIE_PRODUCT_ID') ?? '';
     this.startupPlanId =
@@ -48,7 +49,9 @@ export class PolarWebhookHandler {
 
     this.logger.log(`Processing Polar webhook: ${event.type}`);
 
-    const dedupKey = headers['webhook-id'] ?? `${event.type}:${(event.data as { id: string }).id}`;
+    const dedupKey =
+      headers['webhook-id'] ??
+      `${event.type}:${(event.data as { id: string }).id}`;
 
     const isNew = await this.webhookEventLog.markProcessed(
       PaymentProvider.POLAR,
@@ -195,9 +198,7 @@ export class PolarWebhookHandler {
       data: { subscriptionStatus: SubscriptionStatus.PAST_DUE },
     });
 
-    this.logger.warn(
-      `Polar subscription past_due: customer ${customer.email}`,
-    );
+    this.logger.warn(`Polar subscription past_due: customer ${customer.email}`);
   }
 
   private mapProductToPlan(productId: string): CustomerPlan | null {

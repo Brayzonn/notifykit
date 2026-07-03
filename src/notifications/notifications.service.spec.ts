@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '@/queues/queue.service';
@@ -9,7 +13,13 @@ import {
   createMockPrismaService,
   type MockedPrismaService,
 } from '../../test/helpers/test-utils';
-import { CustomerPlan, EmailProviderType, JobStatus, JobType, Prisma } from '@prisma/client';
+import {
+  CustomerPlan,
+  EmailProviderType,
+  JobStatus,
+  JobType,
+  Prisma,
+} from '@prisma/client';
 import { QUEUE_PRIORITIES } from '@/queues/queue.constants';
 
 // Simulates a unique-constraint (customerId, idempotencyKey) violation.
@@ -118,7 +128,10 @@ describe('NotificationsService', () => {
       prisma.job.create.mockRejectedValue(uniqueViolation());
 
       const error = await service
-        .sendEmail('customer-123', { ...emailDto, idempotencyKey: 'idem-key-1' })
+        .sendEmail('customer-123', {
+          ...emailDto,
+          idempotencyKey: 'idem-key-1',
+        })
         .catch((e) => e);
 
       expect(error).toBeInstanceOf(ConflictException);
@@ -144,7 +157,10 @@ describe('NotificationsService', () => {
 
     it('should throw ForbiddenException for INDIE plan with no email providers configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 0 } }),
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: 0 },
+        }),
       );
 
       await expect(service.sendEmail('customer-123', emailDto)).rejects.toThrow(
@@ -154,7 +170,10 @@ describe('NotificationsService', () => {
 
     it('should throw ForbiddenException for STARTUP plan with no email providers configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.STARTUP, _count: { emailProviders: 0 } }),
+        createMockCustomer({
+          plan: CustomerPlan.STARTUP,
+          _count: { emailProviders: 0 },
+        }),
       );
 
       await expect(service.sendEmail('customer-123', emailDto)).rejects.toThrow(
@@ -164,15 +183,32 @@ describe('NotificationsService', () => {
 
     it('should allow FREE plan to proceed without any email providers configured', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.FREE, _count: { emailProviders: 0 } }),
+        createMockCustomer({
+          plan: CustomerPlan.FREE,
+          _count: { emailProviders: 0 },
+        }),
       );
 
-      await expect(service.sendEmail('customer-123', emailDto)).resolves.toBeDefined();
+      await expect(
+        service.sendEmail('customer-123', emailDto),
+      ).resolves.toBeDefined();
     });
 
     it('should create the job in Prisma with the correct fields', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 1 }, sendingDomains: [{ domain: 'mail.example.com', provider: 'SENDGRID' as any, verified: true, requestedAt: new Date(), verifiedAt: new Date() }] }),
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: 1 },
+          sendingDomains: [
+            {
+              domain: 'mail.example.com',
+              provider: 'SENDGRID' as any,
+              verified: true,
+              requestedAt: new Date(),
+              verifiedAt: new Date(),
+            },
+          ],
+        }),
       );
 
       await service.sendEmail('customer-123', emailDto);
@@ -198,7 +234,19 @@ describe('NotificationsService', () => {
     it('should queue the email job via QueueService', async () => {
       const job = makeJob({ id: 'job-abc' });
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 1 }, sendingDomains: [{ domain: 'mail.example.com', provider: 'SENDGRID' as any, verified: true, requestedAt: new Date(), verifiedAt: new Date() }] }),
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: 1 },
+          sendingDomains: [
+            {
+              domain: 'mail.example.com',
+              provider: 'SENDGRID' as any,
+              verified: true,
+              requestedAt: new Date(),
+              verifiedAt: new Date(),
+            },
+          ],
+        }),
       );
       prisma.job.create.mockResolvedValue(job);
 
@@ -219,7 +267,19 @@ describe('NotificationsService', () => {
 
     it('should use the custom priority when provided', async () => {
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 1 }, sendingDomains: [{ domain: 'mail.example.com', provider: 'SENDGRID' as any, verified: true, requestedAt: new Date(), verifiedAt: new Date() }] }),
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: 1 },
+          sendingDomains: [
+            {
+              domain: 'mail.example.com',
+              provider: 'SENDGRID' as any,
+              verified: true,
+              requestedAt: new Date(),
+              verifiedAt: new Date(),
+            },
+          ],
+        }),
       );
 
       await service.sendEmail('customer-123', {
@@ -229,7 +289,9 @@ describe('NotificationsService', () => {
 
       expect(prisma.job.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ priority: QUEUE_PRIORITIES.CRITICAL }),
+          data: expect.objectContaining({
+            priority: QUEUE_PRIORITIES.CRITICAL,
+          }),
         }),
       );
       expect(queueService.addEmailJob).toHaveBeenCalledWith(
@@ -241,7 +303,12 @@ describe('NotificationsService', () => {
     it('should return jobId, status, type, and createdAt', async () => {
       const createdAt = new Date('2026-01-01T00:00:00Z');
       prisma.job.create.mockResolvedValue(
-        makeJob({ id: 'job-xyz', status: JobStatus.PENDING, type: JobType.EMAIL, createdAt }),
+        makeJob({
+          id: 'job-xyz',
+          status: JobStatus.PENDING,
+          type: JobType.EMAIL,
+          createdAt,
+        }),
       );
 
       const result = await service.sendEmail('customer-123', emailDto);
@@ -313,7 +380,10 @@ describe('NotificationsService', () => {
 
       it.each([
         { provider: EmailProviderType.SENDGRID },
-        { fallback: EmailProviderType.SENDGRID, provider: EmailProviderType.POSTMARK },
+        {
+          fallback: EmailProviderType.SENDGRID,
+          provider: EmailProviderType.POSTMARK,
+        },
       ])('rejects routing fields on FREE plan (%o)', async (routing) => {
         prisma.customer.findUnique.mockResolvedValue(
           createMockCustomer({ plan: CustomerPlan.FREE }),
@@ -334,7 +404,9 @@ describe('NotificationsService', () => {
             ...emailDto,
             provider: EmailProviderType.POSTMARK,
           }),
-        ).rejects.toThrow('Provider POSTMARK is not configured for this customer.');
+        ).rejects.toThrow(
+          'Provider POSTMARK is not configured for this customer.',
+        );
       });
 
       it('rejects when fallback provider is not configured', async () => {
@@ -398,7 +470,12 @@ describe('NotificationsService', () => {
     const mockWebhookJob = makeJob({
       id: 'job-webhook-1',
       type: JobType.WEBHOOK,
-      payload: { url: webhookDto.url, method: 'POST', headers: webhookDto.headers, payload: webhookDto.payload },
+      payload: {
+        url: webhookDto.url,
+        method: 'POST',
+        headers: webhookDto.headers,
+        payload: webhookDto.payload,
+      },
     });
 
     beforeEach(() => {
@@ -411,7 +488,10 @@ describe('NotificationsService', () => {
       prisma.job.create.mockRejectedValue(uniqueViolation());
 
       await expect(
-        service.sendWebhook('customer-123', { ...webhookDto, idempotencyKey: 'idem-key-2' }),
+        service.sendWebhook('customer-123', {
+          ...webhookDto,
+          idempotencyKey: 'idem-key-2',
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -554,7 +634,10 @@ describe('NotificationsService', () => {
     it('should return data with correct pagination meta', async () => {
       prisma.job.count.mockResolvedValue(45);
 
-      const result = await service.listJobs('customer-123', { page: 2, limit: 10 });
+      const result = await service.listJobs('customer-123', {
+        page: 2,
+        limit: 10,
+      });
 
       expect(result.pagination).toEqual({
         page: 2,
@@ -598,10 +681,15 @@ describe('NotificationsService', () => {
     it('should throw ForbiddenException when retrying an EMAIL job on a paid plan with no email providers configured', async () => {
       prisma.job.findFirst.mockResolvedValue(failedEmailJob);
       prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({ plan: CustomerPlan.INDIE, _count: { emailProviders: 0 } }),
+        createMockCustomer({
+          plan: CustomerPlan.INDIE,
+          _count: { emailProviders: 0 },
+        }),
       );
 
-      await expect(service.retryJob('customer-123', 'job-failed')).rejects.toThrow(
+      await expect(
+        service.retryJob('customer-123', 'job-failed'),
+      ).rejects.toThrow(
         'Please add an email provider API key in Settings before sending emails.',
       );
     });
@@ -611,7 +699,10 @@ describe('NotificationsService', () => {
       prisma.customer.findUnique.mockResolvedValue(
         createMockCustomer({ plan: CustomerPlan.FREE }),
       );
-      prisma.job.update.mockResolvedValue({ ...failedEmailJob, status: JobStatus.PENDING });
+      prisma.job.update.mockResolvedValue({
+        ...failedEmailJob,
+        status: JobStatus.PENDING,
+      });
       queueService.addEmailJob.mockResolvedValue(undefined);
 
       await service.retryJob('customer-123', 'job-failed');
@@ -660,7 +751,10 @@ describe('NotificationsService', () => {
           ] as any,
         }),
       );
-      prisma.job.update.mockResolvedValue({ ...routedJob, status: JobStatus.PENDING });
+      prisma.job.update.mockResolvedValue({
+        ...routedJob,
+        status: JobStatus.PENDING,
+      });
       queueService.addEmailJob.mockResolvedValue(undefined);
 
       await service.retryJob('customer-123', 'job-routed');
@@ -677,7 +771,10 @@ describe('NotificationsService', () => {
 
     it('should update the job status to PENDING and re-queue a WEBHOOK job', async () => {
       prisma.job.findFirst.mockResolvedValue(failedWebhookJob);
-      prisma.job.update.mockResolvedValue({ ...failedWebhookJob, status: JobStatus.PENDING });
+      prisma.job.update.mockResolvedValue({
+        ...failedWebhookJob,
+        status: JobStatus.PENDING,
+      });
       queueService.addWebhookJob.mockResolvedValue(undefined);
 
       await service.retryJob('customer-123', 'job-failed');

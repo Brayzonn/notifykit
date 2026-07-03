@@ -29,7 +29,14 @@ const makeLog = (overrides: Partial<Record<string, any>> = {}) => ({
 
 describe('AdminService — platform email logs', () => {
   let service: AdminService;
-  let prisma: { platformEmailLog: { findMany: jest.Mock; count: jest.Mock; findUnique: jest.Mock; delete: jest.Mock } };
+  let prisma: {
+    platformEmailLog: {
+      findMany: jest.Mock;
+      count: jest.Mock;
+      findUnique: jest.Mock;
+      delete: jest.Mock;
+    };
+  };
 
   beforeEach(async () => {
     prisma = {
@@ -70,7 +77,12 @@ describe('AdminService — platform email logs', () => {
       const result = await service.getPlatformEmailLogs({ page: 1, limit: 20 });
 
       expect(result.data).toHaveLength(1);
-      expect(result.pagination).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
+      expect(result.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+      });
       expect(prisma.platformEmailLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: {}, skip: 0, take: 20 }),
       );
@@ -80,10 +92,14 @@ describe('AdminService — platform email logs', () => {
       prisma.platformEmailLog.findMany.mockResolvedValue([]);
       prisma.platformEmailLog.count.mockResolvedValue(0);
 
-      await service.getPlatformEmailLogs({ status: PlatformEmailStatus.FAILED });
+      await service.getPlatformEmailLogs({
+        status: PlatformEmailStatus.FAILED,
+      });
 
       expect(prisma.platformEmailLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { status: PlatformEmailStatus.FAILED } }),
+        expect.objectContaining({
+          where: { status: PlatformEmailStatus.FAILED },
+        }),
       );
     });
 
@@ -140,7 +156,9 @@ describe('AdminService — platform email logs', () => {
 
     it('throws NotFoundException when log does not exist', async () => {
       prisma.platformEmailLog.findUnique.mockResolvedValue(null);
-      await expect(service.getPlatformEmailLogById('no-such-id')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.getPlatformEmailLogById('no-such-id'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -157,12 +175,17 @@ describe('AdminService — platform email logs', () => {
       expect(prisma.platformEmailLog.delete).toHaveBeenCalledWith({
         where: { id: 'log-uuid-1' },
       });
-      expect(result).toEqual({ message: 'Platform email log deleted successfully', id: 'log-uuid-1' });
+      expect(result).toEqual({
+        message: 'Platform email log deleted successfully',
+        id: 'log-uuid-1',
+      });
     });
 
     it('throws NotFoundException when log does not exist', async () => {
       prisma.platformEmailLog.findUnique.mockResolvedValue(null);
-      await expect(service.deletePlatformEmailLog('no-such-id')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deletePlatformEmailLog('no-such-id'),
+      ).rejects.toThrow(NotFoundException);
       expect(prisma.platformEmailLog.delete).not.toHaveBeenCalled();
     });
   });
@@ -177,7 +200,12 @@ describe('AdminService — getStats', () => {
     user: { count: jest.Mock };
     customer: { count: jest.Mock };
     job: { count: jest.Mock };
-    platformEmailLog: { findMany: jest.Mock; count: jest.Mock; findUnique: jest.Mock; delete: jest.Mock };
+    platformEmailLog: {
+      findMany: jest.Mock;
+      count: jest.Mock;
+      findUnique: jest.Mock;
+      delete: jest.Mock;
+    };
   };
 
   beforeEach(async () => {
@@ -218,7 +246,11 @@ describe('AdminService — getStats', () => {
     const result = await service.getStats();
 
     // remember was called with the correct key and TTL.
-    expect(redis.remember).toHaveBeenCalledWith('admin:stats', 60, expect.any(Function));
+    expect(redis.remember).toHaveBeenCalledWith(
+      'admin:stats',
+      60,
+      expect.any(Function),
+    );
 
     // All three Prisma models were queried.
     expect(prisma.user.count).toHaveBeenCalledTimes(3);
@@ -233,7 +265,13 @@ describe('AdminService — getStats', () => {
         active: 5,
         byPlan: { FREE: 5, INDIE: 5, STARTUP: 5 },
       },
-      jobs: { total: 20, pending: 20, processing: 20, completed: 20, failed: 20 },
+      jobs: {
+        total: 20,
+        pending: 20,
+        processing: 20,
+        completed: 20,
+        failed: 20,
+      },
     });
   });
 

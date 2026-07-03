@@ -17,7 +17,11 @@ async function buildService(webhookUrl?: string): Promise<SlackService> {
       SlackService,
       {
         provide: ConfigService,
-        useValue: { get: jest.fn((key: string) => (key === 'SLACK_WEBHOOK_URL' ? webhookUrl : undefined)) },
+        useValue: {
+          get: jest.fn((key: string) =>
+            key === 'SLACK_WEBHOOK_URL' ? webhookUrl : undefined,
+          ),
+        },
       },
     ],
   }).compile();
@@ -52,7 +56,7 @@ describe('SlackService', () => {
     const service = await buildService('https://hooks.slack.com/test');
     await service.alert(payload);
 
-    const body = postSpy.mock.calls[0][1] as any;
+    const body = postSpy.mock.calls[0][1];
     const section = body.blocks.find((b: any) => b.type === 'section');
     expect(section.fields).toHaveLength(2);
     expect(section.fields[0].text).toContain('OTP');

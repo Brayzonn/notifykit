@@ -297,7 +297,11 @@ export class UserController {
     if (priority == null || !Number.isInteger(priority) || priority < 1) {
       throw new BadRequestException('priority must be a positive integer');
     }
-    return await this.userService.updateEmailProviderPriority(user.id, provider, priority);
+    return await this.userService.updateEmailProviderPriority(
+      user.id,
+      provider,
+      priority,
+    );
   }
 
   /**

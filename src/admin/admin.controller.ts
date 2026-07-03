@@ -160,9 +160,14 @@ export class AdminController {
   }
 
   @Patch('customers/:id/custom-limit')
-  @ApiOperation({ summary: 'Set or remove a custom monthly notification limit for a customer' })
+  @ApiOperation({
+    summary: 'Set or remove a custom monthly notification limit for a customer',
+  })
   @ApiParam({ name: 'id', description: 'Customer ID (UUID)' })
-  @ApiResponse({ status: 200, description: 'Custom limit updated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Custom limit updated successfully',
+  })
   @ApiResponse({ status: 404, description: 'Customer not found' })
   async setCustomLimit(
     @Param('id') id: string,
@@ -227,7 +232,9 @@ export class AdminController {
    */
 
   @Get('domains')
-  @ApiOperation({ summary: 'Get all customers with registered sending domains' })
+  @ApiOperation({
+    summary: 'Get all customers with registered sending domains',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns paginated list of customers with domains',
@@ -253,8 +260,13 @@ export class AdminController {
    */
 
   @Get('platform-email-logs')
-  @ApiOperation({ summary: 'Get all platform email logs with pagination and filters' })
-  @ApiResponse({ status: 200, description: 'Returns paginated list of platform email logs' })
+  @ApiOperation({
+    summary: 'Get all platform email logs with pagination and filters',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns paginated list of platform email logs',
+  })
   async getPlatformEmailLogs(@Query() query: QueryPlatformEmailLogsDto) {
     return await this.adminService.getPlatformEmailLogs(query);
   }
@@ -272,7 +284,10 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete a platform email log (permanent)' })
   @ApiParam({ name: 'id', description: 'Platform email log ID (UUID)' })
-  @ApiResponse({ status: 200, description: 'Platform email log deleted successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Platform email log deleted successfully',
+  })
   @ApiResponse({ status: 404, description: 'Platform email log not found' })
   async deletePlatformEmailLog(@Param('id') id: string) {
     return await this.adminService.deletePlatformEmailLog(id);

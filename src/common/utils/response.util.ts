@@ -17,7 +17,11 @@ export class ResponseUtil {
     };
   }
 
-  static error(error: string, message?: string, retryAfter?: number): ApiResponse {
+  static error(
+    error: string,
+    message?: string,
+    retryAfter?: number,
+  ): ApiResponse {
     return {
       success: false,
       error,

@@ -37,8 +37,13 @@ export class BillingCronService {
 
     for (const customer of stale) {
       try {
-        await this.billingService.downgradeToFreePlan(customer.id, 'PAYMENT_FAILED');
-        this.logger.warn(`Downgraded ${customer.email} to FREE (PAST_DUE > ${PAST_DUE_GRACE_DAYS} days)`);
+        await this.billingService.downgradeToFreePlan(
+          customer.id,
+          'PAYMENT_FAILED',
+        );
+        this.logger.warn(
+          `Downgraded ${customer.email} to FREE (PAST_DUE > ${PAST_DUE_GRACE_DAYS} days)`,
+        );
       } catch (err) {
         this.logger.error(
           `Failed to downgrade ${customer.email}: ${err instanceof Error ? err.message : String(err)}`,

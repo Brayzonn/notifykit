@@ -15,7 +15,7 @@ export class GetJobsDto {
     description: 'Items per page',
     default: 20,
     minimum: 1,
-    maximum: 100
+    maximum: 100,
   })
   @IsOptional()
   @Type(() => Number)
@@ -26,7 +26,7 @@ export class GetJobsDto {
 
   @ApiPropertyOptional({
     description: 'Filter by job status',
-    enum: JobStatus
+    enum: JobStatus,
   })
   @IsOptional()
   @IsEnum(JobStatus)
@@ -34,7 +34,7 @@ export class GetJobsDto {
 
   @ApiPropertyOptional({
     description: 'Filter by job type',
-    enum: JobType
+    enum: JobType,
   })
   @IsOptional()
   @IsEnum(JobType)

@@ -77,12 +77,7 @@ export class IpRateLimitGuard implements CanActivate {
 
     try {
       const client = this.redis.getClient();
-      const count = await client.eval(
-        script,
-        1,
-        key,
-        windowSeconds.toString(),
-      );
+      const count = await client.eval(script, 1, key, windowSeconds.toString());
 
       if (Number(count) > limit) {
         this.logger.warn(`IP rate limit exceeded for key: ${key}`);
@@ -91,7 +86,9 @@ export class IpRateLimitGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      this.logger.error(`IP rate limit check failed: ${getErrorMessage(error)}`);
+      this.logger.error(
+        `IP rate limit check failed: ${getErrorMessage(error)}`,
+      );
       return true;
     }
   }

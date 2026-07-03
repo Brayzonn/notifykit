@@ -64,13 +64,18 @@ describe('SendGridService', () => {
         expect.any(String),
         expect.any(Object),
         expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: `Bearer ${API_KEY}` }),
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${API_KEY}`,
+          }),
         }),
       );
     });
 
     it('should build the correct SendGrid payload', async () => {
-      await service.sendEmail({ ...baseParams, from: 'custom@example.com' }, API_KEY);
+      await service.sendEmail(
+        { ...baseParams, from: 'custom@example.com' },
+        API_KEY,
+      );
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.any(String),
@@ -112,7 +117,9 @@ describe('SendGridService', () => {
         expect.any(String),
         expect.any(Object),
         expect.objectContaining({
-          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+          }),
         }),
       );
     });
@@ -126,7 +133,11 @@ describe('SendGridService', () => {
 
       const result = await service.sendEmail(baseParams, API_KEY);
 
-      expect(result).toMatchObject({ statusCode: 202, to: baseParams.to, subject: baseParams.subject });
+      expect(result).toMatchObject({
+        statusCode: 202,
+        to: baseParams.to,
+        subject: baseParams.subject,
+      });
     });
 
     it('should throw when no API key is provided', async () => {
@@ -137,7 +148,10 @@ describe('SendGridService', () => {
 
     it('should throw when axios rejects', async () => {
       const axiosError = Object.assign(new Error('Network error'), {
-        response: { status: 500, data: { errors: [{ message: 'Internal error' }] } },
+        response: {
+          status: 500,
+          data: { errors: [{ message: 'Internal error' }] },
+        },
       });
       mockedAxios.post.mockRejectedValue(axiosError);
 

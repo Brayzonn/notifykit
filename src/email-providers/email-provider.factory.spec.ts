@@ -46,7 +46,11 @@ describe('EmailProviderFactory', () => {
       env.SENDGRID_API_KEY = 'sg-key';
       const result = factory.resolveAll(CustomerPlan.FREE, []);
       expect(result).toEqual([
-        { type: EmailProviderType.SENDGRID, provider: sendGrid, apiKey: 'sg-key' },
+        {
+          type: EmailProviderType.SENDGRID,
+          provider: sendGrid,
+          apiKey: 'sg-key',
+        },
       ]);
     });
 
@@ -54,7 +58,11 @@ describe('EmailProviderFactory', () => {
       env.POSTMARK_API_KEY = 'pm-key';
       const result = factory.resolveAll(CustomerPlan.FREE, []);
       expect(result).toEqual([
-        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm-key' },
+        {
+          type: EmailProviderType.POSTMARK,
+          provider: postmark,
+          apiKey: 'pm-key',
+        },
       ]);
     });
 
@@ -84,7 +92,11 @@ describe('EmailProviderFactory', () => {
         { provider: EmailProviderType.POSTMARK, apiKey: 'pm-key', priority: 1 },
       ]);
       expect(result).toEqual([
-        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm-key' },
+        {
+          type: EmailProviderType.POSTMARK,
+          provider: postmark,
+          apiKey: 'pm-key',
+        },
       ]);
     });
 

@@ -59,7 +59,12 @@ export class SendgridSignatureGuard implements CanActivate {
     try {
       const ew = new EventWebhook();
       const publicKey = ew.convertPublicKeyToECDSA(this.verificationKey);
-      const valid = ew.verifySignature(publicKey, request.rawBody, signature, timestamp);
+      const valid = ew.verifySignature(
+        publicKey,
+        request.rawBody,
+        signature,
+        timestamp,
+      );
 
       if (!valid) {
         throw new Error('Signature mismatch');
@@ -67,7 +72,9 @@ export class SendgridSignatureGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      this.logger.warn(`SendGrid signature validation failed: ${getErrorMessage(error)}`);
+      this.logger.warn(
+        `SendGrid signature validation failed: ${getErrorMessage(error)}`,
+      );
       throw new UnauthorizedException('Invalid SendGrid webhook signature');
     }
   }

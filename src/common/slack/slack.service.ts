@@ -39,7 +39,9 @@ export class SlackService {
     try {
       await axios.post(this.webhookUrl, { blocks });
     } catch (err) {
-      this.logger.error(`Failed to send Slack alert: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(
+        `Failed to send Slack alert: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }

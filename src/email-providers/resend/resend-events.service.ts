@@ -41,9 +41,7 @@ export class ResendEventsService {
 
     const jobId = event.data.tags?.job_id;
     if (!jobId) {
-      this.logger.debug(
-        `Skipping Resend event ${event.type} — no job_id tag`,
-      );
+      this.logger.debug(`Skipping Resend event ${event.type} — no job_id tag`);
       return;
     }
 
@@ -53,9 +51,7 @@ export class ResendEventsService {
     });
 
     if (!jobExists) {
-      this.logger.warn(
-        `Received Resend event for unknown job_id: ${jobId}`,
-      );
+      this.logger.warn(`Received Resend event for unknown job_id: ${jobId}`);
       return;
     }
 

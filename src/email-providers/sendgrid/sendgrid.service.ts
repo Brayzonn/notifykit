@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import {
-  IEmailProvider,
-  SendEmailParams,
-} from '../email-provider.interface';
+import { IEmailProvider, SendEmailParams } from '../email-provider.interface';
 
 @Injectable()
 export class SendGridService implements IEmailProvider {

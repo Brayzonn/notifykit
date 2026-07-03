@@ -523,7 +523,7 @@ export class AuthService {
     });
 
     if (!storedToken) {
-      const payload = this.jwtService.decode(token) as JwtPayload;
+      const payload = this.jwtService.decode(token);
 
       if (payload?.sub) {
         const activeTokens = await this.prisma.refreshToken.count({

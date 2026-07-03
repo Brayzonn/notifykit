@@ -33,7 +33,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message = responseObj.error;
         }
 
-        if (status === HttpStatus.TOO_MANY_REQUESTS && typeof responseObj.retryAfter === 'number') {
+        if (
+          status === HttpStatus.TOO_MANY_REQUESTS &&
+          typeof responseObj.retryAfter === 'number'
+        ) {
           retryAfter = responseObj.retryAfter;
         }
       } else if (typeof exceptionResponse === 'string') {
@@ -45,6 +48,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    response.status(status).json(ResponseUtil.error(message, undefined, retryAfter));
+    response
+      .status(status)
+      .json(ResponseUtil.error(message, undefined, retryAfter));
   }
 }
