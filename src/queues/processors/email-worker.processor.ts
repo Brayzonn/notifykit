@@ -57,7 +57,6 @@ export class EmailWorkerProcessor extends WorkerHost {
       fallback,
     } = job.data;
 
-    // BullMQ tracks the attempt count; no need to read it back from the DB.
     const nextAttempt = job.attemptsMade + 1;
 
     this.logger.log(`Processing email job: ${jobId} (attempt ${nextAttempt})`);
