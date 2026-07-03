@@ -338,6 +338,27 @@ describe('UserService', () => {
       expect(result).toMatchObject({ expiresIn: 1800 });
       expect(result.message).toBeDefined();
     });
+
+    it('should normalize the new email to lowercase and trim before use', async () => {
+      await service.requestEmailChange('user-123', {
+        newEmail: '  New@Example.COM ',
+        password: 'my-password',
+      });
+
+      // Uniqueness check must query the normalized address, not the raw input.
+      expect(prisma.user.findUnique).toHaveBeenNthCalledWith(2, {
+        where: { email: 'new@example.com' },
+      });
+      // Normalized address is what gets persisted and emailed.
+      expect(redis.set).toHaveBeenCalledWith(
+        'email-change:user-123',
+        expect.stringContaining('"newEmail":"new@example.com"'),
+        1800,
+      );
+      expect(emailService.sendEmailChangeVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'new@example.com' }),
+      );
+    });
   });
 
   // ── verifyNewEmail ───────────────────────────────────────────────────────────

@@ -209,6 +209,8 @@ export class UserService {
     userId: string,
     dto: UpdateEmailDto,
   ): Promise<EmailChangeRequestResponse> {
+    dto.newEmail = dto.newEmail.toLowerCase().trim();
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
