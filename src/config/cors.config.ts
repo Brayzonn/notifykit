@@ -1,6 +1,12 @@
 import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { ConfigService } from '@nestjs/config';
 
+// Escape every regex metacharacter, not just the first dot, so multi-label
+// ALLOWED_DOMAIN values (e.g. "foo.bar.com") build an exact-match pattern
+// instead of leaving later dots as "any character" wildcards.
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const createCorsConfig = (configService: ConfigService): CorsOptions => {
   const isProduction = configService.get('NODE_ENV') === 'production';
 
@@ -32,13 +38,13 @@ export const createCorsConfig = (configService: ConfigService): CorsOptions => {
     .filter(Boolean)
     .map((origin: string) => origin.trim());
 
-  const domain = configService.get('ALLOWED_DOMAIN');
+  const domain = configService.get<string>('ALLOWED_DOMAIN')?.trim();
 
   return {
     origin: [
       ...allowedOrigins,
       ...(domain
-        ? [new RegExp(`^https:\\/\\/.*\\.${domain.replace('.', '\\.')}$`)]
+        ? [new RegExp(`^https:\\/\\/.*\\.${escapeRegExp(domain)}$`)]
         : []),
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
