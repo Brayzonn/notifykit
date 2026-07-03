@@ -67,19 +67,10 @@ export class IpRateLimitGuard implements CanActivate {
     limit: number,
     windowSeconds: number,
   ): Promise<boolean> {
-    const script = `
-      local current = redis.call("INCR", KEYS[1])
-      if current == 1 then
-        redis.call("EXPIRE", KEYS[1], ARGV[1])
-      end
-      return current
-    `;
-
     try {
-      const client = this.redis.getClient();
-      const count = await client.eval(script, 1, key, windowSeconds.toString());
+      const count = await this.redis.incrementWithTtl(key, windowSeconds);
 
-      if (Number(count) > limit) {
+      if (count > limit) {
         this.logger.warn(`IP rate limit exceeded for key: ${key}`);
         return false;
       }

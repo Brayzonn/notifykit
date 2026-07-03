@@ -10,11 +10,11 @@ import Redis from 'ioredis';
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client: Redis;
+  private client!: Redis;
 
   constructor(private configService: ConfigService) {}
 
-  async onModuleInit() {
+  onModuleInit(): void {
     const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
     const password = this.configService.get<string>('REDIS_PASSWORD');
 
@@ -59,7 +59,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client;
   }
 
-  // Convenience methods
+  /**
+   * Convenience methods------------------------
+   */
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }
@@ -79,6 +81,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async exists(key: string): Promise<boolean> {
     const result = await this.client.exists(key);
     return result === 1;
+  }
+
+  /**
+   * Atomically increment a counter, setting its TTL only on the first
+   * increment, and return the new value. This is the fixed-window rate-limit
+   * primitive shared by the IP and per-customer guards.
+   */
+  async incrementWithTtl(key: string, ttlSeconds: number): Promise<number> {
+    const script = `
+      local current = redis.call("INCR", KEYS[1])
+      if current == 1 then
+        redis.call("EXPIRE", KEYS[1], ARGV[1])
+      end
+      return current
+    `;
+    const count = await this.client.eval(script, 1, key, ttlSeconds.toString());
+    return Number(count);
   }
 
   // JSON helpers
