@@ -63,9 +63,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 src/metadata.ts
 
-
-src/metadata.ts
-
 marketing.md
 
 CURRENT.md
@@ -78,5 +75,3 @@ MARKETING.md
 AGENTS.md
 
 backup.md
-TEST_SUMMARY.md
-todonow.md
