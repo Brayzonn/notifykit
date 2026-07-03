@@ -35,8 +35,7 @@ src/
 │   │   ├── customer-rate-limit.guard.ts  # Per-customer req/min (API key routes)
 │   │   ├── ip-rate-limit.guard.ts        # Per-IP req/min (public routes)
 │   │   ├── jwt-auth.guard.ts             # JWT validation (registered globally)
-│   │   ├── roles.guard.ts                # Role-based access (registered globally)
-│   │   └── user-rate-limit.guard.ts      # Per-user req/min (JWT dashboard routes)
+│   │   └── roles.guard.ts                # Role-based access (registered globally)
 │   ├── strategies/
 │   │   ├── github.strategy.ts            # GitHub OAuth
 │   │   └── jwt.strategy.ts               # JWT — attaches user + plan to request
@@ -59,7 +58,7 @@ src/
 │   ├── middleware/
 │   │   └── activity-logger.middleware.ts
 │   ├── rate-limit/
-│   │   └── rate-limit.module.ts          # Provides IpRateLimitGuard + UserRateLimitGuard
+│   │   └── rate-limit.module.ts          # Provides IpRateLimitGuard
 │   ├── slack/
 │   │   └── slack.service.ts              # Slack Incoming Webhook alerts (SLACK_WEBHOOK_URL)
 │   └── utils/
@@ -73,7 +72,7 @@ src/
 ├── platform-email/                       # Internal platform email dispatch + HTML templates
 ├── health/                               # GET /health, GET /health/simple
 ├── notifications/                        # Customer-facing API — send email & webhook
-├── payment/                              # Paystack, Polar (& Stripe scaffold) providers + webhook handlers
+├── payment/                              # Paystack & Polar providers + webhook handlers
 ├── prisma/                               # PrismaService
 ├── queues/                               # BullMQ workers — email & webhook processors
 ├── redis/                                # RedisService (ioredis wrapper + remember helper)
@@ -127,8 +126,10 @@ NODE_ENV=development
 PORT=3000
 
 # CORS
-CORS_ORIGIN=*
-ALLOWED_DOMAIN=*
+# Comma-separated full origins (a literal "*" will NOT work — credentials are enabled)
+CORS_ORIGIN=
+# Apex domain for wildcard subdomain matching in production; leave blank to disable
+ALLOWED_DOMAIN=
 FRONTEND_URL=http://localhost:3001
 
 #Encryption
@@ -161,13 +162,6 @@ POLAR_WEBHOOK_SECRET=polar_whs_...
 POLAR_SERVER=sandbox
 POLAR_INDIE_PRODUCT_ID=
 POLAR_STARTUP_PRODUCT_ID=
-
-# Stripe (unused — scaffold only)
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLIC_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_INDIE_PRICE_ID=price_...
-STRIPE_STARTUP_PRICE_ID=price_...
 
 # Slack (optional — Incoming Webhook URL for platform email failure alerts)
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
@@ -445,8 +439,8 @@ Every entry in the `deliveryLogs[]` array on `GET /api/v1/notifications/jobs/:id
 
 | Method | Endpoint                                  | Description                                              |
 | ------ | ----------------------------------------- | -------------------------------------------------------- |
-| POST   | `/api/v1/payment/stripe/webhook`          | Stripe webhook handler                                   |
 | POST   | `/api/v1/payment/paystack/webhook`        | Paystack webhook handler                                 |
+| POST   | `/api/v1/payment/polar/webhook`           | Polar webhook handler                                    |
 | POST   | `/api/v1/webhooks/sendgrid`               | SendGrid email events (shared platform key, ECDSA)       |
 | POST   | `/api/v1/webhooks/sendgrid/:customerId`   | SendGrid email events (per-customer key, ECDSA)          |
 | POST   | `/api/v1/webhooks/resend/:customerId`     | Resend email events (per-customer secret, svix)          |
@@ -479,8 +473,8 @@ All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second windo
 | `POST /auth/reset-password/confirm`             | `IpRateLimitGuard`       | 10 req/min  | IP          |
 | `GET /auth/github`, `GET /auth/github/callback` | `IpRateLimitGuard`       | 20 req/min  | IP          |
 | `POST /auth/logout`                             | `IpRateLimitGuard`       | 20 req/min  | IP          |
-| `POST /payment/stripe/webhook`                  | `IpRateLimitGuard`       | 300 req/min | IP          |
 | `POST /payment/paystack/webhook`                | `IpRateLimitGuard`       | 300 req/min | IP          |
+| `POST /payment/polar/webhook`                   | `IpRateLimitGuard`       | 300 req/min | IP          |
 | `POST /user/email/verify-new/:token`            | `IpRateLimitGuard`       | 20 req/min  | IP          |
 | `POST /user/email/confirm-old/:token`           | `IpRateLimitGuard`       | 20 req/min  | IP          |
 | `POST /user/email/cancel/:token`                | `IpRateLimitGuard`       | 20 req/min  | IP          |
@@ -504,12 +498,12 @@ All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second windo
 
 ## Testing
 
-This project includes a Jest test suite with 440+ unit tests and 37 e2e scenarios covering:
+This project includes a Jest test suite with 483 unit tests (27 suites) and 39 e2e scenarios covering:
 
 - **Auth & guards**: signin, password reset, token refresh, logout, API key validation, quota enforcement, JWT/IP/customer rate limiting
 - **Email providers**: SendGrid, Resend, and Postmark send services + domain verification services + the shared `EmailProviderFactory` (FREE-tier fallback order, paid-tier per-customer resolution)
 - **Webhook receivers**: SendGrid / Resend / Postmark signature guards (ECDSA, svix, Basic Auth respectively) and event-type mapping for each provider
-- **Stripe & Paystack webhooks**: signature verification, subscription events, payment handling
+- **Payment webhooks**: Paystack signature verification, subscription events, payment-failure handling
 - **Queue processors**: email/webhook job processing, multi-provider failover, retry logic
 - **E2E**: complete signup → verify → signin flow, password reset, refresh-token rotation, session limits, OTP resend
 
