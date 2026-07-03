@@ -475,44 +475,6 @@ export class AuthService {
    */
 
   /**
-   * Get usage stats for a customer
-   */
-  async getUsageStats(customerId: string): Promise<{
-    usage: number;
-    limit: number;
-    remaining: number;
-    resetAt: Date;
-    billingCycleStartAt: Date;
-    percentageUsed: number;
-  }> {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: {
-        usageCount: true,
-        monthlyLimit: true,
-        usageResetAt: true,
-        billingCycleStartAt: true,
-      },
-    });
-
-    if (!customer) {
-      throw new Error('Customer not found');
-    }
-
-    const remaining = Math.max(0, customer.monthlyLimit - customer.usageCount);
-    const percentageUsed = (customer.usageCount / customer.monthlyLimit) * 100;
-
-    return {
-      usage: customer.usageCount,
-      limit: customer.monthlyLimit,
-      remaining,
-      resetAt: customer.usageResetAt,
-      billingCycleStartAt: customer.billingCycleStartAt,
-      percentageUsed: Math.round(percentageUsed * 100) / 100,
-    };
-  }
-
-  /**
    * Validate and retrieve stored refresh token
    */
   private async validateStoredRefreshToken(token: string) {

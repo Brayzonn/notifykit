@@ -1,28 +1,6 @@
 import { EmailProviderType } from '@prisma/client';
 
 // ============================================
-// REQUEST DTOs INTERFACES
-// ============================================
-
-export interface SendEmailRequest {
-  to: string;
-  subject: string;
-  body: string;
-  from?: string;
-  priority?: number;
-  idempotencyKey?: string;
-}
-
-export interface SendWebhookRequest {
-  url: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  headers?: Record<string, string>;
-  payload?: Record<string, any>;
-  priority?: number;
-  idempotencyKey?: string;
-}
-
-// ============================================
 // RESPONSE INTERFACES
 // ============================================
 
@@ -95,28 +73,6 @@ export interface ListJobsOptions {
   limit?: number;
   type?: 'email' | 'webhook';
   status?: 'pending' | 'processing' | 'completed' | 'failed';
-}
-
-// ============================================
-// INTERNAL QUEUE PAYLOAD INTERFACES
-// ============================================
-
-export interface EmailJobPayload {
-  jobId: string;
-  customerId: string;
-  to: string;
-  subject: string;
-  body: string;
-  from?: string;
-}
-
-export interface WebhookJobPayload {
-  jobId: string;
-  customerId: string;
-  url: string;
-  method: string;
-  headers?: Record<string, string>;
-  payload?: Record<string, any>;
 }
 
 // ============================================

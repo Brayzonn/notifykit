@@ -23,16 +23,4 @@ export class CookieConfig {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
   }
-
-  static getAccessTokenOptions(configService: ConfigService): CookieOptions {
-    const isProduction = configService.get('NODE_ENV') === 'production';
-
-    return {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      path: '/',
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    };
-  }
 }
