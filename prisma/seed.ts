@@ -1,4 +1,10 @@
-import { PrismaClient, CustomerPlan, EmailProviderType, AuthProvider, UserRole } from '@prisma/client';
+import {
+  PrismaClient,
+  CustomerPlan,
+  EmailProviderType,
+  AuthProvider,
+  UserRole,
+} from '@prisma/client';
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 
@@ -13,11 +19,15 @@ const SEED_PLAN = CustomerPlan.INDIE;
 // Replicates EncryptionService.encrypt using the local ENCRYPTION_KEY env var
 function encrypt(text: string): string {
   const key = process.env.ENCRYPTION_KEY;
-  if (!key || key.length !== 64) throw new Error('ENCRYPTION_KEY must be a 64-char hex string');
+  if (!key || key.length !== 64)
+    throw new Error('ENCRYPTION_KEY must be a 64-char hex string');
   const keyBuf = Buffer.from(key, 'hex');
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-cbc', keyBuf, iv);
-  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const encrypted = Buffer.concat([
+    cipher.update(text, 'utf8'),
+    cipher.final(),
+  ]);
   return iv.toString('hex') + ':' + encrypted.toString('hex');
 }
 
@@ -26,6 +36,10 @@ function generateApiKey(): string {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Refusing to run seed script with NODE_ENV=production');
+  }
+
   console.log('Seeding database...');
 
   // ── User ──────────────────────────────────────────────────────────────────
@@ -47,7 +61,12 @@ async function main() {
   console.log(`User created: ${user.email}`);
 
   // ── Customer ──────────────────────────────────────────────────────────────
-  const monthlyLimit = SEED_PLAN === CustomerPlan.INDIE ? 4000 : SEED_PLAN === CustomerPlan.STARTUP ? 15000 : 100;
+  const monthlyLimit =
+    SEED_PLAN === CustomerPlan.INDIE
+      ? 4000
+      : SEED_PLAN === CustomerPlan.STARTUP
+        ? 15000
+        : 100;
 
   const customer = await prisma.customer.upsert({
     where: { userId: user.id },
@@ -85,7 +104,12 @@ async function main() {
   const dummySendgridKey = 'SG.seed_dummy_key_not_real';
 
   await prisma.customerEmailProvider.upsert({
-    where: { customerId_provider: { customerId: customer.id, provider: EmailProviderType.SENDGRID } },
+    where: {
+      customerId_provider: {
+        customerId: customer.id,
+        provider: EmailProviderType.SENDGRID,
+      },
+    },
     update: {},
     create: {
       customerId: customer.id,
@@ -99,7 +123,13 @@ async function main() {
 
   // ── Sending Domain ────────────────────────────────────────────────────────
   await prisma.customerSendingDomain.upsert({
-    where: { customerId_domain_provider: { customerId: customer.id, domain: 'notifykit.dev', provider: EmailProviderType.SENDGRID } },
+    where: {
+      customerId_domain_provider: {
+        customerId: customer.id,
+        domain: 'notifykit.dev',
+        provider: EmailProviderType.SENDGRID,
+      },
+    },
     update: {},
     create: {
       customerId: customer.id,
@@ -127,4 +157,4 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => void prisma.$disconnect());
