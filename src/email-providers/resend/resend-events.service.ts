@@ -32,7 +32,10 @@ export class ResendEventsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async processEvent(event: ResendWebhookEvent): Promise<void> {
+  async processEvent(
+    customerId: string,
+    event: ResendWebhookEvent,
+  ): Promise<void> {
     const eventType = EVENT_MAP[event.type];
     if (!eventType) {
       this.logger.debug(`Ignoring untracked Resend event type: ${event.type}`);
@@ -45,13 +48,15 @@ export class ResendEventsService {
       return;
     }
 
-    const jobExists = await this.prisma.job.findUnique({
-      where: { id: jobId },
+    const jobExists = await this.prisma.job.findFirst({
+      where: { id: jobId, customerId },
       select: { id: true },
     });
 
     if (!jobExists) {
-      this.logger.warn(`Received Resend event for unknown job_id: ${jobId}`);
+      this.logger.warn(
+        `Received Resend event for job_id ${jobId} not owned by customer ${customerId}`,
+      );
       return;
     }
 

@@ -6,7 +6,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 describe('SendgridEventsService', () => {
   let service: SendgridEventsService;
   const prisma = {
-    job: { findUnique: jest.fn() },
+    job: { findFirst: jest.fn() },
     emailEvent: { upsert: jest.fn() },
   };
 
@@ -19,7 +19,7 @@ describe('SendgridEventsService', () => {
     }).compile();
 
     service = module.get(SendgridEventsService);
-    prisma.job.findUnique.mockReset();
+    prisma.job.findFirst.mockReset();
     prisma.emailEvent.upsert.mockReset();
   });
 
@@ -31,7 +31,7 @@ describe('SendgridEventsService', () => {
       {} as unknown as Parameters<typeof service.processEvents>[0],
     );
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
@@ -46,7 +46,7 @@ describe('SendgridEventsService', () => {
       },
     ]);
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
@@ -60,11 +60,11 @@ describe('SendgridEventsService', () => {
       },
     ]);
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
   });
 
   it('warns and skips when the job does not exist', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce(null);
+    prisma.job.findFirst.mockResolvedValueOnce(null);
 
     await service.processEvents([
       {
@@ -76,15 +76,38 @@ describe('SendgridEventsService', () => {
       },
     ]);
 
-    expect(prisma.job.findUnique).toHaveBeenCalledWith({
+    expect(prisma.job.findFirst).toHaveBeenCalledWith({
       where: { id: 'job-x' },
       select: { id: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
+  it('scopes the job lookup to the customer on the per-customer BYOK path', async () => {
+    prisma.job.findFirst.mockResolvedValueOnce(null);
+
+    await service.processEvents(
+      [
+        {
+          email: 'a@b.com',
+          timestamp: 1700000000,
+          event: 'delivered',
+          sg_event_id: 'sg-1',
+          job_id: 'job-x',
+        },
+      ],
+      'cust-1',
+    );
+
+    expect(prisma.job.findFirst).toHaveBeenCalledWith({
+      where: { id: 'job-x', customerId: 'cust-1' },
+      select: { id: true },
+    });
+    expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
+  });
+
   it('upserts a DELIVERED event using sg_event_id as the dedupe key and ms timestamp', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
     prisma.emailEvent.upsert.mockResolvedValueOnce(undefined);
 
     await service.processEvents([
@@ -113,7 +136,7 @@ describe('SendgridEventsService', () => {
   });
 
   it('synthesizes a dedupe key when sg_event_id is absent', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
     await service.processEvents([
       {
@@ -142,7 +165,7 @@ describe('SendgridEventsService', () => {
     ['unsubscribe', EmailEventType.UNSUBSCRIBED],
     ['deferred', EmailEventType.DEFERRED],
   ])('maps "%s" to %s', async (sgType, expected) => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
     await service.processEvents([
       {
@@ -162,7 +185,7 @@ describe('SendgridEventsService', () => {
   });
 
   it('processes multiple events in a batch', async () => {
-    prisma.job.findUnique.mockResolvedValue({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValue({ id: 'job-x' });
 
     await service.processEvents([
       {
@@ -185,7 +208,7 @@ describe('SendgridEventsService', () => {
   });
 
   it('omits metadata when no extra fields remain', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
     await service.processEvents([
       {
@@ -205,7 +228,7 @@ describe('SendgridEventsService', () => {
   });
 
   it('swallows upsert errors so other events in the batch still process', async () => {
-    prisma.job.findUnique.mockResolvedValue({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValue({ id: 'job-x' });
     prisma.emailEvent.upsert
       .mockRejectedValueOnce(new Error('db down'))
       .mockResolvedValueOnce(undefined);

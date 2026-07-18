@@ -27,7 +27,17 @@ export class SendgridEventsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async processEvents(events: SendgridRawEvent[]): Promise<void> {
+  /**
+   * @param customerId When set (per-customer BYOK route), events are only
+   *   recorded for jobs owned by that customer, preventing a customer from
+   *   writing events onto another tenant's jobs. When undefined (shared
+   *   platform account), the signer is the platform itself, so only job
+   *   existence is checked.
+   */
+  async processEvents(
+    events: SendgridRawEvent[],
+    customerId?: string,
+  ): Promise<void> {
     if (!Array.isArray(events)) return;
 
     for (const event of events) {
@@ -42,14 +52,16 @@ export class SendgridEventsService {
         continue;
       }
 
-      const jobExists = await this.prisma.job.findUnique({
-        where: { id: jobId },
+      const jobExists = await this.prisma.job.findFirst({
+        where: { id: jobId, ...(customerId ? { customerId } : {}) },
         select: { id: true },
       });
 
       if (!jobExists) {
         this.logger.warn(
-          `Received SendGrid event for unknown job_id: ${jobId}`,
+          customerId
+            ? `Received SendGrid event for job_id ${jobId} not owned by customer ${customerId}`
+            : `Received SendGrid event for unknown job_id: ${jobId}`,
         );
         continue;
       }

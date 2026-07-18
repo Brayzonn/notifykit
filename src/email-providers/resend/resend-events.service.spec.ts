@@ -21,7 +21,7 @@ const baseEvent = (overrides: Record<string, any> = {}) => ({
 describe('ResendEventsService', () => {
   let service: ResendEventsService;
   const prisma = {
-    job: { findUnique: jest.fn() },
+    job: { findFirst: jest.fn() },
     emailEvent: { upsert: jest.fn() },
   };
 
@@ -34,46 +34,55 @@ describe('ResendEventsService', () => {
     }).compile();
 
     service = module.get(ResendEventsService);
-    prisma.job.findUnique.mockReset();
+    prisma.job.findFirst.mockReset();
     prisma.emailEvent.upsert.mockReset();
   });
 
   it('ignores untracked Resend event types', async () => {
-    await service.processEvent(baseEvent({ type: 'email.queued' }) as any);
+    await service.processEvent(
+      'cust-1',
+      baseEvent({ type: 'email.queued' }) as any,
+    );
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('skips events with no job_id tag', async () => {
-    await service.processEvent(baseEvent({ data: { tags: {} } }) as any);
+    await service.processEvent(
+      'cust-1',
+      baseEvent({ data: { tags: {} } }) as any,
+    );
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
   });
 
   it('skips events with no tags object at all', async () => {
-    await service.processEvent(baseEvent({ data: { tags: undefined } }) as any);
+    await service.processEvent(
+      'cust-1',
+      baseEvent({ data: { tags: undefined } }) as any,
+    );
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
   });
 
   it('warns and skips when the job does not exist', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce(null);
+    prisma.job.findFirst.mockResolvedValueOnce(null);
 
-    await service.processEvent(baseEvent() as any);
+    await service.processEvent('cust-1', baseEvent() as any);
 
-    expect(prisma.job.findUnique).toHaveBeenCalledWith({
-      where: { id: 'job-x' },
+    expect(prisma.job.findFirst).toHaveBeenCalledWith({
+      where: { id: 'job-x', customerId: 'cust-1' },
       select: { id: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('upserts using `${email_id}:${eventType}` as the dedupe key', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
     prisma.emailEvent.upsert.mockResolvedValueOnce(undefined);
 
-    await service.processEvent(baseEvent() as any);
+    await service.processEvent('cust-1', baseEvent() as any);
 
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith({
       where: { eventId: `rs-1:${EmailEventType.DELIVERED}` },
@@ -89,9 +98,10 @@ describe('ResendEventsService', () => {
   });
 
   it('parses occurredAt from the top-level created_at, not data.created_at', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
     await service.processEvent(
+      'cust-1',
       baseEvent({
         created_at: '2026-04-28T11:00:00Z',
         data: {
@@ -115,9 +125,10 @@ describe('ResendEventsService', () => {
   });
 
   it('takes the first recipient when `to` is an array of multiple addresses', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
     await service.processEvent(
+      'cust-1',
       baseEvent({
         data: {
           email_id: 'rs-3',
@@ -145,9 +156,9 @@ describe('ResendEventsService', () => {
     ['email.complained', EmailEventType.SPAM_REPORT],
     ['email.delivery_delayed', EmailEventType.DEFERRED],
   ])('maps %s to %s', async (rsType, expected) => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
-    await service.processEvent(baseEvent({ type: rsType }) as any);
+    await service.processEvent('cust-1', baseEvent({ type: rsType }) as any);
 
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -157,9 +168,10 @@ describe('ResendEventsService', () => {
   });
 
   it('strips email_id, tags, from, to, subject, created_at from metadata', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
     await service.processEvent(
+      'cust-1',
       baseEvent({
         data: {
           email_id: 'rs-4',
@@ -178,9 +190,9 @@ describe('ResendEventsService', () => {
   });
 
   it('omits metadata when no extra fields remain', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
-    await service.processEvent(baseEvent() as any);
+    await service.processEvent('cust-1', baseEvent() as any);
 
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -190,11 +202,11 @@ describe('ResendEventsService', () => {
   });
 
   it('swallows upsert errors so the webhook still 200s', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
     prisma.emailEvent.upsert.mockRejectedValueOnce(new Error('db down'));
 
     await expect(
-      service.processEvent(baseEvent() as any),
+      service.processEvent('cust-1', baseEvent() as any),
     ).resolves.toBeUndefined();
   });
 });

@@ -32,7 +32,10 @@ export class PostmarkEventsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async processEvent(event: PostmarkWebhookEvent): Promise<void> {
+  async processEvent(
+    customerId: string,
+    event: PostmarkWebhookEvent,
+  ): Promise<void> {
     const eventType = EVENT_MAP[event.RecordType];
     if (!eventType) {
       this.logger.debug(
@@ -49,13 +52,15 @@ export class PostmarkEventsService {
       return;
     }
 
-    const jobExists = await this.prisma.job.findUnique({
-      where: { id: jobId },
+    const jobExists = await this.prisma.job.findFirst({
+      where: { id: jobId, customerId },
       select: { id: true },
     });
 
     if (!jobExists) {
-      this.logger.warn(`Received Postmark event for unknown job_id: ${jobId}`);
+      this.logger.warn(
+        `Received Postmark event for job_id ${jobId} not owned by customer ${customerId}`,
+      );
       return;
     }
 

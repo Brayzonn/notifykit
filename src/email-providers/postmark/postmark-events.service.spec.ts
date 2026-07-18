@@ -6,7 +6,7 @@ import { EmailEventType } from '@prisma/client';
 describe('PostmarkEventsService', () => {
   let service: PostmarkEventsService;
   const prisma = {
-    job: { findUnique: jest.fn() },
+    job: { findFirst: jest.fn() },
     emailEvent: { upsert: jest.fn() },
   };
 
@@ -19,31 +19,33 @@ describe('PostmarkEventsService', () => {
     }).compile();
 
     service = module.get(PostmarkEventsService);
-    prisma.job.findUnique.mockReset();
+    prisma.job.findFirst.mockReset();
     prisma.emailEvent.upsert.mockReset();
   });
 
   it('ignores untracked Postmark RecordTypes', async () => {
-    await service.processEvent({ RecordType: 'SubscriptionReminder' } as any);
+    await service.processEvent('cust-1', {
+      RecordType: 'SubscriptionReminder',
+    } as any);
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('skips events without job_id metadata', async () => {
-    await service.processEvent({
+    await service.processEvent('cust-1', {
       RecordType: 'Delivery',
       MessageID: 'm-1',
     } as any);
 
-    expect(prisma.job.findUnique).not.toHaveBeenCalled();
+    expect(prisma.job.findFirst).not.toHaveBeenCalled();
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('warns and exits when the job does not exist', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce(null);
+    prisma.job.findFirst.mockResolvedValueOnce(null);
 
-    await service.processEvent({
+    await service.processEvent('cust-1', {
       RecordType: 'Delivery',
       MessageID: 'm-1',
       Recipient: 'a@b.com',
@@ -51,19 +53,19 @@ describe('PostmarkEventsService', () => {
       Metadata: { job_id: 'job-x' },
     } as any);
 
-    expect(prisma.job.findUnique).toHaveBeenCalledWith({
-      where: { id: 'job-x' },
+    expect(prisma.job.findFirst).toHaveBeenCalledWith({
+      where: { id: 'job-x', customerId: 'cust-1' },
       select: { id: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('upserts a DELIVERED event using DeliveredAt as occurredAt', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
     prisma.emailEvent.upsert.mockResolvedValueOnce(undefined);
 
     const occurredIso = '2026-04-28T10:00:00.000Z';
-    await service.processEvent({
+    await service.processEvent('cust-1', {
       RecordType: 'Delivery',
       MessageID: 'm-1',
       Recipient: 'a@b.com',
@@ -88,16 +90,16 @@ describe('PostmarkEventsService', () => {
   });
 
   it('maps SpamComplaint -> SPAM_REPORT and SubscriptionChange -> UNSUBSCRIBED', async () => {
-    prisma.job.findUnique.mockResolvedValue({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValue({ id: 'job-x' });
 
-    await service.processEvent({
+    await service.processEvent('cust-1', {
       RecordType: 'SpamComplaint',
       MessageID: 'm-1',
       Email: 'a@b.com',
       BouncedAt: '2026-04-28T10:00:00Z',
       Metadata: { job_id: 'job-x' },
     } as any);
-    await service.processEvent({
+    await service.processEvent('cust-1', {
       RecordType: 'SubscriptionChange',
       MessageID: 'm-2',
       Recipient: 'a@b.com',
@@ -115,9 +117,9 @@ describe('PostmarkEventsService', () => {
   });
 
   it('falls back to Email field when Recipient is absent', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
 
-    await service.processEvent({
+    await service.processEvent('cust-1', {
       RecordType: 'Bounce',
       MessageID: 'm-1',
       Email: 'fallback@b.com',
@@ -133,11 +135,11 @@ describe('PostmarkEventsService', () => {
   });
 
   it('swallows upsert errors so the webhook still 200s', async () => {
-    prisma.job.findUnique.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
     prisma.emailEvent.upsert.mockRejectedValueOnce(new Error('db down'));
 
     await expect(
-      service.processEvent({
+      service.processEvent('cust-1', {
         RecordType: 'Delivery',
         MessageID: 'm-1',
         Recipient: 'a@b.com',

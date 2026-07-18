@@ -23,10 +23,10 @@ export class ResendEventsController {
   @Post('resend/:customerId')
   @HttpCode(HttpStatus.OK)
   async handleResendEvent(
-    @Param('customerId') _customerId: string,
+    @Param('customerId') customerId: string,
     @Body() event: any,
   ) {
-    await this.resendEventsService.processEvent(event);
+    await this.resendEventsService.processEvent(customerId, event);
     return { received: true };
   }
 }

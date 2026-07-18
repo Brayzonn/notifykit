@@ -36,10 +36,10 @@ export class SendgridEventsController {
   @Post('sendgrid/:customerId')
   @HttpCode(HttpStatus.OK)
   async handleSendgridCustomerEvents(
-    @Param('customerId') _customerId: string,
+    @Param('customerId') customerId: string,
     @Body() events: any[],
   ) {
-    await this.sendgridEventsService.processEvents(events);
+    await this.sendgridEventsService.processEvents(events, customerId);
     return { received: true };
   }
 }

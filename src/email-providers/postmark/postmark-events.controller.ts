@@ -23,10 +23,10 @@ export class PostmarkEventsController {
   @Post('postmark/:customerId')
   @HttpCode(HttpStatus.OK)
   async handlePostmarkEvent(
-    @Param('customerId') _customerId: string,
+    @Param('customerId') customerId: string,
     @Body() event: any,
   ) {
-    await this.postmarkEventsService.processEvent(event);
+    await this.postmarkEventsService.processEvent(customerId, event);
     return { received: true };
   }
 }
