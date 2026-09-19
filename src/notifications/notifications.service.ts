@@ -128,19 +128,27 @@ export class NotificationsService {
       throw error;
     }
 
-    await this.queueService.addEmailJob(
-      {
-        jobId: job.id,
-        customerId,
-        to: dto.to,
-        subject: dto.subject,
-        body: dto.body,
-        from: dto.from,
-        provider: dto.provider,
-        fallback: dto.fallback,
-      },
-      priority,
-    );
+    try {
+      await this.queueService.addEmailJob(
+        {
+          jobId: job.id,
+          customerId,
+          to: dto.to,
+          subject: dto.subject,
+          body: dto.body,
+          from: dto.from,
+          provider: dto.provider,
+          fallback: dto.fallback,
+        },
+        priority,
+      );
+    } catch (error) {
+      await this.prisma.job.update({
+        where: { id: job.id },
+        data: { status: JobStatus.FAILED, errorMessage: 'Failed to queue job' },
+      });
+      throw error;
+    }
 
     this.logger.log(`Email job created and queued: ${job.id}`);
 
@@ -201,17 +209,25 @@ export class NotificationsService {
       throw error;
     }
 
-    await this.queueService.addWebhookJob(
-      {
-        jobId: job.id,
-        customerId,
-        url: dto.url,
-        method: dto.method || 'POST',
-        headers: dto.headers,
-        payload: dto.payload,
-      },
-      webhookPriority,
-    );
+    try {
+      await this.queueService.addWebhookJob(
+        {
+          jobId: job.id,
+          customerId,
+          url: dto.url,
+          method: dto.method || 'POST',
+          headers: dto.headers,
+          payload: dto.payload,
+        },
+        webhookPriority,
+      );
+    } catch (error) {
+      await this.prisma.job.update({
+        where: { id: job.id },
+        data: { status: JobStatus.FAILED, errorMessage: 'Failed to queue job' },
+      });
+      throw error;
+    }
 
     this.logger.log(`Webhook job created and queued: ${job.id}`);
 
