@@ -1,8 +1,34 @@
 # NotifyKit API
 
-The backend API for [NotifyKit](https://notifykit.dev) — notification infrastructure for modern products.
+The backend API for [NotifyKit](https://notifykit.dev), notification infrastructure for modern products.
 
 ---
+
+## What NotifyKit Is
+
+NotifyKit is a backend notification infrastructure API that lets a product
+send emails and webhooks through a single integration. It handles queued
+delivery with automatic retries, logging, multi provider failover for email, and HMAC signed webhooks
+
+## Problems It Solves
+
+Provider lock in and single points of failure. Instead of depending on
+one email provider, customers can configure multiple providers with a
+priority order. If the first one fails, NotifyKit automatically falls
+back to the next.
+
+Building retry and queue logic from scratch. Every product that sends
+emails or webhooks eventually needs a job queue, exponential backoff,
+and delivery tracking. NotifyKit provides this out of the box through
+BullMQ workers, so customers don't have to build and maintain it
+themselves.
+
+Verifying webhook authenticity. Customers can generate an HMAC signing
+secret so every outgoing webhook includes a signature the receiving
+server can verify, protecting against spoofed or tampered requests.
+
+Operational visibility. Every job's status, attempt count, and which
+provider ultimately delivered it is queryable.
 
 ## Tech Stack
 
@@ -63,7 +89,7 @@ src/
 │   │   └── slack.service.ts              # Slack Incoming Webhook alerts (SLACK_WEBHOOK_URL)
 │   └── utils/
 │       ├── enum.util.ts
-│       ├── error.util.ts                 # getErrorMessage / getAxiosErrorData / getAxiosErrorStatus
+│       ├── error.util.ts                 # getErrorMessage / getAxiosErrorData / getAxiosErrorStatus /isTransientError
 │       └── response.util.ts
 │
 ├── admin/                                # Admin-only endpoints (ADMIN role)
@@ -307,48 +333,48 @@ GET /api/v1/health
 
 ### User
 
-| Method | Endpoint                            | Description                 |
-| ------ | ----------------------------------- | --------------------------- |
-| GET    | `/api/v1/user/profile`              | Get profile                 |
-| PATCH  | `/api/v1/user/profile`              | Update profile              |
-| POST   | `/api/v1/user/change-password`      | Change password             |
-| POST   | `/api/v1/user/email/change-request` | Request email change        |
-| GET    | `/api/v1/user/dashboard`            | Get dashboard summary       |
-| GET    | `/api/v1/user/api-key`              | Get API key                 |
-| POST   | `/api/v1/user/api-key/generate`     | Regenerate API key          |
-| GET    | `/api/v1/user/usage`                | Get usage stats             |
-| GET    | `/api/v1/user/jobs`                 | List jobs                   |
-| GET    | `/api/v1/user/jobs/:id`             | Get job details             |
-| POST   | `/api/v1/user/jobs/:id/retry`       | Retry job                   |
-| GET    | `/api/v1/user/sendgrid-key`                            | Get SendGrid key status            |
-| POST   | `/api/v1/user/sendgrid-key`                            | Save SendGrid API key              |
-| DELETE | `/api/v1/user/sendgrid-key`                            | Remove SendGrid API key            |
-| GET    | `/api/v1/user/resend-key`                              | Get Resend key status              |
-| POST   | `/api/v1/user/resend-key`                              | Save Resend API key                |
-| DELETE | `/api/v1/user/resend-key`                              | Remove Resend API key              |
-| GET    | `/api/v1/user/postmark-key`                            | Get Postmark key status            |
-| POST   | `/api/v1/user/postmark-key`                            | Save Postmark Server Token         |
-| DELETE | `/api/v1/user/postmark-key`                            | Remove Postmark API key            |
-| GET    | `/api/v1/user/sendgrid-webhook-key`                    | Get SendGrid webhook secret status |
-| POST   | `/api/v1/user/sendgrid-webhook-key`                    | Save SendGrid webhook secret       |
-| DELETE | `/api/v1/user/sendgrid-webhook-key`                    | Remove SendGrid webhook secret     |
-| GET    | `/api/v1/user/resend-webhook-key`                      | Get Resend webhook secret status   |
-| POST   | `/api/v1/user/resend-webhook-key`                      | Save Resend webhook secret         |
-| DELETE | `/api/v1/user/resend-webhook-key`                      | Remove Resend webhook secret       |
-| GET    | `/api/v1/user/postmark-webhook-key`                    | Get Postmark webhook secret status |
-| POST   | `/api/v1/user/postmark-webhook-key`                    | Save Postmark webhook secret       |
-| DELETE | `/api/v1/user/postmark-webhook-key`                    | Remove Postmark webhook secret     |
-| GET    | `/api/v1/user/email-provider`                          | List configured providers          |
-| PATCH  | `/api/v1/user/email-provider/:provider/priority`       | Update provider failover priority  |
-| POST   | `/api/v1/user/domain/request`                          | Request domain verification        |
-| POST   | `/api/v1/user/domain/verify`                           | Verify domain                      |
-| GET    | `/api/v1/user/domain/status`                           | Get domain status                  |
-| DELETE | `/api/v1/user/domain`                                  | Remove domain                      |
-| POST   | `/api/v1/user/webhook-secret`                          | Generate webhook signing secret    |
-| GET    | `/api/v1/user/webhook-secret`                          | Get signing secret status          |
-| POST   | `/api/v1/user/webhook-secret/rotate`                   | Rotate webhook signing secret      |
-| DELETE | `/api/v1/user/webhook-secret`                          | Delete webhook signing secret      |
-| DELETE | `/api/v1/user/account`                                 | Delete account                     |
+| Method | Endpoint                                         | Description                        |
+| ------ | ------------------------------------------------ | ---------------------------------- |
+| GET    | `/api/v1/user/profile`                           | Get profile                        |
+| PATCH  | `/api/v1/user/profile`                           | Update profile                     |
+| POST   | `/api/v1/user/change-password`                   | Change password                    |
+| POST   | `/api/v1/user/email/change-request`              | Request email change               |
+| GET    | `/api/v1/user/dashboard`                         | Get dashboard summary              |
+| GET    | `/api/v1/user/api-key`                           | Get API key                        |
+| POST   | `/api/v1/user/api-key/generate`                  | Regenerate API key                 |
+| GET    | `/api/v1/user/usage`                             | Get usage stats                    |
+| GET    | `/api/v1/user/jobs`                              | List jobs                          |
+| GET    | `/api/v1/user/jobs/:id`                          | Get job details                    |
+| POST   | `/api/v1/user/jobs/:id/retry`                    | Retry job                          |
+| GET    | `/api/v1/user/sendgrid-key`                      | Get SendGrid key status            |
+| POST   | `/api/v1/user/sendgrid-key`                      | Save SendGrid API key              |
+| DELETE | `/api/v1/user/sendgrid-key`                      | Remove SendGrid API key            |
+| GET    | `/api/v1/user/resend-key`                        | Get Resend key status              |
+| POST   | `/api/v1/user/resend-key`                        | Save Resend API key                |
+| DELETE | `/api/v1/user/resend-key`                        | Remove Resend API key              |
+| GET    | `/api/v1/user/postmark-key`                      | Get Postmark key status            |
+| POST   | `/api/v1/user/postmark-key`                      | Save Postmark Server Token         |
+| DELETE | `/api/v1/user/postmark-key`                      | Remove Postmark API key            |
+| GET    | `/api/v1/user/sendgrid-webhook-key`              | Get SendGrid webhook secret status |
+| POST   | `/api/v1/user/sendgrid-webhook-key`              | Save SendGrid webhook secret       |
+| DELETE | `/api/v1/user/sendgrid-webhook-key`              | Remove SendGrid webhook secret     |
+| GET    | `/api/v1/user/resend-webhook-key`                | Get Resend webhook secret status   |
+| POST   | `/api/v1/user/resend-webhook-key`                | Save Resend webhook secret         |
+| DELETE | `/api/v1/user/resend-webhook-key`                | Remove Resend webhook secret       |
+| GET    | `/api/v1/user/postmark-webhook-key`              | Get Postmark webhook secret status |
+| POST   | `/api/v1/user/postmark-webhook-key`              | Save Postmark webhook secret       |
+| DELETE | `/api/v1/user/postmark-webhook-key`              | Remove Postmark webhook secret     |
+| GET    | `/api/v1/user/email-provider`                    | List configured providers          |
+| PATCH  | `/api/v1/user/email-provider/:provider/priority` | Update provider failover priority  |
+| POST   | `/api/v1/user/domain/request`                    | Request domain verification        |
+| POST   | `/api/v1/user/domain/verify`                     | Verify domain                      |
+| GET    | `/api/v1/user/domain/status`                     | Get domain status                  |
+| DELETE | `/api/v1/user/domain`                            | Remove domain                      |
+| POST   | `/api/v1/user/webhook-secret`                    | Generate webhook signing secret    |
+| GET    | `/api/v1/user/webhook-secret`                    | Get signing secret status          |
+| POST   | `/api/v1/user/webhook-secret/rotate`             | Rotate webhook signing secret      |
+| DELETE | `/api/v1/user/webhook-secret`                    | Delete webhook signing secret      |
+| DELETE | `/api/v1/user/account`                           | Delete account                     |
 
 ### Billing
 
@@ -374,19 +400,19 @@ GET /api/v1/health
 
 `POST /api/v1/notifications/email` accepts two optional fields that override the customer's default priority order for a single message:
 
-| Field      | Type                                    | Behavior                                                                                                                  |
-| ---------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `provider` | `"SENDGRID" \| "RESEND" \| "POSTMARK"`  | Force this email through a specific configured provider. If it fails and `fallback` is unset, the job fails — no retry.  |
-| `fallback` | `"SENDGRID" \| "RESEND" \| "POSTMARK"`  | Optional second provider tried only if `provider` fails. Other configured providers are not tried.                       |
+| Field      | Type                                   | Behavior                                                                                             |
+| ---------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `provider` | `"SENDGRID" \| "RESEND" \| "POSTMARK"` | Forced routing is a contract: BullMQ does not retry through providers the customer didn't authorize. |
+| `fallback` | `"SENDGRID" \| "RESEND" \| "POSTMARK"` | Optional second provider tried only if `provider` fails. Other configured providers are not tried.   |
 
 Validation:
 
-| Condition                                                  | Response             |
-| ---------------------------------------------------------- | -------------------- |
-| `fallback` set without `provider`                          | `400 Bad Request`    |
-| `provider` equals `fallback`                               | `400 Bad Request`    |
-| Either field used by a `FREE` plan customer                | `403 Forbidden`      |
-| Requested `provider` or `fallback` not configured          | `400 Bad Request`    |
+| Condition                                         | Response          |
+| ------------------------------------------------- | ----------------- |
+| `fallback` set without `provider`                 | `400 Bad Request` |
+| `provider` equals `fallback`                      | `400 Bad Request` |
+| Either field used by a `FREE` plan customer       | `403 Forbidden`   |
+| Requested `provider` or `fallback` not configured | `400 Bad Request` |
 
 Forced routing is a contract: BullMQ does **not** retry through providers the customer didn't authorize. Routing fields persist with the job, so manual or automatic retries replay the same attempt set.
 
@@ -396,14 +422,14 @@ When neither field is set, behavior is unchanged: the worker tries the customer'
 
 If a customer has configured a webhook signing secret, every outgoing webhook delivery includes two additional headers:
 
-| Header                  | Value                            |
-| ----------------------- | -------------------------------- |
-| `X-Webhook-Timestamp`   | Unix timestamp (seconds)         |
-| `X-Webhook-Signature`   | `t=<timestamp>,v1=<sha256_hex>`  |
+| Header                | Value                           |
+| --------------------- | ------------------------------- |
+| `X-Webhook-Timestamp` | Unix timestamp (seconds)        |
+| `X-Webhook-Signature` | `t=<timestamp>,v1=<sha256_hex>` |
 
 The signature is computed as `HMAC-SHA256(timestamp + "." + JSON.stringify(payload), secret)`. Customers should verify it at their endpoint by recomputing the signature and comparing using a constant-time comparison. If no secret is configured, these headers are omitted and delivery proceeds unsigned.
 
-Secrets are managed via the `/api/v1/user/webhook-secret` endpoints (JWT auth). They are stored encrypted at rest using AES-256-CBC. The plaintext secret is returned only at generation time (prefixed `whsec_`); subsequent calls to `GET /webhook-secret` return status only.
+Secrets are managed via the `/api/v1/user/webhook-secret` endpoints (JWT auth). They are stored encrypted at rest using AES-256-GCM. The plaintext secret is returned only at generation time (prefixed `whsec_`); subsequent calls to `GET /webhook-secret` return status only.
 
 #### `usedProvider` on delivery logs
 
@@ -437,14 +463,14 @@ Every entry in the `deliveryLogs[]` array on `GET /api/v1/notifications/jobs/:id
 
 ### Webhooks
 
-| Method | Endpoint                                  | Description                                              |
-| ------ | ----------------------------------------- | -------------------------------------------------------- |
-| POST   | `/api/v1/payment/paystack/webhook`        | Paystack webhook handler                                 |
-| POST   | `/api/v1/payment/polar/webhook`           | Polar webhook handler                                    |
-| POST   | `/api/v1/webhooks/sendgrid`               | SendGrid email events (shared platform key, ECDSA)       |
-| POST   | `/api/v1/webhooks/sendgrid/:customerId`   | SendGrid email events (per-customer key, ECDSA)          |
-| POST   | `/api/v1/webhooks/resend/:customerId`     | Resend email events (per-customer secret, svix)          |
-| POST   | `/api/v1/webhooks/postmark/:customerId`   | Postmark email events (per-customer secret, Basic Auth)  |
+| Method | Endpoint                                | Description                                             |
+| ------ | --------------------------------------- | ------------------------------------------------------- |
+| POST   | `/api/v1/payment/paystack/webhook`      | Paystack webhook handler                                |
+| POST   | `/api/v1/payment/polar/webhook`         | Polar webhook handler                                   |
+| POST   | `/api/v1/webhooks/sendgrid`             | SendGrid email events (shared platform key, ECDSA)      |
+| POST   | `/api/v1/webhooks/sendgrid/:customerId` | SendGrid email events (per-customer key, ECDSA)         |
+| POST   | `/api/v1/webhooks/resend/:customerId`   | Resend email events (per-customer secret, svix)         |
+| POST   | `/api/v1/webhooks/postmark/:customerId` | Postmark email events (per-customer secret, Basic Auth) |
 
 ---
 
