@@ -4,6 +4,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   Logger,
+  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -38,6 +39,7 @@ import {
   RegenerateApiKeyResponse,
   JobDetailsResponse,
   JobsHistoryResponse,
+  ApiKeyMaskedResponse,
 } from './interfaces/user.interface';
 import { SendGridDomainService } from '@/email-providers/sendgrid/sendgrid-domain.service';
 import { ResendDomainService } from '@/email-providers/resend/resend-domain.service';
@@ -538,15 +540,15 @@ export class UserService {
    */
 
   /**
-   * Get user's API key (masked)
+   * Get user's API key
    */
   async getApiKey(userId: string): Promise<ApiKeyResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
       select: {
-        apiKey: true,
         apiKeyHash: true,
         apiKeyLastFour: true,
+        apiKeyCreatedAt: true,
         createdAt: true,
       },
     });
@@ -561,77 +563,213 @@ export class UserService {
       );
     }
 
-    if (customer.apiKey) {
-      const plaintext = customer.apiKey;
-
-      await this.prisma.customer.update({
-        where: { userId },
-        data: { apiKey: null },
-      });
-
-      return {
-        apiKey: plaintext,
-        firstTime: true,
-        createdAt: customer.createdAt,
-      };
-    }
-
-    const lastFour = customer.apiKeyLastFour ?? '••••';
-
-    return {
-      apiKey: `nh_••••••••••••••••${lastFour}`,
-      masked: true,
-      createdAt: customer.createdAt,
-    };
+    return this.maskApiKey(
+      customer.apiKeyLastFour,
+      customer.apiKeyCreatedAt ?? customer.createdAt,
+    );
   }
 
-  /**
-   * Regenerate users API key
-   */
-  async regenerateApiKey(
+  async generateOrRegenerateApiKey(
     userId: string,
-    email: string,
     confirmEmail: string,
   ): Promise<RegenerateApiKeyResponse> {
-    if (email !== confirmEmail) {
-      throw new BadRequestException('Confirmation email does not match');
-    }
-
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { customer: true },
     });
 
-    if (!user || !user.customer) {
+    if (!user?.customer) {
       throw new NotFoundException('Customer record not found');
     }
 
-    const newApiKey = this.generateApiKey();
-    const newApiKeyHash = crypto
-      .createHash('sha256')
-      .update(newApiKey)
-      .digest('hex');
+    if (confirmEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
+      throw new BadRequestException('Confirmation email does not match');
+    }
 
-    const lastFour = newApiKey.slice(-4);
+    return user.customer.apiKeyHash
+      ? this.regenerateApiKey(userId, user.customer.apiKeyHash)
+      : this.generateApiKey(userId);
+  }
+
+  /**
+   * Page data for the API keys screen
+   */
+  async getApiKeysPageData(userId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        createdAt: true,
+        plan: true,
+        apiKeyHash: true,
+        apiKeyLastFour: true,
+        apiKeyCreatedAt: true,
+        webhookSigningSecret: true,
+        webhookSigningSecretAt: true,
+        emailProviders: { orderBy: { priority: 'asc' } },
+      },
+    });
+
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const apiKeyData = customer.apiKeyHash
+      ? this.maskApiKey(
+          customer.apiKeyLastFour,
+          customer.apiKeyCreatedAt ?? customer.createdAt,
+        )
+      : null;
+
+    const isPaid = customer.plan !== CustomerPlan.FREE;
+    const getProvider = (type: EmailProviderType) =>
+      customer.emailProviders.find((p) => p.provider === type) ?? null;
+
+    const sendgrid = getProvider(EmailProviderType.SENDGRID);
+    const resend = getProvider(EmailProviderType.RESEND);
+    const postmark = getProvider(EmailProviderType.POSTMARK);
+
+    const buildTracking = (record: typeof sendgrid, webhookUrl: string) => {
+      if (!isPaid) return { hasKey: false, addedAt: null, webhookUrl: null };
+      return {
+        hasKey: !!record?.webhookSecret,
+        addedAt: record?.webhookSecretAddedAt ?? null,
+        webhookUrl,
+      };
+    };
+
+    return {
+      apiKey: apiKeyData,
+      plan: customer.plan,
+      sendgrid: {
+        hasKey: !!sendgrid,
+        addedAt: sendgrid?.addedAt ?? null,
+        lastFour: sendgrid
+          ? this.encryptionService.decrypt(sendgrid.apiKey).slice(-4)
+          : null,
+        priority: sendgrid?.priority ?? null,
+        tracking: buildTracking(sendgrid, this.buildWebhookUrl(customer.id)),
+      },
+      resend: {
+        hasKey: !!resend,
+        addedAt: resend?.addedAt ?? null,
+        lastFour: resend
+          ? this.encryptionService.decrypt(resend.apiKey).slice(-4)
+          : null,
+        priority: resend?.priority ?? null,
+        tracking: buildTracking(
+          resend,
+          this.buildResendWebhookUrl(customer.id),
+        ),
+      },
+      postmark: {
+        hasKey: !!postmark,
+        hasAccountKey: !!postmark?.accountApiKey,
+        addedAt: postmark?.addedAt ?? null,
+        lastFour: postmark
+          ? this.encryptionService.decrypt(postmark.apiKey).slice(-4)
+          : null,
+        priority: postmark?.priority ?? null,
+        tracking: buildTracking(
+          postmark,
+          this.buildPostmarkWebhookUrl(customer.id),
+        ),
+      },
+      emailProviders: customer.emailProviders.map((r) => ({
+        provider: r.provider,
+        addedAt: r.addedAt,
+        lastFour: this.encryptionService.decrypt(r.apiKey).slice(-4),
+        priority: r.priority,
+      })),
+      webhookSigningSecret: {
+        hasSecret: !!customer.webhookSigningSecret,
+        createdAt: customer.webhookSigningSecretAt ?? null,
+      },
+    };
+  }
+
+  /**
+   * ================================
+   * API KEY PRIVATE HELPERS
+   * ================================
+   */
+  private async generateApiKey(
+    userId: string,
+  ): Promise<RegenerateApiKeyResponse> {
+    const apiKey = this.randomApiKeyString();
+    const apiKeyHash = this.hashApiKey(apiKey);
+
+    const { count } = await this.prisma.customer.updateMany({
+      where: { userId, apiKeyHash: null },
+      data: {
+        apiKeyHash,
+        apiKeyLastFour: apiKey.slice(-4),
+        apiKeyCreatedAt: new Date(),
+      },
+    });
+
+    if (count === 0) {
+      throw new ConflictException('An API key already exists. Use regenerate.');
+    }
+
+    return {
+      apiKey,
+      message:
+        "API key generated successfully. Save it securely! You won't see it again.",
+    };
+  }
+
+  /**
+   * Rotation: replace the existing key and invalidate the old one in cache.
+   */
+  private async regenerateApiKey(
+    userId: string,
+    oldHash: string,
+  ): Promise<RegenerateApiKeyResponse> {
+    const apiKey = await this.issueApiKey(userId);
+    await this.redis.del(`apikey:${oldHash}`);
+    return {
+      apiKey,
+      message:
+        "API key generated successfully. Save it securely! You won't see it again.",
+    };
+  }
+
+  /**
+   * Creates a new key and stores ONLY the hash + last four.
+   *
+   */
+  private async issueApiKey(userId: string): Promise<string> {
+    const apiKey = this.randomApiKeyString();
+    const apiKeyHash = this.hashApiKey(apiKey);
 
     await this.prisma.customer.update({
       where: { userId },
       data: {
-        apiKey: newApiKey,
-        apiKeyHash: newApiKeyHash,
-        apiKeyLastFour: lastFour,
-        createdAt: new Date(),
+        apiKey: null,
+        apiKeyHash,
+        apiKeyLastFour: apiKey.slice(-4),
+        apiKeyCreatedAt: new Date(),
       },
     });
 
-    if (user.customer.apiKeyHash) {
-      await this.redis.del(`apikey:${user.customer.apiKeyHash}`);
-    }
+    return apiKey;
+  }
 
+  private randomApiKeyString(): string {
+    return `nh_${crypto.randomBytes(32).toString('hex')}`;
+  }
+
+  private hashApiKey(apiKey: string): string {
+    return crypto.createHash('sha256').update(apiKey).digest('hex');
+  }
+
+  private maskApiKey(
+    lastFour: string | null,
+    createdAt: Date,
+  ): ApiKeyMaskedResponse {
     return {
-      apiKey: newApiKey,
-      message:
-        "API key generated successfully. Save it securely - you won't see it again.",
+      apiKey: `nh_••••••••••••••••${lastFour ?? '••••'}`,
+      masked: true,
+      createdAt,
     };
   }
 
@@ -2374,28 +2512,11 @@ export class UserService {
     return { message: 'Domain removed successfully' };
   }
 
-  private getDnsRecordDescription(index: number): string {
-    const descriptions = [
-      'Mail CNAME - Routes email through SendGrid',
-      'DKIM 1 - Email authentication (prevents spoofing)',
-      'DKIM 2 - Email authentication (backup)',
-    ];
-    return descriptions[index] || 'DNS Record';
-  }
-
   /**
    * ================================
    * HELPER METHODS
    * ================================
    */
-
-  /**
-   * Generate API key
-   */
-  private generateApiKey(): string {
-    const randomBytes = crypto.randomBytes(32);
-    return `nh_${randomBytes.toString('hex')}`;
-  }
 
   private getStartDate(days: number): Date {
     const startDate = new Date();
@@ -2510,120 +2631,6 @@ export class UserService {
     return {
       hasSecret: !!customer.webhookSigningSecret,
       createdAt: customer.webhookSigningSecretAt ?? null,
-    };
-  }
-
-  async getApiKeysPageData(userId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { userId },
-      select: {
-        id: true,
-        plan: true,
-        apiKey: true,
-        apiKeyHash: true,
-        apiKeyLastFour: true,
-        createdAt: true,
-        webhookSigningSecret: true,
-        webhookSigningSecretAt: true,
-        emailProviders: { orderBy: { priority: 'asc' } },
-      },
-    });
-
-    if (!customer) throw new NotFoundException('Customer not found');
-
-    let apiKeyData: {
-      apiKey: string;
-      firstTime?: boolean;
-      masked?: boolean;
-      createdAt: Date;
-    } | null = null;
-
-    if (customer.apiKeyHash) {
-      if (customer.apiKey) {
-        const plaintext = customer.apiKey;
-        await this.prisma.customer.update({
-          where: { userId },
-          data: { apiKey: null },
-        });
-        apiKeyData = {
-          apiKey: plaintext,
-          firstTime: true,
-          createdAt: customer.createdAt,
-        };
-      } else {
-        const lastFour = customer.apiKeyLastFour ?? '••••';
-        apiKeyData = {
-          apiKey: `nh_••••••••••••••••${lastFour}`,
-          masked: true,
-          createdAt: customer.createdAt,
-        };
-      }
-    }
-
-    const isPaid = customer.plan !== CustomerPlan.FREE;
-    const getProvider = (type: EmailProviderType) =>
-      customer.emailProviders.find((p) => p.provider === type) ?? null;
-
-    const sendgrid = getProvider(EmailProviderType.SENDGRID);
-    const resend = getProvider(EmailProviderType.RESEND);
-    const postmark = getProvider(EmailProviderType.POSTMARK);
-
-    const buildTracking = (record: typeof sendgrid, webhookUrl: string) => {
-      if (!isPaid) return { hasKey: false, addedAt: null, webhookUrl: null };
-      return {
-        hasKey: !!record?.webhookSecret,
-        addedAt: record?.webhookSecretAddedAt ?? null,
-        webhookUrl,
-      };
-    };
-
-    return {
-      apiKey: apiKeyData,
-      plan: customer.plan,
-      sendgrid: {
-        hasKey: !!sendgrid,
-        addedAt: sendgrid?.addedAt ?? null,
-        lastFour: sendgrid
-          ? this.encryptionService.decrypt(sendgrid.apiKey).slice(-4)
-          : null,
-        priority: sendgrid?.priority ?? null,
-        tracking: buildTracking(sendgrid, this.buildWebhookUrl(customer.id)),
-      },
-      resend: {
-        hasKey: !!resend,
-        addedAt: resend?.addedAt ?? null,
-        lastFour: resend
-          ? this.encryptionService.decrypt(resend.apiKey).slice(-4)
-          : null,
-        priority: resend?.priority ?? null,
-        tracking: buildTracking(
-          resend,
-          this.buildResendWebhookUrl(customer.id),
-        ),
-      },
-      postmark: {
-        hasKey: !!postmark,
-        hasAccountKey: !!postmark?.accountApiKey,
-        addedAt: postmark?.addedAt ?? null,
-        lastFour: postmark
-          ? this.encryptionService.decrypt(postmark.apiKey).slice(-4)
-          : null,
-        priority: postmark?.priority ?? null,
-        tracking: buildTracking(
-          postmark,
-          this.buildPostmarkWebhookUrl(customer.id),
-        ),
-      },
-      emailProviders: customer.emailProviders.map((r) => ({
-        provider: r.provider,
-        addedAt: r.addedAt,
-        lastFour: this.encryptionService.decrypt(r.apiKey).slice(-4),
-        priority: r.priority,
-      })),
-      webhookSigningSecret: {
-        hasSecret: !!customer.webhookSigningSecret,
-        createdAt: customer.webhookSigningSecretAt ?? null,
-      },
     };
   }
 

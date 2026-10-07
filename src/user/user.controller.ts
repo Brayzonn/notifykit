@@ -154,11 +154,15 @@ export class UserController {
         'Confirmation email required to regenerate API key',
       );
     }
-    return await this.userService.regenerateApiKey(
+    return await this.userService.generateOrRegenerateApiKey(
       user.id,
-      user.email,
       dto.confirmEmail,
     );
+  }
+
+  @Get('api-keys-page')
+  async getApiKeysPage(@User() user: AuthenticatedUser) {
+    return await this.userService.getApiKeysPageData(user.id);
   }
 
   /**
@@ -464,16 +468,5 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   async deleteWebhookSecret(@User() user: AuthenticatedUser) {
     return await this.userService.deleteWebhookSigningSecret(user.id);
-  }
-
-  /**
-   * ================================
-   * API KEYS PAGE (CONSOLIDATED)
-   * ================================
-   */
-
-  @Get('api-keys-page')
-  async getApiKeysPage(@User() user: AuthenticatedUser) {
-    return await this.userService.getApiKeysPageData(user.id);
   }
 }
