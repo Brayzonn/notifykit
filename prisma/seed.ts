@@ -22,13 +22,20 @@ function encrypt(text: string): string {
   if (!key || key.length !== 64)
     throw new Error('ENCRYPTION_KEY must be a 64-char hex string');
   const keyBuf = Buffer.from(key, 'hex');
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuf, iv);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyBuf, iv);
   const encrypted = Buffer.concat([
     cipher.update(text, 'utf8'),
     cipher.final(),
   ]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  const authTag = cipher.getAuthTag();
+  return (
+    iv.toString('hex') +
+    ':' +
+    encrypted.toString('hex') +
+    ':' +
+    authTag.toString('hex')
+  );
 }
 
 function generateApiKey(): string {
