@@ -141,6 +141,7 @@ model Customer {
   apiKey              String?      @unique @map("api_key")
   apiKeyHash          String?      @unique @map("api_key_hash")
   apiKeyLastFour      String?      @map("api_key_last_four")
+  apiKeyCreatedAt     DateTime?    @map("api_key_created_at")
   plan                CustomerPlan @default(FREE)
   monthlyLimit        Int          @map("monthly_limit")
   customMonthlyLimit  Int?         @map("custom_monthly_limit")
@@ -170,6 +171,7 @@ model Customer {
   jobs           Job[]
   emailProviders CustomerEmailProvider[]
   sendingDomains CustomerSendingDomain[]
+  suppressedRecipients SuppressedRecipient[]
 
   @@index([apiKeyHash])
   @@index([email])
@@ -297,6 +299,19 @@ model EmailEvent {
   @@index([event])
   @@index([occurredAt(sort: Desc)])
   @@map("email_events")
+}
+
+model SuppressedRecipient {
+  id         String         @id @default(uuid()) @db.Uuid
+  customerId String         @map("customer_id") @db.Uuid
+  email      String
+  reason     EmailEventType
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, email])
+  @@map("suppressed_recipients")
 }
 
 // ============================================
