@@ -62,6 +62,7 @@ describe('Password Reset Flow (e2e)', () => {
     await prisma.user.deleteMany({ where: { email: testUser.email } });
 
     await redis.del(`reset-password:${testUser.email}`);
+    await redis.del(`otp-attempts:reset-password:${testUser.email}`);
   });
 
   const createVerifiedUser = async () => {
@@ -297,6 +298,71 @@ describe('Password Reset Flow (e2e)', () => {
         .expect(401);
 
       expect(response.body.error).toContain('Invalid or expired reset code');
+    });
+
+    const confirmReset = (otp: string | null) =>
+      request(app.getHttpServer())
+        .post('/api/v1/auth/reset-password/confirm')
+        .send({
+          email: testUser.email,
+          otp,
+          newPassword: 'NewPassword123!',
+        });
+
+    const wrongOtpFor = (otp: string) =>
+      otp === '000000' ? '111111' : '000000';
+
+    it('should refuse even the correct code after 5 wrong guesses', async () => {
+      await createVerifiedUser();
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/reset-password/request')
+        .send({ email: testUser.email });
+      const resetOtp = await redis.get(`reset-password:${testUser.email}`);
+
+      for (let i = 0; i < 5; i++) {
+        await confirmReset(wrongOtpFor(resetOtp!)).expect(401);
+      }
+
+      const response = await confirmReset(resetOtp).expect(401);
+      expect(response.body.error).toContain('Invalid or expired reset code');
+      expect(await redis.get(`reset-password:${testUser.email}`)).toBe(
+        resetOtp,
+      );
+    });
+
+    it('should not reset the wrong-guess count when a new code is requested', async () => {
+      await createVerifiedUser();
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/reset-password/request')
+        .send({ email: testUser.email });
+      const firstOtp = await redis.get(`reset-password:${testUser.email}`);
+
+      for (let i = 0; i < 5; i++) {
+        await confirmReset(wrongOtpFor(firstOtp!)).expect(401);
+      }
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/reset-password/request')
+        .send({ email: testUser.email });
+      const secondOtp = await redis.get(`reset-password:${testUser.email}`);
+
+      await confirmReset(secondOtp).expect(401);
+    });
+
+    it('should cap parallel wrong guesses at 5 counted attempts', async () => {
+      await createVerifiedUser();
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/reset-password/request')
+        .send({ email: testUser.email });
+      const resetOtp = await redis.get(`reset-password:${testUser.email}`);
+
+      await Promise.all(
+        Array.from({ length: 30 }, () => confirmReset(wrongOtpFor(resetOtp!))),
+      );
+
+      expect(
+        await redis.get(`otp-attempts:reset-password:${testUser.email}`),
+      ).toBe('5');
     });
 
     it('should reject if user not found', async () => {

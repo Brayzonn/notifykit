@@ -62,6 +62,7 @@ describe('Auth Flow (e2e)', () => {
     await redis.del(`otp:${testUser.email}`);
     await redis.del(`signup:${testUser.email}`);
     await redis.del(`otp-resend:${testUser.email}`);
+    await redis.del(`otp-attempts:signup:${testUser.email}`);
   });
 
   describe('Complete Signup → Verify → Signin Flow', () => {
@@ -129,6 +130,28 @@ describe('Auth Flow (e2e)', () => {
       const ttl = await redis.getClient().ttl(`otp:${testUser.email}`);
       expect(ttl).toBeGreaterThan(590);
       expect(ttl).toBeLessThanOrEqual(600);
+    });
+
+    it('should accept only one of two simultaneous verify-otp submits', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/signup')
+        .send(testUser)
+        .expect(201);
+
+      const otp = await redis.get(`otp:${testUser.email}`);
+
+      const responses = await Promise.all(
+        [0, 1].map(() =>
+          request(app.getHttpServer())
+            .post('/api/v1/auth/verify-otp')
+            .send({ email: testUser.email, otp }),
+        ),
+      );
+
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 401]);
+      expect(
+        await prisma.user.count({ where: { email: testUser.email } }),
+      ).toBe(1);
     });
 
     it('should reject signup with existing verified email', async () => {
