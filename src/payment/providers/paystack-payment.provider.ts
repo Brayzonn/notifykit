@@ -19,7 +19,6 @@ export class PaystackPaymentProvider implements PaymentProvider {
   private readonly logger = new Logger(PaystackPaymentProvider.name);
   private readonly paystackUrl = 'https://api.paystack.co';
   private readonly secretKey: string;
-  private readonly webhookSecret: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -27,8 +26,6 @@ export class PaystackPaymentProvider implements PaymentProvider {
   ) {
     this.secretKey =
       this.configService.get<string>('PAYSTACK_SECRET_KEY') || '';
-    this.webhookSecret =
-      this.configService.get<string>('PAYSTACK_WEBHOOK_SECRET') || '';
 
     if (!this.secretKey) {
       this.logger.warn('PAYSTACK_SECRET_KEY not configured');
