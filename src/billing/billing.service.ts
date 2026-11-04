@@ -23,6 +23,7 @@ import {
 } from '@/billing/interfaces/billing.interface';
 import { RedisService } from '@/redis/redis.service';
 import { getErrorMessage } from '@/common/utils/error.util';
+import { addMonths } from '@/common/utils/date.util';
 import { EmailService } from '@/platform-email/email.service';
 
 @Injectable()
@@ -226,9 +227,7 @@ export class BillingService {
         plan: subscriptionData.plan,
         monthlyLimit: PLAN_LIMITS[subscriptionData.plan].monthlyLimit,
         usageCount: 0,
-        usageResetAt:
-          subscriptionData.nextBillingDate ??
-          new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
+        usageResetAt: subscriptionData.nextBillingDate ?? addMonths(now, 1),
         billingCycleStartAt: now,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
         paymentProvider: subscriptionData.paymentProvider as any,
@@ -260,12 +259,7 @@ export class BillingService {
     }
 
     const now = new Date();
-    const fallbackNext = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      now.getDate(),
-    );
-    const effectiveNext = nextBillingDate ?? fallbackNext;
+    const effectiveNext = nextBillingDate ?? addMonths(now, 1);
 
     await this.prisma.customer.update({
       where: { id: customerId },

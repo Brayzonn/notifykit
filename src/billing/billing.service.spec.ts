@@ -544,19 +544,30 @@ describe('BillingService', () => {
       );
     });
 
-    it('should fall back to a computed date when nextBillingDate is null', async () => {
-      prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
-      const before = Date.now();
+    describe('when nextBillingDate is null', () => {
+      afterEach(() => jest.useRealTimers());
 
-      await service.handleSubscriptionActivated('customer-123', {
-        ...subscriptionData,
-        nextBillingDate: null,
-      });
+      it.each([
+        ['2026-11-04T09:00:41.000Z', '2026-12-04T09:00:41.000Z'],
+        ['2026-01-31T12:00:00.000Z', '2026-02-28T12:00:00.000Z'],
+      ])(
+        'sets usageResetAt one calendar month after %s',
+        async (now, expected) => {
+          jest.useFakeTimers({
+            now: new Date(now),
+            doNotFake: ['nextTick', 'queueMicrotask', 'setImmediate'],
+          });
+          prisma.customer.findUnique.mockResolvedValue(createMockCustomer());
 
-      const updateCall = prisma.customer.update.mock.calls[0][0];
-      const usageResetAt: Date = updateCall.data.usageResetAt;
+          await service.handleSubscriptionActivated('customer-123', {
+            ...subscriptionData,
+            nextBillingDate: null,
+          });
 
-      expect(usageResetAt.getTime()).toBeGreaterThan(before);
+          const updateCall = prisma.customer.update.mock.calls[0][0];
+          expect(updateCall.data.usageResetAt.toISOString()).toBe(expected);
+        },
+      );
     });
 
     it('should invalidate the Redis user cache', async () => {
@@ -680,19 +691,33 @@ describe('BillingService', () => {
       expect(redis.del).toHaveBeenCalledWith('user:user-abc');
     });
 
-    it('should fall back to +30 days when nextBillingDate is null', async () => {
-      const customer = createMockCustomer({ userId: 'user-abc' });
-      prisma.customer.findUnique.mockResolvedValue(customer);
-      const before = Date.now();
+    describe('when nextBillingDate is null', () => {
+      afterEach(() => jest.useRealTimers());
 
-      await service.handleRenewalCharge(customer.id, null);
+      it.each([
+        ['2026-11-04T09:00:41.000Z', '2026-12-04T09:00:41.000Z'],
+        ['2026-01-31T12:00:00.000Z', '2026-02-28T12:00:00.000Z'],
+        ['2028-01-31T12:00:00.000Z', '2028-02-29T12:00:00.000Z'],
+        ['2026-08-31T23:30:00.000Z', '2026-09-30T23:30:00.000Z'],
+      ])(
+        'sets the next cycle one calendar month after %s',
+        async (now, expected) => {
+          jest.useFakeTimers({
+            now: new Date(now),
+            doNotFake: ['nextTick', 'queueMicrotask', 'setImmediate'],
+          });
+          const customer = createMockCustomer({ userId: 'user-abc' });
+          prisma.customer.findUnique.mockResolvedValue(customer);
 
-      const updateCall = prisma.customer.update.mock.calls[0][0];
-      const nextBillingDate: Date = updateCall.data.nextBillingDate;
-      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+          const result = await service.handleRenewalCharge(customer.id, null);
 
-      expect(nextBillingDate.getTime()).toBeGreaterThanOrEqual(
-        before + thirtyDays - 1000,
+          const { data } = prisma.customer.update.mock.calls[0][0];
+          expect(data.nextBillingDate.toISOString()).toBe(expected);
+          expect(data.subscriptionEndDate.toISOString()).toBe(expected);
+          expect(data.usageResetAt.toISOString()).toBe(expected);
+          expect(data.billingCycleStartAt.toISOString()).toBe(now);
+          expect(result?.usageResetAt.toISOString()).toBe(expected);
+        },
       );
     });
   });
