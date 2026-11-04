@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { IEmailProvider, SendEmailParams } from '../email-provider.interface';
+import { ProviderError } from '../provider-error';
 
 @Injectable()
 export class SendGridService implements IEmailProvider {
@@ -57,8 +58,9 @@ export class SendGridService implements IEmailProvider {
         'SendGrid error:',
         error instanceof Error ? error.message : String(error),
       );
-      throw new Error(
+      throw ProviderError.fromHttpError(
         `SendGrid API error: ${JSON.stringify(error instanceof Error ? error.message : error)}`,
+        error,
       );
     }
   }

@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SendGridService } from './sendgrid.service';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { ProviderError } from '../provider-error';
+import { isTransientError } from '@/common/utils/error.util';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -154,6 +156,42 @@ describe('SendGridService', () => {
       await expect(service.sendEmail(baseParams, API_KEY)).rejects.toThrow(
         'SendGrid API error',
       );
+    });
+
+    it('should keep the HTTP status and response body on the thrown error', async () => {
+      const data = { errors: [{ message: 'Service unavailable' }] };
+      mockedAxios.post.mockRejectedValue(
+        Object.assign(new Error('Request failed with status code 503'), {
+          request: {},
+          response: { status: 503, data },
+        }),
+      );
+
+      const error = await service
+        .sendEmail(baseParams, API_KEY)
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ProviderError);
+      expect(error).toMatchObject({
+        message: 'SendGrid API error: "Request failed with status code 503"',
+        response: { status: 503, data },
+      });
+      expect(isTransientError(error)).toBe(true);
+    });
+
+    it('should mark a timeout as transient', async () => {
+      mockedAxios.post.mockRejectedValue(
+        Object.assign(new Error('timeout of 30000ms exceeded'), {
+          request: {},
+          code: 'ECONNABORTED',
+        }),
+      );
+
+      const error = await service
+        .sendEmail(baseParams, API_KEY)
+        .catch((e: unknown) => e);
+
+      expect(isTransientError(error)).toBe(true);
     });
   });
 });

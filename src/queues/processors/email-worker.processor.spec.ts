@@ -3,11 +3,12 @@ import { EmailWorkerProcessor } from './email-worker.processor';
 import { EmailProviderFactory } from '@/email-providers/email-provider.factory';
 import { PrismaService } from '@/prisma/prisma.service';
 import { SuppressionService } from '@/suppression/suppression.service';
+import { ProviderError as EmailProviderError } from '@/email-providers/provider-error';
 import { QueueService } from '../queue.service';
 import { ConfigService } from '@nestjs/config';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import {
   CustomerPlan,
   EmailProviderType,
@@ -902,6 +903,71 @@ describe('EmailWorkerProcessor', () => {
           status: DeliveryStatus.FAILED,
           usedProvider: EmailProviderType.POSTMARK,
         }),
+      });
+    });
+
+    describe.each([
+      [EmailProviderType.SENDGRID, 'SendGrid API error: "Request failed"'],
+      [EmailProviderType.RESEND, 'Resend API error: {"statusCode":503}'],
+    ])('forced %s provider errors', (providerType, message) => {
+      const run = async (error: Error) => {
+        const emailData = {
+          ...createMockEmailData(),
+          provider: providerType,
+        };
+        const provider: MockedEmailProvider = {
+          sendEmail: jest.fn().mockRejectedValue(error),
+        };
+
+        prisma.job.findUnique.mockResolvedValue({
+          id: emailData.jobId,
+          attempts: 0,
+        });
+        prisma.customer.findUnique.mockResolvedValue(paidCustomer());
+        mockEmailProviderFactory.resolveOne.mockReturnValueOnce(
+          buildResolved(providerType, provider),
+        );
+        prisma.job.update.mockResolvedValue({});
+        prisma.deliveryLog.create.mockResolvedValue({});
+
+        return processor.process(createMockJob(emailData, 0) as Job);
+      };
+
+      it.each([429, 500, 503])(
+        'rethrows a %s so BullMQ retries it',
+        async (status) => {
+          const error = new EmailProviderError(message, {
+            status,
+            data: { message: 'try later' },
+          });
+
+          await expect(run(error)).rejects.toBe(error);
+          expect(prisma.job.update).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+              data: expect.objectContaining({ status: JobStatus.FAILED }),
+            }),
+          );
+        },
+      );
+
+      it('rethrows a network error with no response so BullMQ retries it', async () => {
+        const error = new EmailProviderError(message, { noResponse: true });
+
+        await expect(run(error)).rejects.toBe(error);
+      });
+
+      it('fails permanently on a 400', async () => {
+        const error = new EmailProviderError(message, {
+          status: 400,
+          data: { message: 'bad from address' },
+        });
+
+        await expect(run(error)).rejects.toBeInstanceOf(UnrecoverableError);
+        expect(prisma.job.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ status: JobStatus.FAILED }),
+          }),
+        );
       });
     });
 

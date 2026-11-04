@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { IEmailProvider, SendEmailParams } from '../email-provider.interface';
+import { ProviderError } from '../provider-error';
 
 @Injectable()
 export class ResendService implements IEmailProvider {
@@ -34,7 +35,12 @@ export class ResendService implements IEmailProvider {
       });
 
       if (error) {
-        throw new Error(`Resend API error: ${JSON.stringify(error)}`);
+        throw new ProviderError(`Resend API error: ${JSON.stringify(error)}`, {
+          status: error.statusCode ?? undefined,
+          data: error,
+          noResponse:
+            error.statusCode == null && error.name === 'application_error',
+        });
       }
 
       this.logger.log(`Email sent successfully to ${to}`);
