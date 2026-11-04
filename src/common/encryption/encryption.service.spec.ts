@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EncryptionService } from './encryption.service';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 
 const VALID_KEY = 'a'.repeat(64);
 
@@ -117,57 +116,6 @@ describe('EncryptionService', () => {
     it('should reject data encrypted under a different key', async () => {
       const other = await buildService('b'.repeat(64));
       expect(() => service.decrypt(other.encrypt('secret'))).toThrow();
-    });
-  });
-
-  describe('legacy AES-256-CBC values', () => {
-    let service: EncryptionService;
-
-    const encryptLegacyCbc = (text: string, keyHex = VALID_KEY): string => {
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv(
-        'aes-256-cbc',
-        Buffer.from(keyHex, 'hex'),
-        iv,
-      );
-      const encrypted = Buffer.concat([
-        cipher.update(text, 'utf8'),
-        cipher.final(),
-      ]);
-      return iv.toString('hex') + ':' + encrypted.toString('hex');
-    };
-
-    beforeEach(async () => {
-      service = await buildService(VALID_KEY);
-    });
-
-    it('should decrypt a legacy iv:ciphertext value', () => {
-      const legacy = encryptLegacyCbc('SG.legacy_key');
-      expect(service.decrypt(legacy)).toBe('SG.legacy_key');
-    });
-
-    it('should flag only 2-part values as legacy', () => {
-      expect(service.isLegacyFormat(encryptLegacyCbc('x'))).toBe(true);
-      expect(service.isLegacyFormat(service.encrypt('x'))).toBe(false);
-    });
-
-    it('should never produce legacy output from encrypt', () => {
-      const upgraded = service.encrypt(
-        service.decrypt(encryptLegacyCbc('SG.legacy_key')),
-      );
-      expect(service.isLegacyFormat(upgraded)).toBe(false);
-      expect(service.decrypt(upgraded)).toBe('SG.legacy_key');
-    });
-
-    it('should reject a legacy value encrypted under a different key', () => {
-      const foreign = encryptLegacyCbc('SG.legacy_key', 'b'.repeat(64));
-      let result: string | undefined;
-      try {
-        result = service.decrypt(foreign);
-      } catch {
-        result = undefined;
-      }
-      expect(result).not.toBe('SG.legacy_key');
     });
   });
 

@@ -36,15 +36,7 @@ export class EncryptionService {
     );
   }
 
-  isLegacyFormat(text: string): boolean {
-    return text.split(':').length === 2;
-  }
-
   decrypt(text: string): string {
-    if (this.isLegacyFormat(text)) {
-      return this.decryptLegacyCbc(text);
-    }
-
     const [ivHex, encryptedHex, authTagHex] = text.split(':');
     const iv = Buffer.from(ivHex, 'hex');
     const encrypted = Buffer.from(encryptedHex, 'hex');
@@ -59,20 +51,6 @@ export class EncryptionService {
 
     return Buffer.concat([
       decipher.update(encrypted),
-      decipher.final(),
-    ]).toString('utf8');
-  }
-
-  private decryptLegacyCbc(text: string): string {
-    const [ivHex, encryptedHex] = text.split(':');
-    const decipher = crypto.createDecipheriv(
-      'aes-256-cbc',
-      this.encryptionKey,
-      Buffer.from(ivHex, 'hex'),
-    );
-
-    return Buffer.concat([
-      decipher.update(Buffer.from(encryptedHex, 'hex')),
       decipher.final(),
     ]).toString('utf8');
   }
