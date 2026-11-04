@@ -12,6 +12,7 @@ import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/platform-email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { getErrorMessage } from '@/common/utils/error.util';
+import { hashToken } from '@/common/utils/hash.util';
 import axios from 'axios';
 import {
   AuthProvider,
@@ -624,7 +625,7 @@ export class UserService {
     userId: string,
   ): Promise<RegenerateApiKeyResponse> {
     const apiKey = this.randomApiKeyString();
-    const apiKeyHash = this.hashApiKey(apiKey);
+    const apiKeyHash = hashToken(apiKey);
 
     const { count } = await this.prisma.customer.updateMany({
       where: { userId, apiKeyHash: null },
@@ -661,7 +662,7 @@ export class UserService {
 
   private async issueApiKey(userId: string): Promise<string> {
     const apiKey = this.randomApiKeyString();
-    const apiKeyHash = this.hashApiKey(apiKey);
+    const apiKeyHash = hashToken(apiKey);
 
     await this.prisma.customer.update({
       where: { userId },
@@ -678,10 +679,6 @@ export class UserService {
 
   private randomApiKeyString(): string {
     return `nh_${crypto.randomBytes(32).toString('hex')}`;
-  }
-
-  private hashApiKey(apiKey: string): string {
-    return crypto.createHash('sha256').update(apiKey).digest('hex');
   }
 
   private maskApiKey(

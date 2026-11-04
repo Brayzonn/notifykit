@@ -9,7 +9,7 @@ import {
 import { Request } from 'express';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
-import * as crypto from 'crypto';
+import { hashToken } from '@/common/utils/hash.util';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -43,7 +43,7 @@ export class ApiKeyGuard implements CanActivate {
       });
     }
 
-    const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    const apiKeyHash = hashToken(apiKey);
 
     const customer = await this.redis.remember(
       `apikey:${apiKeyHash}`,
