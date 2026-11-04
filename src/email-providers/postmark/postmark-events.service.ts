@@ -65,15 +65,16 @@ export class PostmarkEventsService {
     }
 
     const email = event.Recipient ?? event.Email ?? '';
-    const occurredAt = new Date(
+    const rawTimestamp =
       event.DeliveredAt ??
-        event.BouncedAt ??
-        event.ChangedAt ??
-        event.ReceivedAt ??
-        Date.now(),
-    );
+      event.BouncedAt ??
+      event.ChangedAt ??
+      event.ReceivedAt;
+    const occurredAt = new Date(rawTimestamp ?? Date.now());
 
-    const dedupeKey = `${event.MessageID ?? jobId}:${event.RecordType}:${occurredAt.getTime()}`;
+    const dedupeKey = rawTimestamp
+      ? `${event.MessageID ?? jobId}:${event.RecordType}:${new Date(rawTimestamp).getTime()}`
+      : `${event.MessageID ?? jobId}:${event.RecordType}`;
 
     const {
       RecordType,
