@@ -23,6 +23,7 @@ import {
   getErrorMessage,
   getAxiosErrorData,
   getAxiosErrorStatus,
+  isTransientError,
 } from '@/common/utils/error.util';
 
 @Processor(QUEUE_NAMES.EMAIL, { concurrency: 5 })
@@ -180,6 +181,9 @@ export class EmailWorkerProcessor extends WorkerHost {
 
       if (lastError) {
         if (forcedProvider) {
+          if (isTransientError(lastError)) {
+            throw lastError;
+          }
           throw new UnrecoverableError(
             `Configured provider(s) failed: ${getErrorMessage(lastError)}`,
           );
