@@ -1,6 +1,6 @@
 # Test Suite Summary
 
-**Unit: 483 tests · 27 suites · all passing** · **E2E: 39 scenarios · 3 specs**
+**Unit: 598 tests · 34 suites · all passing** · **E2E: 43 scenarios · 3 specs**
 
 > This file lists suites and counts only (regenerate with `npx jest --no-coverage`).
 > Individual test names live in the spec files themselves — see each `describe`/`it` block.
@@ -12,44 +12,51 @@
 | Suite | File | Tests |
 |---|---|---|
 | AdminService | `src/admin/admin.service.spec.ts` | 11 |
-| AuthService | `src/auth/auth.service.spec.ts` | 33 |
+| AuthService | `src/auth/auth.service.spec.ts` | 42 |
 | ApiKeyGuard | `src/auth/guards/api-key.guard.spec.ts` | 21 |
 | ApiQuotaGuard | `src/auth/guards/api-quota.guard.spec.ts` | 27 |
 | JwtAuthGuard | `src/auth/guards/jwt-auth.guard.spec.ts` | 16 |
-| BillingService | `src/billing/billing.service.spec.ts` | 55 |
-| EncryptionService | `src/common/encryption/encryption.service.spec.ts` | 12 |
+| OtpService | `src/auth/services/otp.service.spec.ts` | 14 |
+| SessionService | `src/auth/services/session.service.spec.ts` | 13 |
+| BillingService | `src/billing/billing.service.spec.ts` | 59 |
+| EncryptionService | `src/common/encryption/encryption.service.spec.ts` | 16 |
 | SlackService | `src/common/slack/slack.service.spec.ts` | 4 |
+| Date util (`addMonths`) | `src/common/utils/date.util.spec.ts` | 9 |
+| Duration util (`parseDurationMs`) | `src/common/utils/duration.util.spec.ts` | 13 |
+| Cookie config | `src/config/cookie.config.spec.ts` | 2 |
 | CORS config | `src/config/cors.config.spec.ts` | 4 |
+| Env validation | `src/config/env.validation.spec.ts` | 18 |
 | EmailProviderFactory | `src/email-providers/email-provider.factory.spec.ts` | 8 |
 | PlatformEmailSenderService | `src/email-providers/platform-email-sender.service.spec.ts` | 6 |
 | PostmarkSignatureGuard | `src/email-providers/postmark/guards/postmark-signature.guard.spec.ts` | 8 |
 | PostmarkDomainService | `src/email-providers/postmark/postmark-domain.service.spec.ts` | 9 |
-| PostmarkEventsService | `src/email-providers/postmark/postmark-events.service.spec.ts` | 7 |
+| PostmarkEventsService | `src/email-providers/postmark/postmark-events.service.spec.ts` | 13 |
 | PostmarkService | `src/email-providers/postmark/postmark.service.spec.ts` | 10 |
 | ResendSignatureGuard | `src/email-providers/resend/guards/resend-signature.guard.spec.ts` | 9 |
-| ResendEventsService | `src/email-providers/resend/resend-events.service.spec.ts` | 16 |
+| ResendEventsService | `src/email-providers/resend/resend-events.service.spec.ts` | 20 |
 | SendGridCustomerSignatureGuard | `src/email-providers/sendgrid/guards/sendgrid-customer-signature.guard.spec.ts` | 8 |
 | SendGridSignatureGuard | `src/email-providers/sendgrid/guards/sendgrid-signature.guard.spec.ts` | 8 |
-| SendGridEventsService | `src/email-providers/sendgrid/sendgrid-events.service.spec.ts` | 16 |
+| SendGridEventsService | `src/email-providers/sendgrid/sendgrid-events.service.spec.ts` | 21 |
 | SendGridService | `src/email-providers/sendgrid/sendgrid.service.spec.ts` | 9 |
 | NotificationsService | `src/notifications/notifications.service.spec.ts` | 37 |
 | PaystackWebhookHandler | `src/payment/webhooks/paystack-webhook.handler.spec.ts` | 28 |
-| EmailWorkerProcessor | `src/queues/processors/email-worker.processor.spec.ts` | 28 |
+| EmailWorkerProcessor | `src/queues/processors/email-worker.processor.spec.ts` | 29 |
 | PlatformEmailProcessor | `src/queues/processors/platform-email.processor.spec.ts` | 9 |
 | WebhookWorkerProcessor | `src/queues/processors/webhook-worker.processor.spec.ts` | 21 |
-| UserService | `src/user/user.service.spec.ts` | 63 |
-| **Total** | | **483** |
+| SuppressionService | `src/suppression/suppression.service.spec.ts` | 9 |
+| UserService | `src/user/user.service.spec.ts` | 67 |
+| **Total** | | **598** |
 
 ## E2E specs
 
-Run through the real production pipeline via `configureApp()` (`src/config/configure-app.ts`) — global filter, interceptor, validation pipe, `api` prefix, and `v1` URI versioning included. Requires Postgres + Redis running.
+Run through the real production pipeline via `configureApp()` (`src/config/configure-app.ts`) — global filter, interceptor, validation pipe, `api` prefix, and `v1` URI versioning included. Requires Postgres + Redis running. Cleanup deletes all customers and refresh tokens, so point `.env` at a disposable database.
 
 | Spec | File | Scenarios |
 |---|---|---|
 | App pipeline (envelope, prefix/versioning, validation shape) | `test/app.e2e-spec.ts` | 3 |
-| Auth (signup → verify → signin, refresh rotation, session limits, OTP resend) | `test/auth.e2e-spec.ts` | 18 |
-| Password reset | `test/password-reset.e2e-spec.ts` | 18 |
-| **Total** | | **39** |
+| Auth (signup → verify → signin, verify double-submit, refresh rotation, session limits, OTP resend) | `test/auth.e2e-spec.ts` | 19 |
+| Password reset (incl. OTP lockout and parallel wrong guesses) | `test/password-reset.e2e-spec.ts` | 21 |
+| **Total** | | **43** |
 
 ---
 
@@ -76,7 +83,7 @@ npm run test:watch
 
 **`test/helpers/test-utils.ts`** — shared mock factories
 - `createMockPrismaService()` — typed Prisma mock (user, customer, refreshToken, job, deliveryLog)
-- `createMockRedisService()` — typed Redis mock (get, set, del, exists, getClient)
+- `createMockRedisService()` — typed Redis mock (get, set, del, exists, incrementWithTtl, runScript, getClient)
 - `createMockJwtService()` — typed JWT mock
 - `createMockConfigService()` — typed config mock with default values (`getOrThrow` throws on missing keys)
 - `createMockEmailService()` — typed email mock
