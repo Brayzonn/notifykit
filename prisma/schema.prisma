@@ -271,7 +271,7 @@ model EmailEvent {
 model SuppressedRecipient {
   id         String         @id @default(uuid()) @db.Uuid
   customerId String         @map("customer_id") @db.Uuid
-  email      String
+  email      String         @db.Citext
   reason     EmailEventType
   createdAt  DateTime       @default(now()) @map("created_at")
 
