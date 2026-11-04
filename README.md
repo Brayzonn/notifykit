@@ -168,8 +168,13 @@ CORS_ORIGIN=
 # Apex domain for wildcard subdomain matching in production; leave blank to disable
 ALLOWED_DOMAIN=
 FRONTEND_URL=http://localhost:3001
+BACKEND_URL=http://localhost:3000
 
-#Encryption
+# Request body size limits (optional, default 10mb)
+# MAX_JSON_SIZE=10mb
+# MAX_FORM_SIZE=10mb
+
+# Encryption
 ENCRYPTION_KEY=
 
 # JWT
@@ -189,7 +194,6 @@ GITHUB_CALLBACK_URL=http://localhost:3000/api/v1/auth/github/callback
 
 # Paystack (NGN subscriptions)
 PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxx
-PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxx
 PAYSTACK_INDIE_PLAN_ID=PLN_xxxxxxxxxxxxx
 PAYSTACK_STARTUP_PLAN_ID=PLN_xxxxxxxxxxxxx
 PAYSTACK_INDIE_AMOUNT=500000
@@ -208,16 +212,18 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 # SendGrid (platform shared key — used for Free plan and as fallback)
 SENDGRID_API_KEY=SG....
 SENDGRID_FROM_EMAIL=
-SENDGRID_FROM_NAME=
+SENDGRID_WEBHOOK_VERIFICATION_KEY=
 
 # Resend (platform shared key — used as fallback when SendGrid is unavailable)
 RESEND_API_KEY=re_...
 RESEND_FROM_EMAIL=
+RESEND_WEBHOOK_SECRET=
 
 # Postmark (platform shared key — third-tier fallback for FREE plan)
 POSTMARK_API_KEY=
 POSTMARK_FROM_EMAIL=
 POSTMARK_MESSAGE_STREAM=outbound
+POSTMARK_WEBHOOK_SECRET=
 
 # Database
 DATABASE_URL=postgresql://notifykit:localdev123@localhost:5432/notifykit
@@ -233,12 +239,6 @@ REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_DB=0
 REDIS_CONTAINER_NAME=notifykit-redis
-
-# Rate Limiting
-RATE_LIMIT_PER_MINUTE=100
-
-# Admin
-ADMIN_EMAIL=your-admin-email
 ```
 
 The app validates its configuration at startup and refuses to start if something is wrong:
