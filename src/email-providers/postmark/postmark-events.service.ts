@@ -39,7 +39,7 @@ export class PostmarkEventsService {
   ) {}
 
   async processEvent(
-    customerId: string,
+    customerId: string | undefined,
     event: PostmarkWebhookEvent,
   ): Promise<void> {
     const eventType = EVENT_MAP[event.RecordType];
@@ -58,14 +58,16 @@ export class PostmarkEventsService {
       return;
     }
 
-    const jobExists = await this.prisma.job.findFirst({
-      where: { id: jobId, customerId },
-      select: { id: true },
+    const job = await this.prisma.job.findFirst({
+      where: { id: jobId, ...(customerId ? { customerId } : {}) },
+      select: { id: true, customerId: true },
     });
 
-    if (!jobExists) {
+    if (!job) {
       this.logger.warn(
-        `Received Postmark event for job_id ${jobId} not owned by customer ${customerId}`,
+        customerId
+          ? `Received Postmark event for job_id ${jobId} not owned by customer ${customerId}`
+          : `Received Postmark event for unknown job_id: ${jobId}`,
       );
       return;
     }
@@ -114,7 +116,7 @@ export class PostmarkEventsService {
       this.logger.debug(`Recorded ${eventType} event for job ${jobId}`);
 
       await this.suppression.suppressFromEvent({
-        customerId,
+        customerId: job.customerId,
         email,
         eventType,
         hardBounce: event.Inactive === true,

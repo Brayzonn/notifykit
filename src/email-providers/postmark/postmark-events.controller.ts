@@ -11,11 +11,22 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 import { PostmarkSignatureGuard } from './guards/postmark-signature.guard';
+import { PostmarkPlatformSignatureGuard } from './guards/postmark-platform-signature.guard';
 import { PostmarkEventsService } from './postmark-events.service';
 
 @Controller('webhooks')
 export class PostmarkEventsController {
   constructor(private readonly postmarkEventsService: PostmarkEventsService) {}
+
+  @Public()
+  @IpRateLimit(300)
+  @UseGuards(PostmarkPlatformSignatureGuard, IpRateLimitGuard)
+  @Post('postmark')
+  @HttpCode(HttpStatus.OK)
+  async handlePostmarkPlatformEvent(@Body() event: any) {
+    await this.postmarkEventsService.processEvent(undefined, event);
+    return { received: true };
+  }
 
   @Public()
   @IpRateLimit(300)

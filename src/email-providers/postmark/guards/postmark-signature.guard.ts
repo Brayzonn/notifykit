@@ -11,6 +11,31 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { EmailProviderType } from '@prisma/client';
 import * as crypto from 'crypto';
 
+export const isValidPostmarkBasicAuth = (
+  request: Request,
+  secret: string,
+): boolean => {
+  const authHeader = request.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    throw new UnauthorizedException('Missing Postmark webhook credentials');
+  }
+
+  let provided: string;
+  try {
+    const decoded = Buffer.from(authHeader.substring(6), 'base64').toString(
+      'utf8',
+    );
+    const [, password = ''] = decoded.split(':');
+    provided = password;
+  } catch {
+    throw new UnauthorizedException('Malformed Postmark webhook credentials');
+  }
+
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
 @Injectable()
 export class PostmarkSignatureGuard implements CanActivate {
   private readonly logger = new Logger(PostmarkSignatureGuard.name);
@@ -44,27 +69,7 @@ export class PostmarkSignatureGuard implements CanActivate {
       throw new NotFoundException();
     }
 
-    const authHeader = request.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-      throw new UnauthorizedException('Missing Postmark webhook credentials');
-    }
-
-    let provided: string;
-    try {
-      const decoded = Buffer.from(authHeader.substring(6), 'base64').toString(
-        'utf8',
-      );
-      const [, password = ''] = decoded.split(':');
-      provided = password;
-    } catch {
-      throw new UnauthorizedException('Malformed Postmark webhook credentials');
-    }
-
-    const expected = providerRecord.webhookSecret;
-    const a = Buffer.from(provided);
-    const b = Buffer.from(expected);
-
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    if (!isValidPostmarkBasicAuth(request, providerRecord.webhookSecret)) {
       this.logger.warn(
         `Postmark signature validation failed for ${customerId}`,
       );

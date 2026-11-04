@@ -59,7 +59,7 @@ describe('PostmarkEventsService', () => {
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
       where: { id: 'job-x', customerId: 'cust-1' },
-      select: { id: true },
+      select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
@@ -174,7 +174,10 @@ describe('PostmarkEventsService', () => {
     ])(
       'passes hardBounce for Type=%s Inactive=%s as %s',
       async (type, inactive, hard) => {
-        prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+        prisma.job.findFirst.mockResolvedValueOnce({
+          id: 'job-x',
+          customerId: 'cust-1',
+        });
 
         await service.processEvent('cust-1', bounce(type, inactive));
 
@@ -188,11 +191,58 @@ describe('PostmarkEventsService', () => {
     );
 
     it('does not suppress when the event fails to store', async () => {
-      prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+      prisma.job.findFirst.mockResolvedValueOnce({
+        id: 'job-x',
+        customerId: 'cust-1',
+      });
       prisma.emailEvent.upsert.mockRejectedValueOnce(new Error('db down'));
 
       await service.processEvent('cust-1', bounce('HardBounce', true));
 
+      expect(suppression.suppressFromEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('shared platform route (no customerId)', () => {
+    it('looks up the job without a customer scope and suppresses against its owner', async () => {
+      prisma.job.findFirst.mockResolvedValueOnce({
+        id: 'job-x',
+        customerId: 'owner-1',
+      });
+
+      await service.processEvent(undefined, {
+        RecordType: 'Bounce',
+        Type: 'HardBounce',
+        Inactive: true,
+        MessageID: 'm-1',
+        Email: 'a@b.com',
+        BouncedAt: '2026-04-28T10:00:00Z',
+        Metadata: { job_id: 'job-x' },
+      } as any);
+
+      expect(prisma.job.findFirst).toHaveBeenCalledWith({
+        where: { id: 'job-x' },
+        select: { id: true, customerId: true },
+      });
+      expect(suppression.suppressFromEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ customerId: 'owner-1', hardBounce: true }),
+      );
+    });
+
+    it('skips events for unknown jobs', async () => {
+      prisma.job.findFirst.mockResolvedValueOnce(null);
+
+      await service.processEvent(undefined, {
+        RecordType: 'Bounce',
+        Type: 'HardBounce',
+        Inactive: true,
+        MessageID: 'm-1',
+        Email: 'a@b.com',
+        BouncedAt: '2026-04-28T10:00:00Z',
+        Metadata: { job_id: 'job-x' },
+      } as any);
+
+      expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
       expect(suppression.suppressFromEvent).not.toHaveBeenCalled();
     });
   });

@@ -13,6 +13,25 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { EmailProviderType } from '@prisma/client';
 import { getErrorMessage } from '@/common/utils/error.util';
 
+export const verifyResendSignature = (
+  request: RawBodyRequest<Request>,
+  secret: string,
+): void => {
+  const svixId = request.headers['svix-id'] as string;
+  const svixTimestamp = request.headers['svix-timestamp'] as string;
+  const svixSignature = request.headers['svix-signature'] as string;
+
+  if (!svixId || !svixTimestamp || !svixSignature || !request.rawBody) {
+    throw new UnauthorizedException('Missing Resend webhook headers');
+  }
+
+  new Webhook(secret).verify(request.rawBody, {
+    'svix-id': svixId,
+    'svix-timestamp': svixTimestamp,
+    'svix-signature': svixSignature,
+  });
+};
+
 @Injectable()
 export class ResendSignatureGuard implements CanActivate {
   private readonly logger = new Logger(ResendSignatureGuard.name);
@@ -49,23 +68,11 @@ export class ResendSignatureGuard implements CanActivate {
       throw new NotFoundException();
     }
 
-    const svixId = request.headers['svix-id'] as string;
-    const svixTimestamp = request.headers['svix-timestamp'] as string;
-    const svixSignature = request.headers['svix-signature'] as string;
-
-    if (!svixId || !svixTimestamp || !svixSignature || !request.rawBody) {
-      throw new UnauthorizedException('Missing Resend webhook headers');
-    }
-
     try {
-      const wh = new Webhook(providerRecord.webhookSecret);
-      wh.verify(request.rawBody, {
-        'svix-id': svixId,
-        'svix-timestamp': svixTimestamp,
-        'svix-signature': svixSignature,
-      });
+      verifyResendSignature(request, providerRecord.webhookSecret);
       return true;
     } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       this.logger.warn(
         `Resend signature validation failed for ${customerId}: ${getErrorMessage(error)}`,
       );

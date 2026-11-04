@@ -11,11 +11,22 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { IpRateLimitGuard } from '@/auth/guards/ip-rate-limit.guard';
 import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 import { ResendSignatureGuard } from './guards/resend-signature.guard';
+import { ResendPlatformSignatureGuard } from './guards/resend-platform-signature.guard';
 import { ResendEventsService } from './resend-events.service';
 
 @Controller('webhooks')
 export class ResendEventsController {
   constructor(private readonly resendEventsService: ResendEventsService) {}
+
+  @Public()
+  @IpRateLimit(300)
+  @UseGuards(ResendPlatformSignatureGuard, IpRateLimitGuard)
+  @Post('resend')
+  @HttpCode(HttpStatus.OK)
+  async handleResendPlatformEvent(@Body() event: any) {
+    await this.resendEventsService.processEvent(undefined, event);
+    return { received: true };
+  }
 
   @Public()
   @IpRateLimit(300)
