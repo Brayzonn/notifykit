@@ -92,6 +92,19 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return Number(count);
   }
 
+  async runScript(
+    script: string,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<unknown> {
+    return this.client.eval(
+      script,
+      keys.length,
+      ...keys,
+      ...args.map((arg) => arg.toString()),
+    );
+  }
+
   async getJson<T>(key: string): Promise<T | null> {
     const data = await this.client.get(key);
     return data ? JSON.parse(data) : null;

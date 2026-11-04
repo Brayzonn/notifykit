@@ -168,6 +168,8 @@ export type MockedRedisService = {
   set: jest.Mock;
   del: jest.Mock;
   exists: jest.Mock;
+  incrementWithTtl: jest.Mock;
+  runScript: jest.Mock;
   getClient: jest.Mock;
 };
 
@@ -176,6 +178,8 @@ export const createMockRedisService = (): MockedRedisService => ({
   set: jest.fn(),
   del: jest.fn(),
   exists: jest.fn(),
+  incrementWithTtl: jest.fn().mockResolvedValue(1),
+  runScript: jest.fn().mockResolvedValue('missing'),
   getClient: jest.fn(() => ({
     incr: jest.fn(),
     expire: jest.fn(),
