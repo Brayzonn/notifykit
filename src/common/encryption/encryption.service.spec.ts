@@ -52,12 +52,13 @@ describe('EncryptionService', () => {
       service = await buildService(VALID_KEY);
     });
 
-    it('should return a string in the format "iv:ciphertext"', () => {
+    it('should return a string in the format "iv:ciphertext:authTag"', () => {
       const result = service.encrypt('hello');
       const parts = result.split(':');
-      expect(parts).toHaveLength(2);
-      expect(parts[0]).toHaveLength(32);
+      expect(parts).toHaveLength(3);
+      expect(parts[0]).toHaveLength(24);
       expect(parts[1].length).toBeGreaterThan(0);
+      expect(parts[2]).toHaveLength(32);
     });
 
     it('should produce different ciphertexts for the same plaintext (random IV)', () => {
@@ -68,9 +69,10 @@ describe('EncryptionService', () => {
 
     it('should produce hex-encoded output', () => {
       const result = service.encrypt('test');
-      const [iv, ciphertext] = result.split(':');
+      const [iv, ciphertext, authTag] = result.split(':');
       expect(iv).toMatch(/^[0-9a-f]+$/);
       expect(ciphertext).toMatch(/^[0-9a-f]+$/);
+      expect(authTag).toMatch(/^[0-9a-f]+$/);
     });
   });
 
@@ -95,6 +97,30 @@ describe('EncryptionService', () => {
     it('should handle long strings', () => {
       const plaintext = 'SG.' + 'x'.repeat(200);
       expect(service.decrypt(service.encrypt(plaintext))).toBe(plaintext);
+    });
+
+    it('should reject a tampered ciphertext', () => {
+      const [iv, ciphertext, authTag] = service.encrypt('secret').split(':');
+      const flipped =
+        (parseInt(ciphertext[0], 16) ^ 1).toString(16) + ciphertext.slice(1);
+      expect(() => service.decrypt(`${iv}:${flipped}:${authTag}`)).toThrow();
+    });
+
+    it('should reject a tampered auth tag', () => {
+      const [iv, ciphertext, authTag] = service.encrypt('secret').split(':');
+      const flipped =
+        (parseInt(authTag[0], 16) ^ 1).toString(16) + authTag.slice(1);
+      expect(() => service.decrypt(`${iv}:${ciphertext}:${flipped}`)).toThrow();
+    });
+
+    it('should reject data encrypted under a different key', async () => {
+      const other = await buildService('b'.repeat(64));
+      expect(() => service.decrypt(other.encrypt('secret'))).toThrow();
+    });
+
+    it('should reject the legacy 2-part CBC format', () => {
+      const legacy = `${'0'.repeat(32)}:${'ab'.repeat(16)}`;
+      expect(() => service.decrypt(legacy)).toThrow();
     });
   });
 
