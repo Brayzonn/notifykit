@@ -45,8 +45,6 @@ export class ApiKeyGuard implements CanActivate {
 
     const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
 
-    // Read-through cache (60s). Invalidated explicitly on key regeneration and
-    // account deletion/deactivation; plan/subscription changes self-heal via TTL.
     const customer = await this.redis.remember(
       `apikey:${apiKeyHash}`,
       this.CACHE_TTL_SECONDS,

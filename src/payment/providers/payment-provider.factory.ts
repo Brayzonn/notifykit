@@ -32,10 +32,6 @@ export class PaymentProviderFactory {
     }
   }
 
-  /**
-   * Route a checkout request to the provider that handles the requested currency.
-   * USD → Polar, NGN → Paystack.
-   */
   getProviderByCurrency(currency: Currency): PaymentProvider {
     switch (currency) {
       case 'NGN':

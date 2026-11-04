@@ -136,7 +136,6 @@ describe('WebhookWorkerProcessor', () => {
 
       await processor.process(mockJob as Job);
 
-      // Verify job status updated to PROCESSING
       expect(prisma.job.update).toHaveBeenCalledWith({
         where: { id: webhookData.jobId },
         data: {
@@ -146,7 +145,6 @@ describe('WebhookWorkerProcessor', () => {
         },
       });
 
-      // Verify HTTP request made with correct parameters
       expect(httpService.request).toHaveBeenCalledWith({
         method: 'POST',
         url: webhookData.url,
@@ -160,7 +158,6 @@ describe('WebhookWorkerProcessor', () => {
         validateStatus: expect.any(Function),
       });
 
-      // Verify delivery log created with SUCCESS
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: {
           jobId: webhookData.jobId,
@@ -173,7 +170,6 @@ describe('WebhookWorkerProcessor', () => {
         },
       });
 
-      // Verify job marked as COMPLETED
       expect(prisma.job.update).toHaveBeenCalledWith({
         where: { id: webhookData.jobId },
         data: {
@@ -313,16 +309,10 @@ describe('WebhookWorkerProcessor', () => {
       prisma.deliveryLog.create.mockResolvedValue({} as any);
       queueService.moveToDeadLetterQueue.mockResolvedValue(undefined);
 
-      // The processor catches the error, logs it, and should rethrow
-      // But in test environment the Observable error propagation has issues
-      // So we verify the error handling logic was executed correctly
-      try {
-        await processor.process(mockJob as Job);
-      } catch (error) {
-        // Error was thrown as expected
-      }
+      await expect(processor.process(mockJob as Job)).rejects.toHaveProperty(
+        'message',
+      );
 
-      // Verify delivery log created with FAILED status
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: {
           jobId: webhookData.jobId,
@@ -358,11 +348,9 @@ describe('WebhookWorkerProcessor', () => {
       prisma.deliveryLog.create.mockResolvedValue({} as any);
       queueService.moveToDeadLetterQueue.mockResolvedValue(undefined);
 
-      try {
-        await processor.process(mockJob as Job);
-      } catch (error) {
-        // Error handling executed
-      }
+      await expect(processor.process(mockJob as Job)).rejects.toHaveProperty(
+        'message',
+      );
 
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: {
@@ -396,11 +384,9 @@ describe('WebhookWorkerProcessor', () => {
       prisma.deliveryLog.create.mockResolvedValue({} as any);
       queueService.moveToDeadLetterQueue.mockResolvedValue(undefined);
 
-      try {
-        await processor.process(mockJob as Job);
-      } catch (error) {
-        // Error handling executed
-      }
+      await expect(processor.process(mockJob as Job)).rejects.toHaveProperty(
+        'message',
+      );
 
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: {
@@ -439,10 +425,8 @@ describe('WebhookWorkerProcessor', () => {
       prisma.deliveryLog.create.mockResolvedValue({});
       queueService.moveToDeadLetterQueue.mockResolvedValue(undefined);
 
-      // 4xx errors should NOT throw - they return without throwing
       await processor.process(mockJob as Job);
 
-      // Verify error was logged
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           status: DeliveryStatus.FAILED,
@@ -450,13 +434,11 @@ describe('WebhookWorkerProcessor', () => {
         }),
       });
 
-      // Verify moved to DLQ without retry
       expect(queueService.moveToDeadLetterQueue).toHaveBeenCalledWith(
         webhookData,
         expect.stringContaining('400'),
       );
 
-      // Verify job marked as FAILED
       expect(prisma.job.update).toHaveBeenCalledWith({
         where: { id: webhookData.jobId },
         data: {
@@ -465,7 +447,6 @@ describe('WebhookWorkerProcessor', () => {
         },
       });
 
-      // Job should fail immediately (not retry) - verified by shouldRetryWebhook logic
       const shouldRetry = processor['shouldRetryWebhook'](clientError);
       expect(shouldRetry).toBe(false);
     });
@@ -518,7 +499,7 @@ describe('WebhookWorkerProcessor', () => {
 
     it('should succeed on retry after transient 5xx error', async () => {
       const webhookData = createMockWebhookData();
-      const mockJob = createMockJob(webhookData, 1); // Second attempt
+      const mockJob = createMockJob(webhookData, 1);
 
       const mockDbJob = {
         id: webhookData.jobId,
@@ -546,7 +527,7 @@ describe('WebhookWorkerProcessor', () => {
   describe('Max Retries Exceeded', () => {
     it('should move to dead letter queue after max retries for 5xx errors', async () => {
       const webhookData = createMockWebhookData();
-      const mockJob = createMockJob(webhookData, 2); // Third and final attempt
+      const mockJob = createMockJob(webhookData, 2);
 
       const mockDbJob = {
         id: webhookData.jobId,
@@ -569,14 +550,10 @@ describe('WebhookWorkerProcessor', () => {
       prisma.deliveryLog.create.mockResolvedValue({} as any);
       queueService.moveToDeadLetterQueue.mockResolvedValue(undefined);
 
-      // On final attempt, it moves to DLQ
-      try {
-        await processor.process(mockJob as Job);
-      } catch (error) {
-        // Error handling executed
-      }
+      await expect(processor.process(mockJob as Job)).rejects.toHaveProperty(
+        'message',
+      );
 
-      // Verify final failed attempt logged
       expect(prisma.deliveryLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           attempt: 3,
@@ -584,13 +561,11 @@ describe('WebhookWorkerProcessor', () => {
         }),
       });
 
-      // Verify moved to DLQ
       expect(queueService.moveToDeadLetterQueue).toHaveBeenCalledWith(
         mockDbJob.payload,
         expect.any(String),
       );
 
-      // Verify job marked as FAILED
       expect(prisma.job.update).toHaveBeenCalledWith({
         where: { id: mockDbJob.id },
         data: {
@@ -658,10 +633,8 @@ describe('WebhookWorkerProcessor', () => {
       const webhookData = createMockWebhookData();
       const mockJob = createMockJob(webhookData, 0);
 
-      prisma.job.findUnique.mockResolvedValue(null); // Job not found
+      prisma.job.findUnique.mockResolvedValue(null);
 
-      // The processor will continue with attempts = 0 even if DB job not found
-      // It doesn't throw an error for this case
       const mockResponse = createMockAxiosResponse(200, {});
       httpService.request.mockReturnValue(of(mockResponse));
       prisma.job.update.mockResolvedValue({});
@@ -669,7 +642,6 @@ describe('WebhookWorkerProcessor', () => {
 
       await processor.process(mockJob as Job);
 
-      // Should still make HTTP request
       expect(httpService.request).toHaveBeenCalled();
     });
 

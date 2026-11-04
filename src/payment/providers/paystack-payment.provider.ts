@@ -243,10 +243,6 @@ export class PaystackPaymentProvider implements PaymentProvider {
     }
   }
 
-  /**
-   * Fetch a single subscription by its code. Returns next_payment_date and
-   * status. Used on renewal to bump dates without trusting webhook payload.
-   */
   async getSubscriptionByCode(subscriptionCode: string): Promise<{
     subscriptionCode: string;
     nextBillingDate: Date | null;
@@ -294,11 +290,6 @@ export class PaystackPaymentProvider implements PaymentProvider {
     };
   }
 
-  /**
-   * Find an active subscription for a Paystack customer that matches a given
-   * plan. Used by the delayed link processor when subscription.create may have
-   * arrived out-of-order or been missed.
-   */
   async findActiveSubscriptionByCustomer(
     customerCodeOrNumericId: string | number,
     plan: string,

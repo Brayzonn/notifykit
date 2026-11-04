@@ -29,8 +29,6 @@ type MockedBillingService = {
   handleRenewalCharge: jest.Mock;
 };
 
-// ── Test helpers ──────────────────────────────────────────────────────────────
-
 const PAYSTACK_SECRET = 'test-paystack-secret';
 const INDIE_PLAN_CODE = 'PLN_indie_123';
 const STARTUP_PLAN_CODE = 'PLN_startup_456';
@@ -41,15 +39,12 @@ const buildPayload = (event: object): Buffer =>
 const computeSignature = (payload: Buffer): string =>
   crypto.createHmac('sha512', PAYSTACK_SECRET).update(payload).digest('hex');
 
-/** Returns a signed { payload, signature } pair ready for handler.handle() */
 const sign = (event: object) => {
   const payload = buildPayload(event);
   return { payload, signature: computeSignature(payload) };
 };
 
 const makeEvent = (type: string, data: object = {}) => ({ event: type, data });
-
-// ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('PaystackWebhookHandler', () => {
   let handler: PaystackWebhookHandler;
@@ -124,8 +119,6 @@ describe('PaystackWebhookHandler', () => {
     jest.resetAllMocks();
   });
 
-  // ── Signature Verification ──────────────────────────────────────────────────
-
   describe('Signature Verification', () => {
     it('should throw when PAYSTACK_SECRET_KEY is not configured', async () => {
       configService.get.mockReturnValue(undefined);
@@ -152,8 +145,6 @@ describe('PaystackWebhookHandler', () => {
       expect(result).toEqual({ received: true });
     });
   });
-
-  // ── charge.success ──────────────────────────────────────────────────────────
 
   describe('charge.success', () => {
     const baseData = {
@@ -297,8 +288,6 @@ describe('PaystackWebhookHandler', () => {
     });
   });
 
-  // ── subscription.create ─────────────────────────────────────────────────────
-
   describe('subscription.create', () => {
     const mockCustomer = createMockCustomer({
       providerCustomerId: 'CUS_abc123',
@@ -439,8 +428,6 @@ describe('PaystackWebhookHandler', () => {
     });
   });
 
-  // ── subscription.disable ────────────────────────────────────────────────────
-
   describe('subscription.disable', () => {
     it('should cancel the subscription', async () => {
       const { payload, signature } = sign(
@@ -468,8 +455,6 @@ describe('PaystackWebhookHandler', () => {
       expect(billingService.handleSubscriptionCancelled).not.toHaveBeenCalled();
     });
   });
-
-  // ── invoice.payment_failed ──────────────────────────────────────────────────
 
   describe('invoice.payment_failed', () => {
     const mockCustomer = createMockCustomer({
@@ -591,8 +576,6 @@ describe('PaystackWebhookHandler', () => {
     });
   });
 
-  // ── Unknown events ──────────────────────────────────────────────────────────
-
   describe('Unknown event types', () => {
     it('should log unhandled event type', async () => {
       const { payload, signature } = sign(makeEvent('some.unknown.event'));
@@ -613,8 +596,6 @@ describe('PaystackWebhookHandler', () => {
       expect(result).toEqual({ received: true });
     });
   });
-
-  // ── Error propagation ───────────────────────────────────────────────────────
 
   describe('Error handling', () => {
     it('should rethrow errors from event handlers and log them', async () => {

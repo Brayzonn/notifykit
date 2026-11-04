@@ -3,8 +3,6 @@ import { getQueueToken } from '@nestjs/bullmq';
 import type { EmailService } from '../../src/platform-email/email.service';
 import { QUEUE_NAMES } from '../../src/queues/queue.constants';
 
-// Without this, BullMQ's ioredis connections leak past test teardown and
-// compete with the next run's Redis traffic, causing flaky timeouts.
 export const closeBullQueues = async (
   moduleFixture: TestingModule,
 ): Promise<void> => {
@@ -18,7 +16,7 @@ export const closeBullQueues = async (
         await queue.close();
       }
     } catch {
-      // queue not registered in this module
+      continue;
     }
   }
 };
@@ -233,8 +231,6 @@ export const createMockConfigService = (): MockedConfigService => ({
   }),
 });
 
-// Derived from EmailService so a new send* method triggers a TS error here
-// until it's mocked.
 export type MockedEmailService = {
   [K in keyof EmailService as EmailService[K] extends (...args: any[]) => any
     ? K

@@ -40,7 +40,6 @@ describe('createCorsConfig (production ALLOWED_DOMAIN)', () => {
       CORS_ORIGIN: 'https://app.example.com',
       ALLOWED_DOMAIN: 'foo.bar.com',
     });
-    // Every dot is escaped, so the `.` before `com` is a literal, not a wildcard.
     expect(regex.test('https://app.foo.barXcom')).toBe(false);
     expect(regex.test('https://foo.bar.com.evil.test')).toBe(false);
     expect(regex.test('http://app.foo.bar.com')).toBe(false);

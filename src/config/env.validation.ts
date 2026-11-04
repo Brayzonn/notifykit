@@ -10,14 +10,6 @@ import {
 
 const MIN_SECRET_LENGTH = 16;
 
-/**
- * Boot-time schema for the environment. Only the values that would let the app
- * come up in an insecure or non-functional state are enforced here — secrets
- * with no safe default, and the database URL. Feature-specific configuration
- * (OAuth, payment providers, per-provider email keys) is validated where it is
- * consumed, so a deployment that doesn't use a given feature isn't forced to
- * set its variables.
- */
 class EnvironmentVariables {
   @IsOptional()
   @IsIn(['development', 'production', 'test'])
@@ -51,11 +43,6 @@ class EnvironmentVariables {
   DATABASE_URL!: string;
 }
 
-/**
- * `validate` hook for `ConfigModule.forRoot`. Throws (aborting boot) if any
- * required variable is missing or malformed. Returns the original config
- * untouched so every other variable is passed through exactly as before.
- */
 export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {

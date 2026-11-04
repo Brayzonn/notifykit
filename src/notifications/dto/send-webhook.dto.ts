@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-const MAX_PAYLOAD_BYTES = 10 * 1024; // 10kb
+const MAX_PAYLOAD_BYTES = 10 * 1024;
 
 function MaxPayloadSize(options?: ValidationOptions) {
   return (object: object, propertyName: string) => {

@@ -11,14 +11,6 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { EmailProviderType } from '@prisma/client';
 import * as crypto from 'crypto';
 
-/**
- * Postmark does not natively HMAC-sign webhooks. The recommended pattern is
- * HTTP Basic Auth credentials embedded in the webhook URL, where the password
- * portion is a shared secret stored on the customer's email-provider record.
- *
- * Customers paste the secret as the Basic Auth password when configuring the
- * webhook in Postmark; we compare it (constant-time) against the stored value.
- */
 @Injectable()
 export class PostmarkSignatureGuard implements CanActivate {
   private readonly logger = new Logger(PostmarkSignatureGuard.name);

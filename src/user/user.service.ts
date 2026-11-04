@@ -62,15 +62,6 @@ export class UserService {
     private readonly encryptionService: EncryptionService,
   ) {}
 
-  /**
-   * ================================
-   * PROFILE MANAGEMENT
-   * ================================
-   */
-
-  /**
-   * Get user profile with customer data
-   */
   async getUserProfile(userId: string): Promise<UserProfile> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -107,9 +98,6 @@ export class UserService {
     return userWithoutPassword;
   }
 
-  /**
-   * Update user profile (name, company)
-   */
   async updateProfile(
     userId: string,
     dto: UpdateProfileDto,
@@ -152,15 +140,6 @@ export class UserService {
     return userWithoutPassword;
   }
 
-  /**
-   * ================================
-   * ACCOUNT MANAGEMENT
-   * ================================
-   */
-
-  /**
-   * Change password (only for email auth users)
-   */
   async changePassword(
     userId: string,
     dto: ChangePasswordDto,
@@ -204,9 +183,6 @@ export class UserService {
     return { message: 'Password changed successfully' };
   }
 
-  /**
-   * Request email change
-   */
   async requestEmailChange(
     userId: string,
     dto: UpdateEmailDto,
@@ -245,7 +221,6 @@ export class UserService {
       throw new BadRequestException('Email already in use');
     }
 
-    // Generate secure tokens for both emails
     const newEmailToken = crypto.randomBytes(32).toString('hex');
     const oldEmailToken = crypto.randomBytes(32).toString('hex');
 
@@ -259,7 +234,7 @@ export class UserService {
         newEmailConfirmed: false,
         oldEmailConfirmed: false,
       }),
-      1800, // 30 minutes
+      1800,
     );
 
     await this.redis.set(`token:${newEmailToken}`, userId, 1800);
@@ -267,14 +242,12 @@ export class UserService {
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
 
-    // Send verification link to NEW email
     await this.emailService.sendEmailChangeVerification({
       email: dto.newEmail,
       name: user.name,
       verifyLink: `${frontendUrl}/auth/verify-email-change/${newEmailToken}`,
     });
 
-    // Send confirmation link to OLD email
     await this.emailService.sendEmailChangeConfirmation({
       email: user.email,
       name: user.name,
@@ -290,9 +263,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Verify new email (user clicks link from new email)
-   */
   async verifyNewEmail(token: string): Promise<EmailVerificationResponse> {
     const userId = await this.redis.get(`token:${token}`);
 
@@ -325,9 +295,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Confirm from old email (user clicks link from old email)
-   */
   async confirmOldEmail(token: string): Promise<EmailVerificationResponse> {
     const userId = await this.redis.get(`token:${token}`);
 
@@ -360,9 +327,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Cancel email change
-   */
   async cancelEmailChange(token: string): Promise<MessageResponse> {
     const userId = await this.redis.get(`token:${token}`);
 
@@ -396,9 +360,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Complete email change
-   */
   private async completeEmailChange(
     userId: string,
   ): Promise<EmailChangeSuccessResponse> {
@@ -439,9 +400,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Delete account (soft delete)
-   */
   async deleteAccount(
     userId: string,
     confirmEmail: string,
@@ -458,7 +416,6 @@ export class UserService {
       throw new UnauthorizedException('Email confirmation does not match');
     }
 
-    // Soft delete user
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -467,14 +424,12 @@ export class UserService {
     });
     await this.redis.del(`user:${userId}`);
 
-    // Deactivate customer
     const customer = await this.prisma.customer.update({
       where: { userId },
       data: { isActive: false },
       select: { apiKeyHash: true },
     });
 
-    // Revoke the cached API-key auth entry immediately.
     if (customer.apiKeyHash) {
       await this.redis.del(`apikey:${customer.apiKeyHash}`);
     }
@@ -486,15 +441,6 @@ export class UserService {
     return { message: 'Account deleted successfully' };
   }
 
-  /**
-   * ================================
-   * DASHBOARD
-   * ================================
-   */
-
-  /**
-   * Get dashboard summary
-   */
   async getDashboardSummary(
     userId: string,
     days: number = 7,
@@ -533,15 +479,6 @@ export class UserService {
     };
   }
 
-  /**
-   * ================================
-   * API KEY MANAGEMENT
-   * ================================
-   */
-
-  /**
-   * Get user's API key
-   */
   async getApiKey(userId: string): Promise<ApiKeyResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -591,9 +528,6 @@ export class UserService {
       : this.generateApiKey(userId);
   }
 
-  /**
-   * Page data for the API keys screen
-   */
   async getApiKeysPageData(userId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -686,11 +620,6 @@ export class UserService {
     };
   }
 
-  /**
-   * ================================
-   * API KEY PRIVATE HELPERS
-   * ================================
-   */
   private async generateApiKey(
     userId: string,
   ): Promise<RegenerateApiKeyResponse> {
@@ -717,9 +646,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Rotation: replace the existing key and invalidate the old one in cache.
-   */
   private async regenerateApiKey(
     userId: string,
     oldHash: string,
@@ -733,10 +659,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Creates a new key and stores ONLY the hash + last four.
-   *
-   */
   private async issueApiKey(userId: string): Promise<string> {
     const apiKey = this.randomApiKeyString();
     const apiKeyHash = this.hashApiKey(apiKey);
@@ -772,12 +694,6 @@ export class UserService {
       createdAt,
     };
   }
-
-  /**
-   * ================================
-   * SENDGRID KEY MANAGEMENT
-   * ================================
-   */
 
   async saveCustomerSendgridKey(
     userId: string,
@@ -926,12 +842,6 @@ export class UserService {
     return { message: 'SendGrid API key removed successfully' };
   }
 
-  /**
-   * ================================
-   * SENDGRID WEBHOOK KEY MANAGEMENT
-   * ================================
-   */
-
   async saveSendgridWebhookKey(
     userId: string,
     webhookKey: string,
@@ -1024,12 +934,6 @@ export class UserService {
       message: 'SendGrid webhook verification key removed successfully',
     };
   }
-
-  /**
-   * ================================
-   * RESEND WEBHOOK KEY MANAGEMENT
-   * ================================
-   */
 
   async saveResendWebhookSecret(
     userId: string,
@@ -1127,12 +1031,6 @@ export class UserService {
     );
     return `${baseUrl}/api/v1/webhooks/resend/${customerId}`;
   }
-
-  /**
-   * ================================
-   * POSTMARK KEY MANAGEMENT
-   * ================================
-   */
 
   async saveCustomerPostmarkKeys(
     userId: string,
@@ -1300,12 +1198,6 @@ export class UserService {
     return { message: 'Postmark API key removed successfully' };
   }
 
-  /**
-   * ================================
-   * POSTMARK WEBHOOK SECRET
-   * ================================
-   */
-
   async savePostmarkWebhookSecret(
     userId: string,
     secret: string,
@@ -1416,12 +1308,6 @@ export class UserService {
       return false;
     }
   }
-
-  /**
-   * ================================
-   * RESEND KEY MANAGEMENT
-   * ================================
-   */
 
   async saveCustomerResendKey(
     userId: string,
@@ -1633,7 +1519,6 @@ export class UserService {
       throw new NotFoundException(`No ${providerParam} API key configured`);
     }
 
-    // Swap priorities atomically: displace occupant to old priority, then set new priority
     await this.prisma.$transaction([
       this.prisma.customerEmailProvider.updateMany({
         where: {
@@ -1710,15 +1595,6 @@ export class UserService {
     }
   }
 
-  /**
-   * ================================
-   * USAGE & BILLING
-   * ================================
-   */
-
-  /**
-   * Get usage statistics
-   */
   async getUsageStats(userId: string): Promise<UsageStats> {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -1767,15 +1643,6 @@ export class UserService {
     };
   }
 
-  /**
-   * ================================
-   * JOBS/NOTIFICATIONS HISTORY
-   * ================================
-   */
-
-  /**
-   * Get user's jobs history with pagination
-   */
   async getJobsHistory(
     userId: string,
     page: number = 1,
@@ -1838,9 +1705,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Get single job details
-   */
   async getJobDetails(
     userId: string,
     jobId: string,
@@ -1904,20 +1768,6 @@ export class UserService {
     return result;
   }
 
-  /**
-   * ================================
-   * Domain METHODS
-   * ================================
-   */
-
-  /**
-   * Request domain verification
-   */
-  /**
-   * Register an existing customer domain with a newly added provider.
-   * Idempotent: no-op if customer has no domain or provider already registered.
-   * Never throws — failures are logged so the save flow keeps working.
-   */
   private async autoRegisterDomainForNewProvider(
     customerId: string,
     provider: EmailProviderType,
@@ -2246,9 +2096,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Check domain verification status
-   */
   async checkDomainVerification(userId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -2366,9 +2213,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Get domain status
-   */
   async getDomainStatus(userId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -2415,9 +2259,6 @@ export class UserService {
     };
   }
 
-  /**
-   * Remove domain verification
-   */
   async removeDomain(userId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { userId },
@@ -2512,12 +2353,6 @@ export class UserService {
     return { message: 'Domain removed successfully' };
   }
 
-  /**
-   * ================================
-   * HELPER METHODS
-   * ================================
-   */
-
   private getStartDate(days: number): Date {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -2591,10 +2426,6 @@ export class UserService {
       .map(([date, counts]) => ({ date, ...counts }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }
-
-  // ============================================
-  // WEBHOOK SIGNING SECRET
-  // ============================================
 
   async generateWebhookSigningSecret(
     userId: string,

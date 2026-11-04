@@ -69,12 +69,6 @@ export class SendGridDomainService {
     ];
   }
 
-  /**
-   * Authenticate a domain in SendGrid.
-   * If the domain + subdomain already exists in SendGrid (e.g. from a
-   * previous attempt that failed before saving to DB), fetch the existing
-   * record and return it instead of erroring.
-   */
   async authenticateDomain(
     domain: string,
     apiKey?: string,
@@ -134,9 +128,6 @@ export class SendGridDomainService {
     }
   }
 
-  /**
-   * Look up an existing authenticated domain in SendGrid by domain name.
-   */
   private async findExistingDomain(
     domain: string,
     apiKey?: string,
@@ -181,9 +172,6 @@ export class SendGridDomainService {
     }
   }
 
-  /**
-   * Validate domain DNS records
-   */
   async validateDomain(
     domainId: number,
     apiKey?: string,
@@ -222,9 +210,6 @@ export class SendGridDomainService {
     }
   }
 
-  /**
-   * Get domain details
-   */
   async getDomain(domainId: number) {
     try {
       const response = await axios.get(
@@ -245,9 +230,6 @@ export class SendGridDomainService {
     }
   }
 
-  /**
-   * Delete domain authentication
-   */
   async deleteDomain(domainId: number, apiKey?: string) {
     try {
       await axios.delete(`${this.baseUrl}/whitelabel/domains/${domainId}`, {

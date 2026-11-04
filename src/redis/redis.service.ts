@@ -59,9 +59,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client;
   }
 
-  /**
-   * Convenience methods------------------------
-   */
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }
@@ -83,11 +80,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return result === 1;
   }
 
-  /**
-   * Atomically increment a counter, setting its TTL only on the first
-   * increment, and return the new value. This is the fixed-window rate-limit
-   * primitive shared by the IP and per-customer guards.
-   */
   async incrementWithTtl(key: string, ttlSeconds: number): Promise<number> {
     const script = `
       local current = redis.call("INCR", KEYS[1])
@@ -100,7 +92,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return Number(count);
   }
 
-  // JSON helpers
   async getJson<T>(key: string): Promise<T | null> {
     const data = await this.client.get(key);
     return data ? JSON.parse(data) : null;
@@ -115,7 +106,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // Cache pattern with TTL
   async remember<T>(
     key: string,
     ttl: number,

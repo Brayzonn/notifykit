@@ -18,7 +18,6 @@ import { SendgridEventsService } from './sendgrid-events.service';
 export class SendgridEventsController {
   constructor(private readonly sendgridEventsService: SendgridEventsService) {}
 
-  // Platform shared SendGrid account (FREE plan emails)
   @Public()
   @IpRateLimit(300)
   @UseGuards(SendgridSignatureGuard, IpRateLimitGuard)
@@ -29,7 +28,6 @@ export class SendgridEventsController {
     return { received: true };
   }
 
-  // Per-customer BYOK SendGrid account (paid plans)
   @Public()
   @IpRateLimit(300)
   @UseGuards(SendgridCustomerSignatureGuard, IpRateLimitGuard)

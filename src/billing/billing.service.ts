@@ -54,9 +54,6 @@ export class BillingService {
       throw new BadRequestException('Already on this plan');
     }
 
-    // Lazy reconciliation: if payment providers expiry webhook was missed, the customer may
-    // still be CANCELLED with a past end date. Correct the DB state so the
-    // downgrade check below operates on accurate data
     if (
       customer.subscriptionStatus === SubscriptionStatus.CANCELLED &&
       customer.subscriptionEndDate &&
@@ -247,11 +244,6 @@ export class BillingService {
     await this.redis.del(`user:${currentCustomer.userId}`);
   }
 
-  /**
-   * Handle a renewal charge for an already-ACTIVE subscription.
-   * Advances billing dates, refreshes lastPaymentDate, and resets usage so the
-   * customer starts the new cycle at 0.
-   */
   async handleRenewalCharge(
     customerId: string,
     nextBillingDate: Date | null,
@@ -297,12 +289,6 @@ export class BillingService {
     return { billingCycleStartAt: now, usageResetAt: effectiveNext };
   }
 
-  /**
-   * Ask the payment provider whether a subscription is still active and when its
-   * current paid period ends. This is the single source of truth used by both
-   * the request-path self-heal and the nightly reconcile cron when local billing
-   * dates have gone stale (a missed renewal webhook).
-   */
   async resolveProviderCycle(
     providerSubscriptionId: string,
     paymentProvider: string,
@@ -313,7 +299,6 @@ export class BillingService {
         paymentProvider,
       );
 
-      // Couldn't read the subscription — treat as undetermined, never as lapsed.
       if (!sub) return { action: 'UNKNOWN' };
 
       if (!sub.isActive) return { action: 'LAPSED' };
@@ -322,8 +307,6 @@ export class BillingService {
         return { action: 'RENEWED', periodEnd: sub.currentPeriodEnd };
       }
 
-      // Provider confirms active but gives no future period end to advance to
-      // (e.g. next_payment_date not yet populated right after a renewal).
       return { action: 'ACTIVE' };
     } catch (error) {
       this.logger.warn(
@@ -411,9 +394,6 @@ export class BillingService {
     return planHierarchy[targetPlan] < planHierarchy[currentPlan];
   }
 
-  /**
-   * downgrade customer to free plan
-   */
   async downgradeToFreePlan(
     customerId: string,
     reason: 'SUBSCRIPTION_EXPIRED' | 'PAYMENT_FAILED',
@@ -467,9 +447,6 @@ export class BillingService {
     return { billingCycleStartAt: now, usageResetAt: resetDate };
   }
 
-  /**
-   * Reset customer usage for new billing cycle.
-   */
   async resetMonthlyUsage(
     customerId: string,
     apiKeyHash?: string,
@@ -496,9 +473,6 @@ export class BillingService {
     return { billingCycleStartAt: now, usageResetAt: resetDate };
   }
 
-  /**
-   * Atomically check the monthly limit and consume one unit of quota.
-   */
   async consumeQuota(
     customer: {
       id: string;
@@ -518,8 +492,6 @@ export class BillingService {
       40 * 24 * 60 * 60,
     );
 
-    // Seed the window from the DB baseline on first use, then atomically
-    // check-and-increment.
     const script = `
       local key = KEYS[1]
       local baseline = tonumber(ARGV[1])
@@ -568,9 +540,6 @@ export class BillingService {
     return { allowed: true, usage: result };
   }
 
-  /**
-   * Write-behind flush of the Redis counter to Postgres.
-   */
   private flushUsage(customerId: string, usage: number): void {
     this.prisma.customer
       .update({ where: { id: customerId }, data: { usageCount: usage } })
@@ -581,10 +550,6 @@ export class BillingService {
       );
   }
 
-  /**
-   * Increment usage counter (DB fallback path only — the hot path uses
-   * consumeQuota / Redis).
-   */
   async incrementUsage(customerId: string): Promise<void> {
     await this.prisma.customer.update({
       where: { id: customerId },

@@ -201,15 +201,6 @@ export class PaystackWebhookHandler {
     return crypto.timingSafeEqual(expected, provided);
   }
 
-  /**
-   * Stable per-event identifier. Paystack doesn't ship a single canonical
-   * `event_id`, so we synthesize one from the most-unique field available:
-   * - `charge.success` / `invoice.*` → transaction `reference`
-   * - `subscription.*` → `subscription_code` (combined with event type, since
-   *   the same code generates multiple events across its lifecycle)
-   * Returns null if we can't form a key — caller should let the event through
-   * (no dedup) rather than block legitimate traffic.
-   */
   private buildDedupKey(event: PaystackWebhookEvent): string | null {
     const ref = event.data?.reference;
     const subCode = event.data?.subscription_code;
@@ -269,7 +260,6 @@ export class PaystackWebhookHandler {
       return;
     }
 
-    // Initial activation
     await this.billingService.handleSubscriptionActivated(customerId, {
       providerSubscriptionId: null,
       providerCustomerId: customerCode,
@@ -278,9 +268,6 @@ export class PaystackWebhookHandler {
       nextBillingDate: null,
     });
 
-    // Schedule a delayed back-fill (replaces fragile in-process setTimeout).
-    // Idempotent — `subscription.create` arriving first will set
-    // providerSubscriptionId and the delayed worker will short-circuit.
     await this.queueService.schedulePaystackSubscriptionLink({
       customerId,
       customerCode,

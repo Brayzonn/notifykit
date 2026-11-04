@@ -5,7 +5,6 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { PlatformEmailStatus } from '@prisma/client';
 
-// Convenience: build a stats payload matching getStats() return shape.
 const makeStats = (overrides: Partial<Record<string, any>> = {}) => ({
   users: { total: 10, active: 8, deleted: 2 },
   customers: { total: 5, active: 4, byPlan: { FREE: 3, INDIE: 1, STARTUP: 1 } },
@@ -56,8 +55,6 @@ describe('AdminService — platform email logs', () => {
           provide: RedisService,
           useValue: {
             del: jest.fn(),
-            // Invoke the callback by default so tests that don't care about
-            // caching still exercise the real service logic.
             remember: jest.fn().mockImplementation((_key, _ttl, cb) => cb()),
           },
         },
@@ -66,8 +63,6 @@ describe('AdminService — platform email logs', () => {
 
     service = module.get(AdminService);
   });
-
-  // ── getPlatformEmailLogs ───────────────────────────────────────────────────
 
   describe('getPlatformEmailLogs', () => {
     it('returns paginated logs with no filters', async () => {
@@ -139,8 +134,6 @@ describe('AdminService — platform email logs', () => {
     });
   });
 
-  // ── getPlatformEmailLogById ───────────────────────────────────────────────
-
   describe('getPlatformEmailLogById', () => {
     it('returns the log when found', async () => {
       const log = makeLog();
@@ -161,8 +154,6 @@ describe('AdminService — platform email logs', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
-
-  // ── deletePlatformEmailLog ────────────────────────────────────────────────
 
   describe('deletePlatformEmailLog', () => {
     it('deletes the log and returns confirmation', async () => {
@@ -190,8 +181,6 @@ describe('AdminService — platform email logs', () => {
     });
   });
 });
-
-// ── getStats ──────────────────────────────────────────────────────────────────
 
 describe('AdminService — getStats', () => {
   let service: AdminService;
@@ -238,26 +227,22 @@ describe('AdminService — getStats', () => {
   });
 
   it('runs all 13 counts on a cache miss and returns shaped stats', async () => {
-    // remember invokes the callback (cache miss behaviour) — set up counts.
     prisma.user.count.mockResolvedValue(10);
     prisma.customer.count.mockResolvedValue(5);
     prisma.job.count.mockResolvedValue(20);
 
     const result = await service.getStats();
 
-    // remember was called with the correct key and TTL.
     expect(redis.remember).toHaveBeenCalledWith(
       'admin:stats',
       60,
       expect.any(Function),
     );
 
-    // All three Prisma models were queried.
     expect(prisma.user.count).toHaveBeenCalledTimes(3);
     expect(prisma.customer.count).toHaveBeenCalledTimes(5);
     expect(prisma.job.count).toHaveBeenCalledTimes(5);
 
-    // Return shape is correct.
     expect(result).toMatchObject({
       users: { total: 10, active: 10, deleted: 10 },
       customers: {
@@ -278,14 +263,12 @@ describe('AdminService — getStats', () => {
   it('returns the cached value on a hit without running any DB queries', async () => {
     const cached = makeStats();
 
-    // Simulate a warm cache: remember returns the stored value immediately.
     redis.remember.mockResolvedValue(cached);
 
     const result = await service.getStats();
 
     expect(result).toEqual(cached);
 
-    // No DB queries should have been made.
     expect(prisma.user.count).not.toHaveBeenCalled();
     expect(prisma.customer.count).not.toHaveBeenCalled();
     expect(prisma.job.count).not.toHaveBeenCalled();

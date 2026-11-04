@@ -10,9 +10,6 @@ export type GateableCustomer = {
 
 @Injectable()
 export class FeatureGateService {
-  /**
-   * Paid plans must have at least one email provider configured
-   */
   assertCanSendEmail(customer: GateableCustomer) {
     if (customer.plan !== CustomerPlan.FREE && !customer.emailProviderCount) {
       throw new ForbiddenException(
@@ -21,9 +18,6 @@ export class FeatureGateService {
     }
   }
 
-  /**
-   * Custom sending domains are paid-plan only
-   */
   assertCanUseCustomDomain(customer: GateableCustomer) {
     if (customer.plan === CustomerPlan.FREE) {
       throw new ForbiddenException(
@@ -32,9 +26,6 @@ export class FeatureGateService {
     }
   }
 
-  /**
-   * Priority queue is paid-plan only
-   */
   assertCanUsePriorityQueue(customer: GateableCustomer) {
     if (customer.plan === CustomerPlan.FREE) {
       throw new ForbiddenException(
@@ -59,9 +50,6 @@ export class FeatureGateService {
     }
   }
 
-  /**
-   * Generic feature gate using feature matrix
-   */
   assertFeature(feature: Feature, customerPlan: CustomerPlan) {
     const allowedPlans = FEATURE_MATRIX[feature];
 

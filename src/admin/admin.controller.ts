@@ -45,12 +45,6 @@ import { IpRateLimit } from '@/auth/decorators/ip-rate-limit.decorator';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  /**
-   * ================================
-   * USER MANAGEMENT ENDPOINTS
-   * ================================
-   */
-
   @Get('users')
   @ApiOperation({ summary: 'Get all users with pagination and filters' })
   @ApiResponse({
@@ -113,12 +107,6 @@ export class AdminController {
   async permanentlyDeleteUser(@Param('id') id: string) {
     return await this.adminService.permanentlyDeleteUser(id);
   }
-
-  /**
-   * ================================
-   * CUSTOMER MANAGEMENT ENDPOINTS
-   * ================================
-   */
 
   @Get('customers')
   @ApiOperation({ summary: 'Get all customers with pagination and filters' })
@@ -190,12 +178,6 @@ export class AdminController {
     return await this.adminService.resetCustomerUsage(id, dto);
   }
 
-  /**
-   * ================================
-   * JOB MANAGEMENT ENDPOINTS
-   * ================================
-   */
-
   @Get('jobs')
   @ApiOperation({ summary: 'Get all jobs with pagination and filters' })
   @ApiResponse({
@@ -225,12 +207,6 @@ export class AdminController {
     return await this.adminService.deleteJob(id);
   }
 
-  /**
-   * ================================
-   * DOMAIN MANAGEMENT ENDPOINTS
-   * ================================
-   */
-
   @Get('domains')
   @ApiOperation({
     summary: 'Get all customers with registered sending domains',
@@ -252,12 +228,6 @@ export class AdminController {
       verified: verified !== undefined ? verified === 'true' : undefined,
     });
   }
-
-  /**
-   * ================================
-   * PLATFORM EMAIL LOG ENDPOINTS
-   * ================================
-   */
 
   @Get('platform-email-logs')
   @ApiOperation({
@@ -292,12 +262,6 @@ export class AdminController {
   async deletePlatformEmailLog(@Param('id') id: string) {
     return await this.adminService.deletePlatformEmailLog(id);
   }
-
-  /**
-   * ================================
-   * STATISTICS ENDPOINTS
-   * ================================
-   */
 
   @Get('stats')
   @ApiOperation({

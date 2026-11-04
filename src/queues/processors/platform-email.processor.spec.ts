@@ -51,8 +51,6 @@ describe('PlatformEmailProcessor', () => {
     processor = module.get(PlatformEmailProcessor);
   });
 
-  // ── Send ──────────────────────────────────────────────────────────────────
-
   it('sends the email via PlatformEmailSenderService', async () => {
     sender.send.mockResolvedValue(undefined);
     await processor.process(makeJob());
@@ -62,8 +60,6 @@ describe('PlatformEmailProcessor', () => {
       html: '<p>code</p>',
     });
   });
-
-  // ── Success logging ───────────────────────────────────────────────────────
 
   it('marks the log SENT with sentAt and attempts on success', async () => {
     sender.send.mockResolvedValue(undefined);
@@ -79,8 +75,6 @@ describe('PlatformEmailProcessor', () => {
     await processor.process(makeJob({ attemptsMade: 2, maxAttempts: 3 }));
     expect(slack.alert).not.toHaveBeenCalled();
   });
-
-  // ── Failure logging ───────────────────────────────────────────────────────
 
   it('re-throws on failure so BullMQ can retry', async () => {
     sender.send.mockRejectedValue(new Error('provider down'));

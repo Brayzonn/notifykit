@@ -73,7 +73,6 @@ describe('EmailWorkerProcessor', () => {
     from: undefined,
   });
 
-  /** Minimal customer shape returned by the processor's select query */
   const makeCustomer = (
     overrides: Partial<{
       sendingDomains: {
@@ -119,8 +118,6 @@ describe('EmailWorkerProcessor', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
-
-  // ── Successful Email Job Processing ─────────────────────────────────────────
 
   describe('Successful Email Job Processing', () => {
     it('should successfully process email job on first attempt', async () => {
@@ -299,8 +296,6 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Provider Failover ────────────────────────────────────────────────────────
-
   describe('Provider Failover', () => {
     it('should decrypt provider keys and pass them to resolveAll', async () => {
       const emailData = createMockEmailData();
@@ -468,8 +463,6 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Email Job Failure Handling ───────────────────────────────────────────────
-
   describe('Email Job Failure Handling', () => {
     it('should log failure when provider returns error', async () => {
       const emailData = createMockEmailData();
@@ -540,8 +533,6 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Retry Logic ──────────────────────────────────────────────────────────────
-
   describe('Retry Logic', () => {
     it('should retry failed job with exponential backoff', async () => {
       const emailData = createMockEmailData();
@@ -595,8 +586,6 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Max Retries Exceeded ─────────────────────────────────────────────────────
-
   describe('Max Retries Exceeded', () => {
     it('should move to dead letter queue after max retries', async () => {
       const emailData = createMockEmailData();
@@ -637,8 +626,6 @@ describe('EmailWorkerProcessor', () => {
       processor.onError(mockJob, new Error('All attempts failed'));
     });
   });
-
-  // ── Domain Validation ────────────────────────────────────────────────────────
 
   describe('Domain Validation', () => {
     it('should reject unverified custom domain', async () => {
@@ -708,8 +695,6 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Worker Event Handlers ────────────────────────────────────────────────────
-
   describe('Worker Event Handlers', () => {
     it('should log when job becomes active', () => {
       const mockJob = {
@@ -755,8 +740,6 @@ describe('EmailWorkerProcessor', () => {
     });
   });
 
-  // ── Edge Cases ───────────────────────────────────────────────────────────────
-
   describe('Edge Cases', () => {
     it('should handle missing customer gracefully', async () => {
       const emailData = createMockEmailData();
@@ -786,8 +769,6 @@ describe('EmailWorkerProcessor', () => {
       expect(mockProvider.sendEmail).not.toHaveBeenCalled();
     });
   });
-
-  // ── Per-Message Provider Routing ────────────────────────────────────────────
 
   describe('Per-Message Provider Routing', () => {
     const paidCustomer = () =>

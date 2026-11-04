@@ -61,37 +61,22 @@ export const PLAN_LIMITS = {
   },
 } as const;
 
-/**
- * Returns the monthly notification limit for a plan.
- */
 export const getPlanLimit = (plan: CustomerPlan): number => {
   return PLAN_LIMITS[plan].monthlyLimit;
 };
 
-/**
- * Returns log retention period (null = unlimited).
- */
 export const getLogRetentionPeriod = (plan: CustomerPlan): number | null => {
   return PLAN_LIMITS[plan].logRetentionDays;
 };
 
-/**
- * Returns rate limit requests per minute
- */
 export const getPlanRateLimit = (plan: CustomerPlan): number => {
   return PLAN_LIMITS[plan].rateLimit;
 };
 
-/**
- * Whether the plan requires user-provided API key.
- */
 export const planUsesOwnApiKey = (plan: CustomerPlan): boolean => {
   return PLAN_LIMITS[plan].usesOwnApiKey;
 };
 
-/**
- * Returns full plan details.
- */
 export const getPlanDetails = (plan: CustomerPlan) => {
   return PLAN_LIMITS[plan];
 };

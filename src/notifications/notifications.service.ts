@@ -33,9 +33,6 @@ export class NotificationsService {
     private readonly featureGate: FeatureGateService,
   ) {}
 
-  /**
-   * Create and queue an email notification job
-   */
   async sendEmail(customerId: string, dto: SendEmailDto): Promise<JobResponse> {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
@@ -160,9 +157,6 @@ export class NotificationsService {
     };
   }
 
-  /**
-   * Create and queue a webhook notification job
-   */
   async sendWebhook(
     customerId: string,
     dto: SendWebhookDto,
@@ -239,9 +233,6 @@ export class NotificationsService {
     };
   }
 
-  /**
-   * Get job status by ID
-   */
   async getJobStatus(
     customerId: string,
     jobId: string,
@@ -298,9 +289,6 @@ export class NotificationsService {
     };
   }
 
-  /**
-   * List jobs for a customer with pagination and filters
-   */
   async listJobs(
     customerId: string,
     options: ListJobsOptions = {},
@@ -356,9 +344,6 @@ export class NotificationsService {
     };
   }
 
-  /**
-   * Retry a failed job
-   */
   async retryJob(
     customerId: string,
     jobId: string,

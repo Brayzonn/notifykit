@@ -18,8 +18,6 @@ export interface PlatformSendParams {
   html: string;
 }
 
-// Priority order is fixed in code — any provider with a configured API key is included.
-// To add a new provider: inject its service, add an entry to PROVIDER_REGISTRY below.
 const PROVIDER_REGISTRY_KEYS = ['resend', 'sendgrid', 'postmark'] as const;
 
 @Injectable()

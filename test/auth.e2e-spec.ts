@@ -66,7 +66,6 @@ describe('Auth Flow (e2e)', () => {
 
   describe('Complete Signup → Verify → Signin Flow', () => {
     it('should complete the full authentication flow', async () => {
-      // Step 1: Signup
       const signupResponse = await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser)
@@ -75,12 +74,10 @@ describe('Auth Flow (e2e)', () => {
       expect(signupResponse.body.data).toHaveProperty('email', testUser.email);
       expect(mockEmailService.sendOtpEmail).toHaveBeenCalled();
 
-      // Extract OTP from Redis
       const otp = await redis.get(`otp:${testUser.email}`);
       expect(otp).toBeTruthy();
       expect(otp).toMatch(/^\d{6}$/);
 
-      // Step 2: Verify OTP
       const verifyResponse = await request(app.getHttpServer())
         .post('/api/v1/auth/verify-otp')
         .send({
@@ -94,14 +91,12 @@ describe('Auth Flow (e2e)', () => {
       expect(verifyResponse.body.data.user.email).toBe(testUser.email);
       expect(verifyResponse.body.data.user.emailVerified).toBe(true);
 
-      // Check user created in database
       const user = await prisma.user.findUnique({
         where: { email: testUser.email },
       });
       expect(user).toBeTruthy();
       expect(user?.emailVerified).toBe(true);
 
-      // Check customer created
       const customer = await prisma.customer.findUnique({
         where: { userId: user!.id },
       });
@@ -109,7 +104,6 @@ describe('Auth Flow (e2e)', () => {
       expect(customer?.plan).toBe('FREE');
       expect(customer?.monthlyLimit).toBe(100);
 
-      // Step 3: Sign in
       const signinResponse = await request(app.getHttpServer())
         .post('/api/v1/auth/signin')
         .send({
@@ -132,14 +126,12 @@ describe('Auth Flow (e2e)', () => {
       const otp = await redis.get(`otp:${testUser.email}`);
       expect(otp).toBeTruthy();
 
-      // Check TTL (should be close to 600 seconds)
       const ttl = await redis.getClient().ttl(`otp:${testUser.email}`);
       expect(ttl).toBeGreaterThan(590);
       expect(ttl).toBeLessThanOrEqual(600);
     });
 
     it('should reject signup with existing verified email', async () => {
-      // First signup and verify
       await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser)
@@ -152,7 +144,6 @@ describe('Auth Flow (e2e)', () => {
         .send({ email: testUser.email, otp })
         .expect(200);
 
-      // Try to signup again with same email
       await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser)
@@ -165,7 +156,6 @@ describe('Auth Flow (e2e)', () => {
     let refreshTokenCookie: string;
 
     beforeEach(async () => {
-      // Setup: Create verified user
       await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser);
@@ -188,8 +178,6 @@ describe('Auth Flow (e2e)', () => {
     });
 
     it('should refresh access token with valid refresh token', async () => {
-      // JWT iat is second-resolution; wait so the new token differs from the
-      // signin one.
       await new Promise((resolve) => setTimeout(resolve, 1100));
 
       const response = await request(app.getHttpServer())
@@ -210,8 +198,6 @@ describe('Auth Flow (e2e)', () => {
         .expect(200);
 
       expect(response.body.data).toHaveProperty('accessToken');
-      // If not rotating, should not set new cookie
-      // (rotation happens only if < 24hrs remaining)
     });
 
     it('should throw error for missing refresh token', async () => {
@@ -228,7 +214,6 @@ describe('Auth Flow (e2e)', () => {
     let refreshTokenCookie: string;
 
     beforeEach(async () => {
-      // Setup: Create verified user and sign in
       await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser);
@@ -239,8 +224,6 @@ describe('Auth Flow (e2e)', () => {
         .post('/api/v1/auth/verify-otp')
         .send({ email: testUser.email, otp });
 
-      // verify-otp issues its own refresh token; remove it so this flow only
-      // exercises the cookie produced by /auth/signin below.
       await prisma.refreshToken.deleteMany({});
 
       const signinResponse = await request(app.getHttpServer())
@@ -263,7 +246,6 @@ describe('Auth Flow (e2e)', () => {
 
       expect(logoutResponse.body.data.message).toBe('Logged out successfully');
 
-      // Check refresh token deleted from database
       const user = await prisma.user.findUnique({
         where: { email: testUser.email },
       });
@@ -282,7 +264,6 @@ describe('Auth Flow (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
-      // Try to refresh with logged out token
       await request(app.getHttpServer())
         .post('/api/v1/auth/refresh-token')
         .set('Cookie', refreshTokenCookie)
@@ -302,7 +283,6 @@ describe('Auth Flow (e2e)', () => {
         .post('/api/v1/auth/verify-otp')
         .send({ email: testUser.email, otp });
 
-      // Sign in 6 times
       const sessions: string[] = [];
       for (let i = 0; i < 6; i++) {
         const response = await request(app.getHttpServer())
@@ -369,7 +349,6 @@ describe('Auth Flow (e2e)', () => {
         .post('/api/v1/auth/signup')
         .send(testUser);
 
-      // Resend 3 times
       for (let i = 0; i < 3; i++) {
         await request(app.getHttpServer())
           .post('/api/v1/auth/resend-otp')
@@ -377,7 +356,6 @@ describe('Auth Flow (e2e)', () => {
           .expect(200);
       }
 
-      // 4th attempt should fail
       await request(app.getHttpServer())
         .post('/api/v1/auth/resend-otp')
         .send({ email: testUser.email })
@@ -441,7 +419,6 @@ describe('Auth Flow (e2e)', () => {
     });
 
     it('should return 401 for invalid credentials on signin', async () => {
-      // Create verified user
       await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser);
@@ -452,7 +429,6 @@ describe('Auth Flow (e2e)', () => {
         .post('/api/v1/auth/verify-otp')
         .send({ email: testUser.email, otp });
 
-      // Try with wrong password
       await request(app.getHttpServer())
         .post('/api/v1/auth/signin')
         .send({
@@ -467,7 +443,6 @@ describe('Auth Flow (e2e)', () => {
         .post('/api/v1/auth/signup')
         .send(testUser);
 
-      // Try to signin without verifying OTP
       await request(app.getHttpServer())
         .post('/api/v1/auth/signin')
         .send({

@@ -10,13 +10,10 @@ import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
-// ─── Credentials (shown once here, use these to log in) ──────────────────────
 const SEED_EMAIL = 'admin@notifykit.dev';
 const SEED_PASSWORD = 'Seed1234!';
 const SEED_PLAN = CustomerPlan.INDIE;
-// ─────────────────────────────────────────────────────────────────────────────
 
-// Replicates EncryptionService.encrypt using the local ENCRYPTION_KEY env var
 function encrypt(text: string): string {
   const key = process.env.ENCRYPTION_KEY;
   if (!key || key.length !== 64)
@@ -49,7 +46,6 @@ async function main() {
 
   console.log('Seeding database...');
 
-  // ── User ──────────────────────────────────────────────────────────────────
   const hashedPassword = await argon2.hash(SEED_PASSWORD);
 
   const user = await prisma.user.upsert({
@@ -67,7 +63,6 @@ async function main() {
 
   console.log(`User created: ${user.email}`);
 
-  // ── Customer ──────────────────────────────────────────────────────────────
   const monthlyLimit =
     SEED_PLAN === CustomerPlan.INDIE
       ? 4000
@@ -91,7 +86,6 @@ async function main() {
 
   console.log(`Customer created: plan=${customer.plan}`);
 
-  // ── API Key ───────────────────────────────────────────────────────────────
   const apiKey = generateApiKey();
   const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
   const apiKeyLastFour = apiKey.slice(-4);
@@ -107,7 +101,6 @@ async function main() {
 
   console.log(`API key generated: ${apiKey}`);
 
-  // ── Email Provider (SendGrid) ─────────────────────────────────────────────
   const dummySendgridKey = 'SG.seed_dummy_key_not_real';
 
   await prisma.customerEmailProvider.upsert({
@@ -128,7 +121,6 @@ async function main() {
 
   console.log('SendGrid provider configured (dummy key)');
 
-  // ── Sending Domain ────────────────────────────────────────────────────────
   await prisma.customerSendingDomain.upsert({
     where: {
       customerId_domain_provider: {
@@ -150,7 +142,6 @@ async function main() {
 
   console.log('Sending domain configured: notifykit.dev (verified)');
 
-  // ── Summary ───────────────────────────────────────────────────────────────
   console.log('\n─────────────────────────────────');
   console.log('Seed complete. Login credentials:');
   console.log(`  Email:    ${SEED_EMAIL}`);

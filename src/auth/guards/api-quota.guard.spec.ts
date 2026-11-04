@@ -31,7 +31,6 @@ describe('QuotaGuard', () => {
   let authService: MockedBillingService;
 
   const mockAuthService: MockedBillingService = {
-    // Emulates the real Redis-backed atomic check-and-increment.
     consumeQuota: jest.fn((c: { usageCount?: number }, limit: number) => {
       const usage = c.usageCount ?? 0;
       return Promise.resolve(
@@ -104,7 +103,7 @@ describe('QuotaGuard', () => {
 
   describe('Billing Cycle Reset', () => {
     it('should reset usage for FREE plan when usageResetAt < now', async () => {
-      const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Yesterday
+      const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const customer = createMockAuthenticatedCustomer({
         plan: CustomerPlan.FREE,
         usageResetAt: pastDate,
@@ -121,7 +120,6 @@ describe('QuotaGuard', () => {
         customer.id,
         undefined,
       );
-      // After reset (0) + increment (1) = 1
       expect(customer.usageCount).toBe(1);
     });
 
@@ -146,7 +144,6 @@ describe('QuotaGuard', () => {
         customer.id,
         undefined,
       );
-      // After reset (0) + increment (1) = 1
       expect(customer.usageCount).toBe(1);
     });
 
@@ -195,7 +192,7 @@ describe('QuotaGuard', () => {
   describe('Subscription Expiry Handling', () => {
     it('should handle 7-day grace period after subscription expiry', async () => {
       const pastResetDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const expiredDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3 days ago
+      const expiredDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
       const customer = createMockAuthenticatedCustomer({
         plan: CustomerPlan.INDIE,
         usageResetAt: pastResetDate,
@@ -219,7 +216,7 @@ describe('QuotaGuard', () => {
 
     it('should downgrade to FREE after grace period expires', async () => {
       const pastResetDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const expiredDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); // 10 days ago (beyond 7-day grace)
+      const expiredDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
       const customer = createMockAuthenticatedCustomer({
         id: 'customer-789',
         plan: CustomerPlan.INDIE,
@@ -261,13 +258,12 @@ describe('QuotaGuard', () => {
 
       expect(customer.plan).toBe(CustomerPlan.FREE);
       expect(customer.monthlyLimit).toBe(100);
-      // After reset (0) + increment (1) = 1
       expect(customer.usageCount).toBe(1);
     });
 
     it('should log grace period warnings with days left', async () => {
       const pastResetDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const expiredDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
+      const expiredDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
       const customer = createMockAuthenticatedCustomer({
         email: 'grace@example.com',
         plan: CustomerPlan.INDIE,
@@ -329,8 +325,6 @@ describe('QuotaGuard', () => {
         usageCount: 5000,
         monthlyLimit: 10000,
         subscriptionStatus: SubscriptionStatus.ACTIVE,
-        // Stale local end date — looks expired locally, but the provider is the
-        // source of truth.
         subscriptionEndDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
         paymentProvider: 'POLAR',
         providerSubscriptionId: 'sub_123',
@@ -385,8 +379,6 @@ describe('QuotaGuard', () => {
       authService.resolveProviderCycle.mockResolvedValueOnce({
         action: 'ACTIVE',
       });
-      // Local end date is well past grace — legacy logic would have downgraded,
-      // but a provider-confirmed-active customer must not be.
       const customer = paidStaleCustomer({
         subscriptionEndDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
       });
@@ -407,7 +399,6 @@ describe('QuotaGuard', () => {
       authService.resolveProviderCycle.mockResolvedValueOnce({
         action: 'UNKNOWN',
       });
-      // subscriptionEndDate within grace so the legacy path resets rather than downgrades.
       const customer = paidStaleCustomer({
         subscriptionEndDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
       });

@@ -9,10 +9,6 @@ export class ResendDomainService {
     return new Resend(apiKey);
   }
 
-  /**
-   * Register a domain with Resend and return its DNS records.
-   * If the domain already exists in the account, fetches the existing record.
-   */
   async authenticateDomain(
     domain: string,
     apiKey: string,
@@ -51,9 +47,6 @@ export class ResendDomainService {
     };
   }
 
-  /**
-   * Trigger a verification check on the domain, then return the result.
-   */
   async validateDomain(
     domainId: string,
     apiKey: string,
@@ -92,9 +85,6 @@ export class ResendDomainService {
     return { valid, validationResults };
   }
 
-  /**
-   * Remove a domain from Resend.
-   */
   async deleteDomain(domainId: string, apiKey: string): Promise<void> {
     const resend = this.getClient(apiKey);
 

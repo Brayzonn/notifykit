@@ -1,9 +1,5 @@
 import { EmailProviderType } from '@prisma/client';
 
-// ============================================
-// RESPONSE INTERFACES
-// ============================================
-
 export interface JobResponse {
   jobId: string;
   status: string;
@@ -64,20 +60,12 @@ export interface RetryJobResponse {
   message: string;
 }
 
-// ============================================
-// QUERY OPTIONS INTERFACES
-// ============================================
-
 export interface ListJobsOptions {
   page?: number;
   limit?: number;
   type?: 'email' | 'webhook';
   status?: 'pending' | 'processing' | 'completed' | 'failed';
 }
-
-// ============================================
-// DATABASE PAYLOAD INTERFACES
-// ============================================
 
 export interface EmailPayloadData {
   to: string;

@@ -27,13 +27,6 @@ export class SendgridEventsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * @param customerId When set (per-customer BYOK route), events are only
-   *   recorded for jobs owned by that customer, preventing a customer from
-   *   writing events onto another tenant's jobs. When undefined (shared
-   *   platform account), the signer is the platform itself, so only job
-   *   existence is checked.
-   */
   async processEvents(
     events: SendgridRawEvent[],
     customerId?: string,

@@ -75,8 +75,6 @@ describe('BillingService', () => {
     jest.resetAllMocks();
   });
 
-  // ── createUpgradeCheckout ────────────────────────────────────────────────────
-
   describe('createUpgradeCheckout', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -166,8 +164,6 @@ describe('BillingService', () => {
         subscriptionEndDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
       });
 
-      // First call: createUpgradeCheckout fetches the customer
-      // Second call: downgradeToFreePlan fetches by id with select
       prisma.customer.findUnique
         .mockResolvedValueOnce(expiredCustomer)
         .mockResolvedValueOnce({
@@ -185,10 +181,8 @@ describe('BillingService', () => {
         'NGN',
       );
 
-      // downgradeToFreePlan must have run (two findUnique + one update)
       expect(prisma.customer.findUnique).toHaveBeenCalledTimes(2);
       expect(prisma.customer.update).toHaveBeenCalled();
-      // Checkout must have been created (INDIE is now an upgrade from FREE)
       expect(paymentService.createCheckoutSession).toHaveBeenCalled();
     });
 
@@ -336,8 +330,6 @@ describe('BillingService', () => {
     });
   });
 
-  // ── cancelSubscription ───────────────────────────────────────────────────────
-
   describe('cancelSubscription', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -421,8 +413,6 @@ describe('BillingService', () => {
     });
   });
 
-  // ── getSubscriptionDetails ───────────────────────────────────────────────────
-
   describe('getSubscriptionDetails', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -455,8 +445,6 @@ describe('BillingService', () => {
       });
     });
   });
-
-  // ── getInvoices ──────────────────────────────────────────────────────────────
 
   describe('getInvoices', () => {
     it('should throw NotFoundException when customer is not found', async () => {
@@ -497,8 +485,6 @@ describe('BillingService', () => {
       expect(result).toEqual({ invoices: mockInvoices });
     });
   });
-
-  // ── handleSubscriptionActivated ──────────────────────────────────────────────
 
   describe('handleSubscriptionActivated', () => {
     const subscriptionData = {
@@ -586,8 +572,6 @@ describe('BillingService', () => {
     });
   });
 
-  // ── handleSubscriptionCancelled ──────────────────────────────────────────────
-
   describe('handleSubscriptionCancelled', () => {
     it('should warn and return without throwing when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -619,8 +603,6 @@ describe('BillingService', () => {
       });
     });
   });
-
-  // ── handleSubscriptionExpired ────────────────────────────────────────────────
 
   describe('handleSubscriptionExpired', () => {
     it('should warn and return without throwing when customer is not found', async () => {
@@ -661,8 +643,6 @@ describe('BillingService', () => {
       });
     });
   });
-
-  // ── handleRenewalCharge ──────────────────────────────────────────────────────
 
   describe('handleRenewalCharge', () => {
     it('should warn and return without throwing when customer is not found', async () => {
@@ -716,8 +696,6 @@ describe('BillingService', () => {
       );
     });
   });
-
-  // ── resolveProviderCycle ─────────────────────────────────────────────────────
 
   describe('resolveProviderCycle', () => {
     it('returns RENEWED when active with a future period end', async () => {
@@ -787,8 +765,6 @@ describe('BillingService', () => {
       expect(result).toEqual({ action: 'UNKNOWN' });
     });
   });
-
-  // ── downgradeToFreePlan ──────────────────────────────────────────────────────
 
   describe('downgradeToFreePlan', () => {
     it('should throw when customer is not found', async () => {
@@ -864,8 +840,6 @@ describe('BillingService', () => {
     });
   });
 
-  // ── resetMonthlyUsage ────────────────────────────────────────────────────────
-
   describe('resetMonthlyUsage', () => {
     it('should reset usageCount to 0 and set usageResetAt 30 days from now', async () => {
       const before = Date.now();
@@ -894,8 +868,6 @@ describe('BillingService', () => {
     });
   });
 
-  // ── incrementUsage ───────────────────────────────────────────────────────────
-
   describe('incrementUsage', () => {
     it('should increment the usageCount by 1', async () => {
       await service.incrementUsage('customer-123');
@@ -906,8 +878,6 @@ describe('BillingService', () => {
       });
     });
   });
-
-  // ── consumeQuota ─────────────────────────────────────────────────────────────
 
   describe('consumeQuota', () => {
     const customer = {
@@ -933,9 +903,9 @@ describe('BillingService', () => {
         expect.any(String),
         1,
         expectedKey,
-        '5', // baseline seeded from snapshot usageCount
-        '100', // limit
-        expect.any(String), // ttl
+        '5',
+        '100',
+        expect.any(String),
       );
     });
 

@@ -8,12 +8,6 @@ export class PaymentWebhookEventService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Records a webhook event for idempotency. Returns `true` if this is the
-   * first time we've seen this (provider, eventId), `false` if a duplicate.
-   * The handler should short-circuit on `false` so retries don't re-apply
-   * partial work.
-   */
   async markProcessed(
     provider: PaymentProvider,
     eventId: string,
@@ -44,11 +38,6 @@ export class PaymentWebhookEventService {
     }
   }
 
-  /**
-   * Removes a previously recorded dedup entry so that a failed event can be
-   * retried. Called from the catch block of the webhook handler when processing
-   * throws after the dedup record was already written.
-   */
   async unmarkProcessed(
     provider: PaymentProvider,
     eventId: string,

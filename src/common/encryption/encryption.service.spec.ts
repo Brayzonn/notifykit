@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EncryptionService } from './encryption.service';
 import { ConfigService } from '@nestjs/config';
 
-// A valid 64-character hex string (32 bytes) for testing
 const VALID_KEY = 'a'.repeat(64);
 
 const createConfigService = (key: string | undefined) => ({
@@ -21,8 +20,6 @@ describe('EncryptionService', () => {
     }).compile();
     return module.get<EncryptionService>(EncryptionService);
   };
-
-  // ── Initialisation ───────────────────────────────────────────────────────────
 
   describe('Initialisation', () => {
     it('should initialise successfully with a valid 64-char hex key', async () => {
@@ -48,8 +45,6 @@ describe('EncryptionService', () => {
     });
   });
 
-  // ── Encrypt ──────────────────────────────────────────────────────────────────
-
   describe('encrypt', () => {
     let service: EncryptionService;
 
@@ -61,7 +56,7 @@ describe('EncryptionService', () => {
       const result = service.encrypt('hello');
       const parts = result.split(':');
       expect(parts).toHaveLength(2);
-      expect(parts[0]).toHaveLength(32); // 16-byte IV as hex = 32 chars
+      expect(parts[0]).toHaveLength(32);
       expect(parts[1].length).toBeGreaterThan(0);
     });
 
@@ -78,8 +73,6 @@ describe('EncryptionService', () => {
       expect(ciphertext).toMatch(/^[0-9a-f]+$/);
     });
   });
-
-  // ── Decrypt ──────────────────────────────────────────────────────────────────
 
   describe('decrypt', () => {
     let service: EncryptionService;
@@ -105,8 +98,6 @@ describe('EncryptionService', () => {
     });
   });
 
-  // ── Round-trip integrity ─────────────────────────────────────────────────────
-
   describe('round-trip integrity', () => {
     it('should correctly round-trip a typical SendGrid API key', async () => {
       const service = await buildService(VALID_KEY);
@@ -119,7 +110,6 @@ describe('EncryptionService', () => {
       const original = 'test-value-123';
       const enc1 = service.encrypt(original);
       const enc2 = service.encrypt(original);
-      // Both ciphertexts are different (random IV) but both decrypt correctly
       expect(service.decrypt(enc1)).toBe(original);
       expect(service.decrypt(enc2)).toBe(original);
     });

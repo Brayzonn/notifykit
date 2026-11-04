@@ -228,11 +228,7 @@ describe('JwtAuthGuard', () => {
       const user = null;
       const info = { name: 'TokenExpiredError', message: 'jwt expired' };
 
-      try {
-        guard.handleRequest(err, user, info, context);
-      } catch (e) {
-        // Expected to throw
-      }
+      expect(() => guard.handleRequest(err, user, info, context)).toThrow();
 
       expect(loggerSpy).toHaveBeenCalledWith(
         expect.stringContaining('Auth failed: POST /api/sensitive'),
@@ -319,7 +315,6 @@ describe('JwtAuthGuard', () => {
       const request = { method: 'GET', url: '/test' };
       const context = createMockExecutionContext(request);
 
-      // getAllAndOverride already handles this priority
       reflector.getAllAndOverride.mockReturnValue(true);
 
       const result = guard.canActivate(context);

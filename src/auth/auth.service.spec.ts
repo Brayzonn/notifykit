@@ -21,7 +21,6 @@ import {
 import { AuthProvider } from '@prisma/client';
 import * as argon2 from 'argon2';
 
-// Mock argon2
 jest.mock('argon2');
 const mockedArgon2 = argon2 as jest.Mocked<typeof argon2>;
 
@@ -123,7 +122,7 @@ describe('AuthService', () => {
 
       const result = await service.signin(signinDto);
 
-      expect(jwtService.sign).toHaveBeenCalledTimes(2); // access + refresh
+      expect(jwtService.sign).toHaveBeenCalledTimes(2);
       expect(result.tokens.accessToken).toContain('mock.jwt.token');
       expect(result.tokens.refreshToken).toContain('mock.jwt.token');
     });
@@ -133,7 +132,7 @@ describe('AuthService', () => {
       mockedArgon2.verify.mockResolvedValue(true);
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
-      prisma.refreshToken.count.mockResolvedValue(5); // Already at limit
+      prisma.refreshToken.count.mockResolvedValue(5);
       prisma.refreshToken.findMany.mockResolvedValue([
         { id: 'token-1' },
         { id: 'token-2' },
@@ -215,8 +214,8 @@ describe('AuthService', () => {
 
       expect(redis.set).toHaveBeenCalledWith(
         `reset-password:${email}`,
-        expect.stringMatching(/^\d{6}$/), // 6 digits
-        600, // 10 minutes
+        expect.stringMatching(/^\d{6}$/),
+        600,
       );
     });
 
@@ -423,7 +422,7 @@ describe('AuthService', () => {
     });
 
     it('should return only new access token if > 24hrs remaining', async () => {
-      const futureExpiry = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000); // 4 days (beyond the 3-day rotation threshold)
+      const futureExpiry = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
       jwtService.verify.mockReturnValue({
         sub: mockUser.id,
         email: mockUser.email,
@@ -441,7 +440,7 @@ describe('AuthService', () => {
     });
 
     it('should rotate both tokens if < 24hrs remaining', async () => {
-      const soonExpiry = new Date(Date.now() + 12 * 60 * 60 * 1000); // 12 hours
+      const soonExpiry = new Date(Date.now() + 12 * 60 * 60 * 1000);
       jwtService.verify.mockReturnValue({
         sub: mockUser.id,
         email: mockUser.email,
@@ -511,7 +510,7 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if token expired', async () => {
       const expiredToken = {
         ...mockStoredToken,
-        expiresAt: new Date(Date.now() - 1000), // Already expired
+        expiresAt: new Date(Date.now() - 1000),
       };
       jwtService.verify.mockReturnValue({
         sub: mockUser.id,

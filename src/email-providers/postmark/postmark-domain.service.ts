@@ -21,10 +21,6 @@ export class PostmarkDomainService {
 
   constructor(private readonly httpService: HttpService) {}
 
-  /**
-   * Register a domain with Postmark and return its DNS records.
-   * Postmark domain endpoints require an Account Token (not a Server Token).
-   */
   async authenticateDomain(
     domain: string,
     accountToken: string,

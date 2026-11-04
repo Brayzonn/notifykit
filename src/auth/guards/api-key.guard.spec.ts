@@ -171,7 +171,7 @@ describe('ApiKeyGuard', () => {
 
   describe('API Key Format Validation', () => {
     it('should validate format: nh_[64 hex chars]', async () => {
-      const validApiKey = 'nh_' + 'a1b2c3d4e5f6'.repeat(5) + 'abcd'; // 64 hex chars
+      const validApiKey = 'nh_' + 'a1b2c3d4e5f6'.repeat(5) + 'abcd';
       const apiKeyHash = crypto
         .createHash('sha256')
         .update(validApiKey)
@@ -215,7 +215,7 @@ describe('ApiKeyGuard', () => {
     });
 
     it('should throw UnauthorizedException for invalid format (wrong length)', async () => {
-      const invalidApiKey = 'nh_' + 'a'.repeat(32); // Too short
+      const invalidApiKey = 'nh_' + 'a'.repeat(32);
 
       const request = {
         headers: {
@@ -230,7 +230,7 @@ describe('ApiKeyGuard', () => {
     });
 
     it('should throw UnauthorizedException for invalid format (non-hex chars)', async () => {
-      const invalidApiKey = 'nh_' + 'g'.repeat(64); // 'g' is not hex
+      const invalidApiKey = 'nh_' + 'g'.repeat(64);
 
       const request = {
         headers: {
@@ -600,8 +600,6 @@ describe('ApiKeyGuard', () => {
     });
 
     it('coerces ISO-string dates from a cache hit back into Date objects', async () => {
-      // Simulate a cache HIT: remember returns a JSON-deserialized record
-      // where Date fields are ISO strings, bypassing the loader.
       mockRedisService.remember.mockResolvedValueOnce({
         id: 'cust-1',
         email: 'c@example.com',

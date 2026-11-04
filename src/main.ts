@@ -23,7 +23,6 @@ async function bootstrap() {
 
   configureApp(app);
 
-  // Swagger setup
   if (nodeEnv !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('NotifyKit API')

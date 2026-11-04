@@ -1,7 +1,3 @@
-/* =====================================================
- * USER PROFILE
- * ===================================================== */
-
 import {
   CustomerPlan,
   DeliveryStatus,
@@ -44,10 +40,6 @@ export interface UserProfile {
   customer: CustomerProfile | null;
 }
 
-/* =====================================================
- * AUTH / ACCOUNT RESPONSES
- * ===================================================== */
-
 export interface MessageResponse {
   message: string;
 }
@@ -66,10 +58,6 @@ export interface EmailChangeSuccessResponse {
   message: string;
   newEmail: string;
 }
-
-/* =====================================================
- * DASHBOARD
- * ===================================================== */
 
 export interface DashboardSummary {
   usage: {
@@ -97,10 +85,6 @@ export interface DashboardSummary {
   }[];
 }
 
-/* =====================================================
- * USAGE & BILLING
- * ===================================================== */
-
 export interface UsageStats {
   plan: 'FREE' | 'INDIE' | 'STARTUP';
   monthlyLimit: number;
@@ -111,10 +95,6 @@ export interface UsageStats {
   usageResetAt: Date;
   billingCycleStartAt: Date;
 }
-
-/* =====================================================
- * API KEY
- * ===================================================== */
 
 export interface ApiKeyFirstTimeResponse {
   apiKey: string;
@@ -134,10 +114,6 @@ export interface RegenerateApiKeyResponse {
   apiKey: string;
   message: string;
 }
-
-/* =====================================================
- * JOBS / HISTORY
- * ===================================================== */
 
 export interface JobDeliveryLog {
   id: string;
@@ -178,10 +154,6 @@ export interface JobsHistoryResponse {
   pagination: JobsPagination;
 }
 
-/* =====================================================
- * JOB DETAILS (SINGLE JOB)
- * ===================================================== */
-
 export interface JobEmailEvent {
   id: string;
   event: EmailEventType;
@@ -195,10 +167,6 @@ export interface JobDetailsResponse extends Job {
   emailEvents: JobEmailEvent[];
 }
 
-/* =====================================================
- * EMAIL CHANGE (REDIS PAYLOAD)
- * ===================================================== */
-
 export interface EmailChangeCachePayload {
   oldEmail: string;
   newEmail: string;
@@ -207,10 +175,6 @@ export interface EmailChangeCachePayload {
   newEmailConfirmed: boolean;
   oldEmailConfirmed: boolean;
 }
-
-/* =====================================================
- * DELETE ACCOUNT
- * ===================================================== */
 
 export interface DeleteAccountDto {
   confirmEmail: string;

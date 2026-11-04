@@ -10,9 +10,6 @@ import {
   EmailProviderType,
 } from '@prisma/client';
 
-/**
- * Create a mock User object for testing
- */
 export const createMockUser = (overrides?: Partial<User>): User => ({
   id: 'user-123',
   email: 'test@example.com',
@@ -30,12 +27,6 @@ export const createMockUser = (overrides?: Partial<User>): User => ({
   ...overrides,
 });
 
-/**
- * Create a mock Customer object for testing
- */
-/**
- * Extended Customer type with relations for testing
- */
 export type CustomerWithRelations = Customer & {
   emailProviders?: CustomerEmailProvider[];
   sendingDomains?: Pick<
@@ -53,7 +44,7 @@ export const createMockCustomer = (
   overrides?: Partial<CustomerWithRelations>,
 ): CustomerWithRelations => {
   const now = new Date();
-  const resetDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+  const resetDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   return {
     id: 'customer-123',
@@ -107,9 +98,6 @@ export const makeSendingDomain = (
   verifiedAt: verified ? new Date() : null,
 });
 
-/**
- * Create a mock RefreshToken object for testing
- */
 export const createMockRefreshToken = (
   userId: string = 'user-123',
   overrides?: Partial<RefreshToken>,
@@ -118,14 +106,11 @@ export const createMockRefreshToken = (
   userId,
   token: 'mock.refresh.token',
   familyId: 'family-123',
-  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   createdAt: new Date(),
   ...overrides,
 });
 
-/**
- * Create a mock authenticated customer for guard testing
- */
 export const createMockAuthenticatedCustomer = (
   overrides?: Partial<Customer>,
 ) => {

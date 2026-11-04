@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -7,10 +7,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// ============================================
-// ENUMS
-// ============================================
 
 enum UserRole {
   ADMIN
@@ -85,9 +81,6 @@ enum PlatformEmailStatus {
   FAILED
 }
 
-// ============================================
-// USER MODEL 
-// ============================================
 model User {
   id            String       @id @default(uuid()) @db.Uuid
   email         String       @unique
@@ -112,9 +105,6 @@ model User {
   @@map("users")
 }
 
-// ============================================
-// TOKEN MODELS
-// ============================================
 model RefreshToken {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
@@ -129,10 +119,6 @@ model RefreshToken {
   @@index([token])
   @@map("refresh_tokens")
 }
-
-// ============================================
-// CUSTOMER MODEL 
-// ============================================
 
 model Customer {
   id                  String       @id @default(uuid()) @db.Uuid
@@ -167,10 +153,10 @@ model Customer {
   webhookSigningSecret   String?   @map("webhook_signing_secret")
   webhookSigningSecretAt DateTime? @map("webhook_signing_secret_at")
 
-  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobs           Job[]
-  emailProviders CustomerEmailProvider[]
-  sendingDomains CustomerSendingDomain[]
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs                 Job[]
+  emailProviders       CustomerEmailProvider[]
+  sendingDomains       CustomerSendingDomain[]
   suppressedRecipients SuppressedRecipient[]
 
   @@index([apiKeyHash])
@@ -181,20 +167,16 @@ model Customer {
   @@map("customers")
 }
 
-// ============================================
-// EMAIL PROVIDER MODEL
-// ============================================
-
 model CustomerEmailProvider {
-  id                  String            @id @default(uuid()) @db.Uuid
-  customerId          String            @map("customer_id") @db.Uuid
-  provider            EmailProviderType
-  apiKey              String            @map("api_key")
-  accountApiKey       String?           @map("account_api_key")
-  webhookSecret       String?           @map("webhook_secret")
-  webhookSecretAddedAt DateTime?        @map("webhook_secret_added_at")
-  priority            Int               @default(1)
-  addedAt             DateTime          @default(now()) @map("added_at")
+  id                   String            @id @default(uuid()) @db.Uuid
+  customerId           String            @map("customer_id") @db.Uuid
+  provider             EmailProviderType
+  apiKey               String            @map("api_key")
+  accountApiKey        String?           @map("account_api_key")
+  webhookSecret        String?           @map("webhook_secret")
+  webhookSecretAddedAt DateTime?         @map("webhook_secret_added_at")
+  priority             Int               @default(1)
+  addedAt              DateTime          @default(now()) @map("added_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
@@ -202,10 +184,6 @@ model CustomerEmailProvider {
   @@index([customerId, priority])
   @@map("customer_email_providers")
 }
-
-// ============================================
-// SENDING DOMAIN MODEL
-// ============================================
 
 model CustomerSendingDomain {
   id               String            @id @default(uuid()) @db.Uuid
@@ -225,9 +203,6 @@ model CustomerSendingDomain {
   @@map("customer_sending_domains")
 }
 
-// ============================================
-// JOB MODEL
-// ============================================
 model Job {
   id             String    @id @default(uuid()) @db.Uuid
   customerId     String    @map("customer_id") @db.Uuid
@@ -257,19 +232,15 @@ model Job {
   @@map("jobs")
 }
 
-// ============================================
-// DELIVERY LOG MODEL
-// ============================================
-
 model DeliveryLog {
-  id            String             @id @default(uuid()) @db.Uuid
-  jobId         String             @map("job_id") @db.Uuid
-  attempt       Int
-  status        DeliveryStatus
-  response      Json?
-  errorMessage  String?            @map("error_message")
-  usedProvider  EmailProviderType? @map("used_provider")
-  createdAt     DateTime           @default(now()) @map("created_at")
+  id           String             @id @default(uuid()) @db.Uuid
+  jobId        String             @map("job_id") @db.Uuid
+  attempt      Int
+  status       DeliveryStatus
+  response     Json?
+  errorMessage String?            @map("error_message")
+  usedProvider EmailProviderType? @map("used_provider")
+  createdAt    DateTime           @default(now()) @map("created_at")
 
   job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
@@ -278,13 +249,9 @@ model DeliveryLog {
   @@map("delivery_logs")
 }
 
-// ============================================
-// EMAIL EVENT MODEL
-// ============================================
-
 model EmailEvent {
-  id         String            @id @default(uuid()) @db.Uuid
-  jobId      String            @map("job_id") @db.Uuid
+  id         String             @id @default(uuid()) @db.Uuid
+  jobId      String             @map("job_id") @db.Uuid
   event      EmailEventType
   email      String
   provider   EmailProviderType? @map("provider")
@@ -314,10 +281,6 @@ model SuppressedRecipient {
   @@map("suppressed_recipients")
 }
 
-// ============================================
-// PLATFORM EMAIL LOG MODEL
-// ============================================
-
 model PlatformEmailLog {
   id           String              @id @default(uuid()) @db.Uuid
   label        String
@@ -336,10 +299,6 @@ model PlatformEmailLog {
   @@index([createdAt(sort: Desc)])
   @@map("platform_email_logs")
 }
-
-// ============================================
-// PAYMENT WEBHOOK EVENT MODEL (idempotency / audit)
-// ============================================
 
 model PaymentWebhookEvent {
   id          String          @id @default(uuid()) @db.Uuid

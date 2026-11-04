@@ -52,13 +52,6 @@ export class BillingCronService {
     }
   }
 
-  /**
-   * Backstop for missed renewal webhooks. A paid subscription's billing window
-   * only advances when the provider's renewal webhook fires. If that webhook is
-   * ever dropped, the customer's window freezes in the past. This sweep finds
-   * those frozen-but-ACTIVE customers and reconciles against the provider, which
-   * is the source of truth for whether they actually renewed.
-   */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async reconcileStaleActiveSubscriptions(): Promise<void> {
     const now = new Date();
@@ -103,9 +96,6 @@ export class BillingCronService {
           continue;
         }
 
-        // LAPSED → genuine lapse; leave it for the expiry/downgrade flow.
-        // UNKNOWN → provider unreachable or renewal not yet charged; retry next run.
-        // Neither advances the cycle, so we never comp a free month.
         this.logger.warn(
           `Reconcile: ${customer.email} not advanced (provider says ${cycle.action}); skipping`,
         );

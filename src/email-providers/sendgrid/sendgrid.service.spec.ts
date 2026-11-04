@@ -44,8 +44,6 @@ describe('SendGridService', () => {
     jest.clearAllMocks();
   });
 
-  // ── Request construction ─────────────────────────────────────────────────────
-
   describe('Request construction', () => {
     it('should POST to the SendGrid mail/send endpoint', async () => {
       await service.sendEmail(baseParams, API_KEY);
@@ -124,8 +122,6 @@ describe('SendGridService', () => {
       );
     });
   });
-
-  // ── Response handling ────────────────────────────────────────────────────────
 
   describe('Response handling', () => {
     it('should return a success result on 202', async () => {

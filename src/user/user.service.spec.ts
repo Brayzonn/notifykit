@@ -30,8 +30,6 @@ import * as argon2 from 'argon2';
 const mockedArgon2 = argon2 as jest.Mocked<typeof argon2>;
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 const NEW_EMAIL_TOKEN = 'a'.repeat(64);
 const OLD_EMAIL_TOKEN = 'b'.repeat(64);
 
@@ -44,8 +42,6 @@ const makeChangeData = (overrides: Record<string, any> = {}) => ({
   oldEmailConfirmed: false,
   ...overrides,
 });
-
-// ── Suite ─────────────────────────────────────────────────────────────────────
 
 describe('UserService', () => {
   let service: UserService;
@@ -125,7 +121,6 @@ describe('UserService', () => {
       return config[key];
     });
 
-    // Re-apply implementations reset by jest.resetAllMocks()
     mockEncryptionService.encrypt.mockImplementation((v: string) => `enc:${v}`);
     mockEncryptionService.decrypt.mockImplementation((v: string) =>
       v.replace('enc:', ''),
@@ -135,8 +130,6 @@ describe('UserService', () => {
   afterEach(() => {
     jest.resetAllMocks();
   });
-
-  // ── getUserProfile ───────────────────────────────────────────────────────────
 
   describe('getUserProfile', () => {
     it('should throw NotFoundException when user is not found', async () => {
@@ -156,8 +149,6 @@ describe('UserService', () => {
       expect(result.id).toBe(user.id);
     });
   });
-
-  // ── changePassword ───────────────────────────────────────────────────────────
 
   describe('changePassword', () => {
     const dto = { currentPassword: 'old-pass', newPassword: 'new-pass' };
@@ -228,8 +219,6 @@ describe('UserService', () => {
     });
   });
 
-  // ── requestEmailChange ───────────────────────────────────────────────────────
-
   describe('requestEmailChange', () => {
     const dto = {
       newEmail: 'new@example.com',
@@ -244,7 +233,6 @@ describe('UserService', () => {
           provider: AuthProvider.EMAIL,
         }),
       );
-      // Second findUnique: new email not taken
       prisma.user.findUnique.mockResolvedValueOnce(null);
       mockedArgon2.verify.mockResolvedValue(true);
       redis.set.mockResolvedValue(undefined);
@@ -284,7 +272,7 @@ describe('UserService', () => {
       prisma.user.findUnique.mockReset();
       prisma.user.findUnique
         .mockResolvedValueOnce(createMockUser({ provider: AuthProvider.EMAIL }))
-        .mockResolvedValueOnce(createMockUser({ email: dto.newEmail })); // taken
+        .mockResolvedValueOnce(createMockUser({ email: dto.newEmail }));
 
       await expect(service.requestEmailChange('user-123', dto)).rejects.toThrow(
         'Email already in use',
@@ -294,7 +282,6 @@ describe('UserService', () => {
     it('should store change data and both tokens in Redis', async () => {
       await service.requestEmailChange('user-123', dto);
 
-      // email-change key + two token keys = 3 set calls
       expect(redis.set).toHaveBeenCalledTimes(3);
       expect(redis.set).toHaveBeenCalledWith(
         'email-change:user-123',
@@ -345,11 +332,9 @@ describe('UserService', () => {
         password: 'my-password',
       });
 
-      // Uniqueness check must query the normalized address, not the raw input.
       expect(prisma.user.findUnique).toHaveBeenNthCalledWith(2, {
         where: { email: 'new@example.com' },
       });
-      // Normalized address is what gets persisted and emailed.
       expect(redis.set).toHaveBeenCalledWith(
         'email-change:user-123',
         expect.stringContaining('"newEmail":"new@example.com"'),
@@ -360,8 +345,6 @@ describe('UserService', () => {
       );
     });
   });
-
-  // ── verifyNewEmail ───────────────────────────────────────────────────────────
 
   describe('verifyNewEmail', () => {
     it('should throw UnauthorizedException for an invalid or expired token', async () => {
@@ -408,11 +391,11 @@ describe('UserService', () => {
     });
 
     it('should complete the email change when both sides have confirmed', async () => {
-      const data = makeChangeData({ oldEmailConfirmed: true }); // old already confirmed
+      const data = makeChangeData({ oldEmailConfirmed: true });
       redis.get
-        .mockResolvedValueOnce('user-123') // token lookup
-        .mockResolvedValueOnce(JSON.stringify(data)) // change data for verify
-        .mockResolvedValueOnce(JSON.stringify(data)); // change data inside completeEmailChange
+        .mockResolvedValueOnce('user-123')
+        .mockResolvedValueOnce(JSON.stringify(data))
+        .mockResolvedValueOnce(JSON.stringify(data));
 
       prisma.user.update.mockResolvedValue(createMockUser());
       prisma.customer.update.mockResolvedValue(createMockCustomer());
@@ -428,8 +411,6 @@ describe('UserService', () => {
       expect(result.bothConfirmed).toBe(true);
     });
   });
-
-  // ── confirmOldEmail ──────────────────────────────────────────────────────────
 
   describe('confirmOldEmail', () => {
     it('should throw UnauthorizedException for an invalid token', async () => {
@@ -466,8 +447,6 @@ describe('UserService', () => {
       expect(result.bothConfirmed).toBe(false);
     });
   });
-
-  // ── cancelEmailChange ────────────────────────────────────────────────────────
 
   describe('cancelEmailChange', () => {
     it('should throw UnauthorizedException for an invalid token', async () => {
@@ -507,8 +486,6 @@ describe('UserService', () => {
       });
     });
   });
-
-  // ── deleteAccount ────────────────────────────────────────────────────────────
 
   describe('deleteAccount', () => {
     it('should throw NotFoundException when user is not found', async () => {
@@ -574,8 +551,6 @@ describe('UserService', () => {
     });
   });
 
-  // ── getApiKey ────────────────────────────────────────────────────────────────
-
   describe('getApiKey', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -631,8 +606,6 @@ describe('UserService', () => {
     });
   });
 
-  // ── regenerateApiKey ─────────────────────────────────────────────────────────
-
   describe('regenerateApiKey', () => {
     it('should throw BadRequestException when confirm email does not match', async () => {
       await expect(
@@ -680,8 +653,6 @@ describe('UserService', () => {
       );
     });
   });
-
-  // ── saveCustomerSendgridKey ──────────────────────────────────────────────────
 
   describe('saveCustomerSendgridKey', () => {
     const API_KEY = 'SG.valid_key';
@@ -767,8 +738,6 @@ describe('UserService', () => {
     });
   });
 
-  // ── getCustomerSendgridKey ───────────────────────────────────────────────────
-
   describe('getCustomerSendgridKey', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -812,8 +781,6 @@ describe('UserService', () => {
     });
   });
 
-  // ── removeCustomerSendgridKey ────────────────────────────────────────────────
-
   describe('removeCustomerSendgridKey', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -849,8 +816,6 @@ describe('UserService', () => {
       });
     });
   });
-
-  // ── requestDomainVerification ────────────────────────────────────────────────
 
   describe('requestDomainVerification', () => {
     const DOMAIN = 'mail.example.com';
@@ -974,8 +939,6 @@ describe('UserService', () => {
     });
   });
 
-  // ── getDomainStatus ──────────────────────────────────────────────────────────
-
   describe('getDomainStatus', () => {
     it('should throw NotFoundException when customer is not found', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);
@@ -1022,8 +985,6 @@ describe('UserService', () => {
       });
     });
   });
-
-  // ── removeDomain ─────────────────────────────────────────────────────────────
 
   describe('removeDomain', () => {
     it('should throw NotFoundException when customer is not found', async () => {

@@ -41,12 +41,6 @@ import { RequestDomainDto } from './dto/RequestDomain.dto';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  /**
-   * ================================
-   * PROFILE ENDPOINTS
-   * ================================
-   */
-
   @Get('profile')
   async getProfile(@User() user: AuthenticatedUser) {
     return await this.userService.getUserProfile(user.id);
@@ -59,12 +53,6 @@ export class UserController {
   ) {
     return await this.userService.updateProfile(user.id, dto);
   }
-
-  /**
-   * ================================
-   * ACCOUNT MANAGEMENT
-   * ================================
-   */
 
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
@@ -117,12 +105,6 @@ export class UserController {
     return await this.userService.deleteAccount(user.id, dto.confirmEmail);
   }
 
-  /**
-   * ================================
-   * DASHBOARD ENDPOINTS
-   * ================================
-   */
-
   @Get('dashboard')
   async getDashboard(
     @User() user: AuthenticatedUser,
@@ -131,12 +113,6 @@ export class UserController {
     const validDays = [7, 30, 90].includes(days) ? days : 7;
     return await this.userService.getDashboardSummary(user.id, validDays);
   }
-
-  /**
-   * ================================
-   * API KEY MANAGEMENT
-   * ================================
-   */
 
   @Get('api-key')
   async getApiKey(@User() user: AuthenticatedUser) {
@@ -165,12 +141,6 @@ export class UserController {
     return await this.userService.getApiKeysPageData(user.id);
   }
 
-  /**
-   * ================================
-   * SENDGRID KEY MANAGEMENT
-   * ================================
-   */
-
   @Post('sendgrid-key')
   @HttpCode(HttpStatus.OK)
   async saveSendgridKey(
@@ -194,12 +164,6 @@ export class UserController {
     return await this.userService.removeCustomerSendgridKey(user.id);
   }
 
-  /**
-   * ================================
-   * RESEND KEY MANAGEMENT
-   * ================================
-   */
-
   @Post('resend-key')
   @HttpCode(HttpStatus.OK)
   async saveResendKey(
@@ -222,12 +186,6 @@ export class UserController {
   async removeResendKey(@User() user: AuthenticatedUser) {
     return await this.userService.removeCustomerResendKey(user.id);
   }
-
-  /**
-   * ================================
-   * POSTMARK KEY MANAGEMENT
-   * ================================
-   */
 
   @Post('postmark-key')
   @HttpCode(HttpStatus.OK)
@@ -256,12 +214,6 @@ export class UserController {
   async removePostmarkKey(@User() user: AuthenticatedUser) {
     return await this.userService.removeCustomerPostmarkKey(user.id);
   }
-
-  /**
-   * ================================
-   * POSTMARK WEBHOOK SECRET
-   * ================================
-   */
 
   @Post('postmark-webhook-key')
   @HttpCode(HttpStatus.OK)
@@ -308,12 +260,6 @@ export class UserController {
     );
   }
 
-  /**
-   * ================================
-   * RESEND WEBHOOK KEY MANAGEMENT
-   * ================================
-   */
-
   @Post('resend-webhook-key')
   @HttpCode(HttpStatus.OK)
   async saveResendWebhookSecret(
@@ -336,12 +282,6 @@ export class UserController {
   async removeResendWebhookSecret(@User() user: AuthenticatedUser) {
     return await this.userService.removeResendWebhookSecret(user.id);
   }
-
-  /**
-   * ================================
-   * SENDGRID WEBHOOK KEY MANAGEMENT
-   * ================================
-   */
 
   @Post('sendgrid-webhook-key')
   @HttpCode(HttpStatus.OK)
@@ -366,22 +306,10 @@ export class UserController {
     return await this.userService.removeSendgridWebhookKey(user.id);
   }
 
-  /**
-   * ================================
-   * USAGE
-   * ================================
-   */
-
   @Get('usage')
   async getUsage(@User() user: AuthenticatedUser) {
     return await this.userService.getUsageStats(user.id);
   }
-
-  /**
-   * ================================
-   * JOBS/NOTIFICATIONS HISTORY
-   * ================================
-   */
 
   @Get('jobs')
   async getJobs(@User() user: AuthenticatedUser, @Query() query: GetJobsDto) {
@@ -406,12 +334,6 @@ export class UserController {
   async retryJob(@User() user: AuthenticatedUser, @Param('id') jobId: string) {
     return await this.userService.retryJob(user.id, jobId);
   }
-
-  /**
-   * ================================
-   * DOMAIN VERIFICATION
-   * ================================
-   */
 
   @Post('domain/request')
   async requestDomainVerification(
@@ -440,12 +362,6 @@ export class UserController {
   async removeDomain(@User() user: AuthenticatedUser) {
     return await this.userService.removeDomain(user.id);
   }
-
-  /**
-   * ================================
-   * WEBHOOK SIGNING SECRET
-   * ================================
-   */
 
   @Post('webhook-secret')
   @HttpCode(HttpStatus.OK)

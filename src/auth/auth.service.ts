@@ -51,9 +51,6 @@ export class AuthService {
     );
   }
 
-  /**
-   * Sign In with GitHub OAuth
-   */
   async validateGithubUser(profile: GithubProfile): Promise<AuthResponse> {
     if (!profile.email) {
       throw new UnauthorizedException(
@@ -122,9 +119,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Signup - Store signup dataand send OTP
-   */
   async signup(signupDto: SignupDto): Promise<{ email: string }> {
     signupDto.email = signupDto.email.toLowerCase().trim();
 
@@ -148,7 +142,7 @@ export class AuthService {
     await this.redis.set(
       `signup:${signupDto.email}`,
       JSON.stringify(signupData),
-      600, // 10 minutes
+      600,
     );
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -171,9 +165,6 @@ export class AuthService {
     return { email: signupDto.email };
   }
 
-  /**
-   * Signin - Authenticate user
-   */
   async signin(signinDto: SigninDto): Promise<AuthResponse> {
     signinDto.email = signinDto.email.toLowerCase().trim();
 
@@ -212,9 +203,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Request password reset - Generate OTP and send email
-   */
   async requestPasswordReset(email: string): Promise<{ message: string }> {
     email = email.toLowerCase().trim();
 
@@ -231,7 +219,7 @@ export class AuthService {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    await this.redis.set(`reset-password:${email}`, otp, 600); // 10 minutes
+    await this.redis.set(`reset-password:${email}`, otp, 600);
 
     try {
       await this.emailService.sendResetPasswordEmail({
@@ -248,9 +236,6 @@ export class AuthService {
     return { message: 'If this email exists, a reset code has been sent' };
   }
 
-  /**
-   * Confirm password reset - Verify OTP and update password
-   */
   async confirmPasswordReset(
     email: string,
     otp: string,
@@ -287,9 +272,6 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  /**
-   * Verify OTP - Create user and complete signup process
-   */
   async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<AuthResponse> {
     verifyOtpDto.email = verifyOtpDto.email.toLowerCase().trim();
 
@@ -368,9 +350,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Resend OTP
-   */
   async resendOtp(resendOtpDto: ResendOtpDto): Promise<{ expiresIn: number }> {
     resendOtpDto.email = resendOtpDto.email.toLowerCase().trim();
 
@@ -410,9 +389,6 @@ export class AuthService {
     return { expiresIn: 600 };
   }
 
-  /**
-   * Refresh access token
-   */
   async refreshToken(token: string): Promise<RefreshTokenResponse> {
     this.verifyRefreshToken(token);
 
@@ -422,7 +398,7 @@ export class AuthService {
       .digest('hex')
       .slice(0, 16);
     const lockKey = `refresh_lock:${tokenHash}`;
-    const lockTtl = 10; // 10 seconds
+    const lockTtl = 10;
 
     const client = this.redis.getClient();
     const acquired = await client.set(lockKey, '1', 'EX', lockTtl, 'NX');
@@ -453,9 +429,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Logout - Invalidate refresh token
-   */
   async logout(token: string): Promise<{ message: string }> {
     try {
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -468,15 +441,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * ══════════════════════════════════════════════════════════════════════
-   * HELPERS
-   * ══════════════════════════════════════════════════════════════════════
-   */
-
-  /**
-   * Validate and retrieve stored refresh token
-   */
   private async validateStoredRefreshToken(token: string) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const storedToken = await this.prisma.refreshToken.findUnique({
@@ -518,16 +482,10 @@ export class AuthService {
     return storedToken;
   }
 
-  /**
-   * Check if token is expiring soon (less than 3 day)
-   */
   private isTokenExpiringSoon(expiresAt: Date): boolean {
     const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     return expiresAt < threeDaysFromNow;
   }
-  /**
-   * Rotate expiring refresh token and generate new tokens
-   */
   private async rotateRefreshToken(
     storedToken: RefreshTokenWithUser,
   ): Promise<AuthTokens> {
@@ -544,9 +502,6 @@ export class AuthService {
     return newTokens;
   }
 
-  /**
-   *  Create refresh token with session limit enforcement
-   */
   private async createRefreshTokenWithLimit(
     userId: string,
     refreshToken: string,
@@ -605,9 +560,6 @@ export class AuthService {
     });
   }
 
-  /**
-   * Verify refresh tokens
-   */
   private verifyRefreshToken(token: string): JwtPayload {
     try {
       return this.jwtService.verify(token, {
@@ -618,9 +570,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Generate access and refresh tokens
-   */
   private generateTokens(user: User): AuthTokens {
     const accessToken = this.jwtService.sign({ sub: user.id });
 
@@ -635,9 +584,6 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  /**
-   * Create customer record for new user
-   */
   private async createCustomerForUser(
     user: User & { customer?: Customer | null },
   ): Promise<{ customer: Customer }> {
@@ -662,9 +608,6 @@ export class AuthService {
     return { customer };
   }
 
-  /**
-   * Remove sensitive data from user object
-   */
   private sanitizeUser(user: User) {
     const { password, providerId, ...sanitizedUser } = user;
     return sanitizedUser;

@@ -57,28 +57,23 @@ describe('Password Reset Flow (e2e)', () => {
   });
 
   afterEach(async () => {
-    // Cleanup test data
     await prisma.refreshToken.deleteMany({});
     await prisma.customer.deleteMany({});
     await prisma.user.deleteMany({ where: { email: testUser.email } });
 
-    // Clear Redis keys
     await redis.del(`reset-password:${testUser.email}`);
   });
 
   const createVerifiedUser = async () => {
-    // Signup
     await request(app.getHttpServer())
       .post('/api/v1/auth/signup')
       .send(testUser);
 
-    // Verify OTP
     const otp = await redis.get(`otp:${testUser.email}`);
     await request(app.getHttpServer())
       .post('/api/v1/auth/verify-otp')
       .send({ email: testUser.email, otp });
 
-    // Sign in to create refresh tokens
     const signinResponse = await request(app.getHttpServer())
       .post('/api/v1/auth/signin')
       .send({
@@ -93,7 +88,6 @@ describe('Password Reset Flow (e2e)', () => {
     it('should complete password reset flow successfully', async () => {
       await createVerifiedUser();
 
-      // Step 1: Request password reset
       const requestResponse = await request(app.getHttpServer())
         .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email })
@@ -104,12 +98,10 @@ describe('Password Reset Flow (e2e)', () => {
       );
       expect(mockEmailService.sendResetPasswordEmail).toHaveBeenCalled();
 
-      // Check OTP stored in Redis
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
       expect(resetOtp).toBeTruthy();
       expect(resetOtp).toMatch(/^\d{6}$/);
 
-      // Step 2: Confirm password reset with OTP
       const newPassword = 'NewPassword456!';
       const confirmResponse = await request(app.getHttpServer())
         .post('/api/v1/auth/reset-password/confirm')
@@ -124,7 +116,6 @@ describe('Password Reset Flow (e2e)', () => {
         'Password reset successfully',
       );
 
-      // Verify password updated in database
       const user = await prisma.user.findUnique({
         where: { email: testUser.email },
       });
@@ -132,7 +123,6 @@ describe('Password Reset Flow (e2e)', () => {
       const isPasswordValid = await argon2.verify(user!.password!, newPassword);
       expect(isPasswordValid).toBe(true);
 
-      // Verify can sign in with new password
       const signinResponse = await request(app.getHttpServer())
         .post('/api/v1/auth/signin')
         .send({
@@ -147,7 +137,6 @@ describe('Password Reset Flow (e2e)', () => {
     it('should delete all refresh tokens after password reset', async () => {
       const signinResponse = await createVerifiedUser();
 
-      // Create multiple sessions
       await request(app.getHttpServer())
         .post('/api/v1/auth/signin')
         .send({ email: testUser.email, password: testUser.password });
@@ -160,13 +149,11 @@ describe('Password Reset Flow (e2e)', () => {
         where: { email: testUser.email },
       });
 
-      // Verify multiple refresh tokens exist
       const tokensBefore = await prisma.refreshToken.findMany({
         where: { userId: user!.id },
       });
       expect(tokensBefore.length).toBeGreaterThan(0);
 
-      // Request and confirm password reset
       await request(app.getHttpServer())
         .post('/api/v1/auth/reset-password/request')
         .send({ email: testUser.email });
@@ -181,13 +168,11 @@ describe('Password Reset Flow (e2e)', () => {
           newPassword: 'NewSecurePassword123!',
         });
 
-      // Verify all refresh tokens deleted
       const tokensAfter = await prisma.refreshToken.findMany({
         where: { userId: user!.id },
       });
       expect(tokensAfter).toHaveLength(0);
 
-      // Old refresh token should not work
       const oldRefreshToken = signinResponse.headers['set-cookie'][0];
       await request(app.getHttpServer())
         .post('/api/v1/auth/refresh-token')
@@ -213,7 +198,6 @@ describe('Password Reset Flow (e2e)', () => {
           newPassword: 'NewPassword789!',
         });
 
-      // OTP should be deleted
       const otpAfter = await redis.get(`reset-password:${testUser.email}`);
       expect(otpAfter).toBeNull();
     });
@@ -233,7 +217,6 @@ describe('Password Reset Flow (e2e)', () => {
     });
 
     it('should return generic message for unverified email', async () => {
-      // Create unverified user
       await request(app.getHttpServer())
         .post('/api/v1/auth/signup')
         .send(testUser);
@@ -252,7 +235,6 @@ describe('Password Reset Flow (e2e)', () => {
     it('should return generic message for deleted account', async () => {
       await createVerifiedUser();
 
-      // Soft delete user
       const user = await prisma.user.findUnique({
         where: { email: testUser.email },
       });
@@ -303,7 +285,6 @@ describe('Password Reset Flow (e2e)', () => {
 
       const resetOtp = await redis.get(`reset-password:${testUser.email}`);
 
-      // Manually delete OTP to simulate expiration
       await redis.del(`reset-password:${testUser.email}`);
 
       const response = await request(app.getHttpServer())
@@ -319,7 +300,6 @@ describe('Password Reset Flow (e2e)', () => {
     });
 
     it('should reject if user not found', async () => {
-      // Set OTP in Redis without creating user
       await redis.set('reset-password:ghost@example.com', '123456', 600);
 
       const response = await request(app.getHttpServer())
@@ -333,14 +313,12 @@ describe('Password Reset Flow (e2e)', () => {
 
       expect(response.body.error).toContain('Invalid or expired reset code');
 
-      // Cleanup
       await redis.del('reset-password:ghost@example.com');
     });
   });
 
   describe('Social Login Protection', () => {
     it('should prevent password reset for GitHub accounts', async () => {
-      // Create GitHub user
       const hashedPassword = await argon2.hash('SomePassword123!');
       const githubUser = await prisma.user.create({
         data: {
@@ -361,12 +339,10 @@ describe('Password Reset Flow (e2e)', () => {
       expect(response.body.error).toContain('social login');
       expect(mockEmailService.sendResetPasswordEmail).not.toHaveBeenCalled();
 
-      // Cleanup
       await prisma.user.delete({ where: { id: githubUser.id } });
     });
 
     it('should prevent password reset for Google accounts', async () => {
-      // Create Google user
       const hashedPassword = await argon2.hash('SomePassword123!');
       const googleUser = await prisma.user.create({
         data: {
@@ -386,7 +362,6 @@ describe('Password Reset Flow (e2e)', () => {
 
       expect(response.body.error).toContain('social login');
 
-      // Cleanup
       await prisma.user.delete({ where: { id: googleUser.id } });
     });
   });
@@ -456,11 +431,9 @@ describe('Password Reset Flow (e2e)', () => {
         where: { email: testUser.email },
       });
 
-      // Verify password is hashed (not plaintext)
       expect(user!.password).not.toBe(newPassword);
       expect(user!.password).toContain('$argon2');
 
-      // Verify password can be verified
       const isValid = await argon2.verify(user!.password!, newPassword);
       expect(isValid).toBe(true);
     });
@@ -482,7 +455,6 @@ describe('Password Reset Flow (e2e)', () => {
           newPassword: 'CompletelyNewPassword123!',
         });
 
-      // Try to sign in with old password
       await request(app.getHttpServer())
         .post('/api/v1/auth/signin')
         .send({

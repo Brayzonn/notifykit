@@ -6,11 +6,6 @@ import { AppModule } from './../src/app.module';
 import { configureApp } from '../src/config/configure-app';
 import { closeBullQueues } from './helpers/test-utils';
 
-// This suite guards the production HTTP pipeline itself: the global prefix, URI
-// versioning, the ResponseInterceptor success envelope, and the
-// AllExceptionsFilter error envelope. It boots the real AppModule and applies
-// configureApp() — the same setup main.ts runs — so a regression in any of
-// those global concerns is caught here rather than in production.
 describe('HTTP pipeline (e2e)', () => {
   let app: INestApplication<App>;
   let moduleFixture: TestingModule;
@@ -44,13 +39,10 @@ describe('HTTP pipeline (e2e)', () => {
   });
 
   it('does not serve routes without the version prefix', async () => {
-    // Proves setGlobalPrefix + enableVersioning are actually applied.
     await request(app.getHttpServer()).get('/ping').expect(404);
   });
 
   it('wraps validation errors in the { success:false, error } envelope', async () => {
-    // An empty signup body fails the global ValidationPipe before reaching the
-    // controller, so this exercises ValidationPipe + AllExceptionsFilter only.
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/signup')
       .send({})

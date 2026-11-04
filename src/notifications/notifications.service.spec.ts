@@ -22,7 +22,6 @@ import {
 } from '@prisma/client';
 import { QUEUE_PRIORITIES } from '@/queues/queue.constants';
 
-// Simulates a unique-constraint (customerId, idempotencyKey) violation.
 const uniqueViolation = () =>
   new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
     code: 'P2002',
@@ -33,8 +32,6 @@ type MockedQueueService = {
   addEmailJob: jest.Mock;
   addWebhookJob: jest.Mock;
 };
-
-// ── Shared fixtures ───────────────────────────────────────────────────────────
 
 const makeJob = (overrides: Partial<Record<string, any>> = {}) => ({
   id: 'job-123',
@@ -67,8 +64,6 @@ const webhookDto = {
   payload: { event: 'user.created' },
 };
 
-// ── Suite ─────────────────────────────────────────────────────────────────────
-
 describe('NotificationsService', () => {
   let service: NotificationsService;
   let prisma: MockedPrismaService;
@@ -100,12 +95,9 @@ describe('NotificationsService', () => {
     jest.resetAllMocks();
   });
 
-  // ── sendEmail ────────────────────────────────────────────────────────────────
-
   describe('sendEmail', () => {
     beforeEach(() => {
-      // Default happy-path setup
-      prisma.job.findFirst.mockResolvedValue(null); // no duplicate
+      prisma.job.findFirst.mockResolvedValue(null);
       prisma.customer.findUnique.mockResolvedValue(
         createMockCustomer({ plan: CustomerPlan.FREE }),
       );
@@ -321,8 +313,6 @@ describe('NotificationsService', () => {
       });
     });
 
-    // ── Per-message provider routing ───────────────────────────────────────────
-
     describe('per-message provider routing', () => {
       const paidCustomer = (
         providers: EmailProviderType[] = [
@@ -464,8 +454,6 @@ describe('NotificationsService', () => {
     });
   });
 
-  // ── sendWebhook ──────────────────────────────────────────────────────────────
-
   describe('sendWebhook', () => {
     const mockWebhookJob = makeJob({
       id: 'job-webhook-1',
@@ -556,8 +544,6 @@ describe('NotificationsService', () => {
     });
   });
 
-  // ── getJobStatus ─────────────────────────────────────────────────────────────
-
   describe('getJobStatus', () => {
     it('should return null when the job is not found', async () => {
       prisma.job.findFirst.mockResolvedValue(null);
@@ -584,8 +570,6 @@ describe('NotificationsService', () => {
       });
     });
   });
-
-  // ── listJobs ─────────────────────────────────────────────────────────────────
 
   describe('listJobs', () => {
     const mockJobList = [makeJob({ id: 'job-1' }), makeJob({ id: 'job-2' })];
@@ -647,8 +631,6 @@ describe('NotificationsService', () => {
       });
     });
   });
-
-  // ── retryJob ─────────────────────────────────────────────────────────────────
 
   describe('retryJob', () => {
     const failedEmailJob = makeJob({

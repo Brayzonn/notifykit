@@ -90,11 +90,6 @@ export class QueueService {
     }
   }
 
-  /**
-   * Schedule a delayed back-fill of the Paystack subscription code/dates after
-   * a successful initial charge. Idempotent per customerId — duplicate webhooks
-   * collapse to one queued job.
-   */
   async schedulePaystackSubscriptionLink(
     data: PaystackSubscriptionLinkJobData,
     delayMs: number = 10_000,
@@ -122,9 +117,6 @@ export class QueueService {
     }
   }
 
-  /**
-   * Add email notification to queue
-   */
   async addEmailJob(
     data: EmailJobData,
     priority: number = QUEUE_PRIORITIES.NORMAL,
@@ -151,9 +143,6 @@ export class QueueService {
     }
   }
 
-  /**
-   * Add webhook notification to queue
-   */
   async addWebhookJob(
     data: WebhookJobData,
     priority: number = QUEUE_PRIORITIES.NORMAL,
@@ -182,9 +171,6 @@ export class QueueService {
     }
   }
 
-  /**
-   * Move failed job to dead letter queue
-   */
   async moveToDeadLetterQueue(
     jobData: EmailJobData | WebhookJobData,
     error: string,
@@ -209,9 +195,6 @@ export class QueueService {
     }
   }
 
-  /**
-   * Get queue statistics
-   */
   async getQueueStats(queueName: QueueType) {
     const queue =
       queueName === 'email'
@@ -239,9 +222,6 @@ export class QueueService {
     };
   }
 
-  /**
-   * Get all queue statistics
-   */
   async getAllQueueStats() {
     const [emailStats, webhookStats, failedStats] = await Promise.all([
       this.getQueueStats('email'),
@@ -256,27 +236,18 @@ export class QueueService {
     };
   }
 
-  /**
-   * Pause a queue
-   */
   async pauseQueue(queueName: 'email' | 'webhook') {
     const queue = queueName === 'email' ? this.emailQueue : this.webhookQueue;
     await queue.pause();
     this.logger.warn(`Queue paused: ${queueName}`);
   }
 
-  /**
-   * Resume a queue
-   */
   async resumeQueue(queueName: 'email' | 'webhook') {
     const queue = queueName === 'email' ? this.emailQueue : this.webhookQueue;
     await queue.resume();
     this.logger.log(`Queue resumed: ${queueName}`);
   }
 
-  /**
-   * Clear all jobs from a queue
-   */
   async clearQueue(queueName: 'email' | 'webhook' | 'failed') {
     const queue =
       queueName === 'email'

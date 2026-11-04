@@ -34,12 +34,6 @@ export class AdminService {
     }
   }
 
-  /**
-   * ================================
-   * USER MANAGEMENT
-   * ================================
-   */
-
   async getUsers(query: QueryUsersDto) {
     const { page = 1, limit = 20, role, search } = query;
     const skip = (page - 1) * limit;
@@ -261,12 +255,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * ================================
-   * CUSTOMER MANAGEMENT
-   * ================================
-   */
-
   async getCustomers(query: QueryCustomersDto) {
     const { page = 1, limit = 20, plan, search } = query;
     const skip = (page - 1) * limit;
@@ -478,9 +466,7 @@ export class AdminService {
       where: { id: customerId },
       data: {
         usageCount: dto.usageCount ?? 0,
-        usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        // Rotate the billing cycle so the Redis usage counter (keyed by
-        // billingCycleStartAt) starts a fresh window and reseeds from this value.
+        usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         billingCycleStartAt: new Date(),
       },
       select: {
@@ -498,12 +484,6 @@ export class AdminService {
 
     return updated;
   }
-
-  /**
-   * ================================
-   * JOB MANAGEMENT
-   * ================================
-   */
 
   async getJobs(query: QueryJobsDto) {
     const { page = 1, limit = 20, status, type, customerId } = query;
@@ -619,12 +599,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * ================================
-   * DOMAIN MANAGEMENT
-   * ================================
-   */
-
   async getDomains(query: {
     page?: number;
     limit?: number;
@@ -689,12 +663,6 @@ export class AdminService {
       },
     };
   }
-
-  /**
-   * ================================
-   * PLATFORM EMAIL LOGS
-   * ================================
-   */
 
   async getPlatformEmailLogs(query: QueryPlatformEmailLogsDto) {
     const { page = 1, limit = 20, status, label, search } = query;
@@ -776,12 +744,6 @@ export class AdminService {
 
     return { message: 'Platform email log deleted successfully', id };
   }
-
-  /**
-   * ================================
-   * STATISTICS
-   * ================================
-   */
 
   async getStats() {
     return this.redis.remember('admin:stats', 60, async () => {

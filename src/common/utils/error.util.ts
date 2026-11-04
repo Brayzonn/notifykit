@@ -21,8 +21,6 @@ const hasResponse = (
   typeof (error as { response: unknown }).response === 'object' &&
   (error as { response: unknown }).response !== null;
 
-// Duck-types `{ response: { data } }` so this works on real AxiosError instances
-// and on hand-rolled shapes some upstream code throws.
 export const getAxiosErrorData = <T = unknown>(
   error: unknown,
 ): T | undefined => {
