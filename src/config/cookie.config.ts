@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { CookieOptions } from 'express';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
+import { getRefreshTokenTtlMs } from '@/config/jwt.config';
 
 export function setupCookies(
   app: INestApplication,
@@ -20,7 +21,7 @@ export class CookieConfig {
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: getRefreshTokenTtlMs(configService),
     };
   }
 }

@@ -1,4 +1,5 @@
 import { plainToInstance } from 'class-transformer';
+import { DURATION_PATTERN } from '@/common/utils/duration.util';
 import {
   IsIn,
   IsOptional,
@@ -26,6 +27,20 @@ class EnvironmentVariables {
     message: `JWT_REFRESH_SECRET must be at least ${MIN_SECRET_LENGTH} characters`,
   })
   JWT_REFRESH_SECRET!: string;
+
+  @IsString({ message: 'JWT_EXPIRES_IN is required' })
+  @Matches(DURATION_PATTERN, {
+    message:
+      'JWT_EXPIRES_IN must be a whole number followed by s, m, h or d (e.g. 15m)',
+  })
+  JWT_EXPIRES_IN!: string;
+
+  @IsOptional()
+  @Matches(DURATION_PATTERN, {
+    message:
+      'JWT_REFRESH_EXPIRES_IN must be a whole number followed by s, m, h or d (e.g. 7d)',
+  })
+  JWT_REFRESH_EXPIRES_IN?: string;
 
   @Matches(/^[a-fA-F0-9]{64}$/, {
     message: 'ENCRYPTION_KEY must be a 64-character hex string',
