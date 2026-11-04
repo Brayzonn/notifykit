@@ -8,6 +8,9 @@ import { RedisModule } from '@/redis/redis.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthService } from './auth.service';
+import { SessionService } from './services/session.service';
+import { OtpService } from './services/otp.service';
+import { UserProvisioningService } from './services/user-provisioning.service';
 import { EmailModule } from '@/platform-email/email.module';
 import { AuthController } from './auth.controller';
 import { GithubStrategy } from './strategies/github.strategy';
@@ -35,6 +38,9 @@ import { RateLimitModule } from '@/common/rate-limit/rate-limit.module';
     CustomerRateLimitGuard,
     QuotaGuard,
     AuthService,
+    SessionService,
+    OtpService,
+    UserProvisioningService,
     JwtStrategy,
     GithubStrategy,
     JwtAuthGuard,

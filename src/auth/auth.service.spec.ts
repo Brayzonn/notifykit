@@ -4,6 +4,9 @@ import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
+import { SessionService } from './services/session.service';
+import { OtpService } from './services/otp.service';
+import { UserProvisioningService } from './services/user-provisioning.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/platform-email/email.service';
@@ -41,6 +44,9 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        SessionService,
+        OtpService,
+        UserProvisioningService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
         { provide: JwtService, useValue: mockJwt },
@@ -276,9 +282,9 @@ describe('AuthService', () => {
     const otp = '123456';
     const newPassword = 'newPassword123';
 
-    it('should validate OTP from Redis', async () => {
+    it('should check the OTP against the reset-password key', async () => {
       const mockUser = createMockUser();
-      redis.get.mockResolvedValue(otp);
+      redis.runScript.mockResolvedValue('valid');
       prisma.user.findUnique.mockResolvedValue(mockUser);
       mockedArgon2.hash.mockResolvedValue('hashed_new_password');
       prisma.user.update.mockResolvedValue(mockUser);
@@ -286,12 +292,16 @@ describe('AuthService', () => {
 
       await service.confirmPasswordReset(email, otp, newPassword);
 
-      expect(redis.get).toHaveBeenCalledWith(`reset-password:${email}`);
+      expect(redis.runScript).toHaveBeenCalledWith(
+        expect.any(String),
+        [`reset-password:${email}`, `otp-attempts:reset-password:${email}`],
+        [otp, 5, 600],
+      );
     });
 
     it('should hash new password with argon2', async () => {
       const mockUser = createMockUser();
-      redis.get.mockResolvedValue(otp);
+      redis.runScript.mockResolvedValue('valid');
       prisma.user.findUnique.mockResolvedValue(mockUser);
       mockedArgon2.hash.mockResolvedValue('hashed_new_password');
       prisma.user.update.mockResolvedValue(mockUser);
@@ -304,7 +314,7 @@ describe('AuthService', () => {
 
     it('should update password in database', async () => {
       const mockUser = createMockUser();
-      redis.get.mockResolvedValue(otp);
+      redis.runScript.mockResolvedValue('valid');
       prisma.user.findUnique.mockResolvedValue(mockUser);
       mockedArgon2.hash.mockResolvedValue('hashed_new_password');
       prisma.user.update.mockResolvedValue(mockUser);
@@ -320,7 +330,7 @@ describe('AuthService', () => {
 
     it('should delete ALL refresh tokens (invalidate all sessions)', async () => {
       const mockUser = createMockUser();
-      redis.get.mockResolvedValue(otp);
+      redis.runScript.mockResolvedValue('valid');
       prisma.user.findUnique.mockResolvedValue(mockUser);
       mockedArgon2.hash.mockResolvedValue('hashed_new_password');
       prisma.user.update.mockResolvedValue(mockUser);
@@ -333,9 +343,9 @@ describe('AuthService', () => {
       });
     });
 
-    it('should delete OTP from Redis after success', async () => {
+    it('should use up the OTP before changing the password', async () => {
       const mockUser = createMockUser();
-      redis.get.mockResolvedValue(otp);
+      redis.runScript.mockResolvedValue('valid');
       prisma.user.findUnique.mockResolvedValue(mockUser);
       mockedArgon2.hash.mockResolvedValue('hashed_new_password');
       prisma.user.update.mockResolvedValue(mockUser);
@@ -343,11 +353,13 @@ describe('AuthService', () => {
 
       await service.confirmPasswordReset(email, otp, newPassword);
 
-      expect(redis.del).toHaveBeenCalledWith(`reset-password:${email}`);
+      expect(redis.runScript.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.user.update.mock.invocationCallOrder[0],
+      );
     });
 
     it('should throw UnauthorizedException for invalid OTP', async () => {
-      redis.get.mockResolvedValue('999999');
+      redis.runScript.mockResolvedValue('mismatch');
 
       await expect(
         service.confirmPasswordReset(email, otp, newPassword),
@@ -358,7 +370,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for expired OTP', async () => {
-      redis.get.mockResolvedValue(null);
+      redis.runScript.mockResolvedValue('missing');
 
       await expect(
         service.confirmPasswordReset(email, otp, newPassword),
@@ -366,7 +378,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
-      redis.get.mockResolvedValue(otp);
+      redis.runScript.mockResolvedValue('valid');
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -539,6 +551,164 @@ describe('AuthService', () => {
       await expect(service.refreshToken(refreshToken)).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('OTP wrong-guess cap', () => {
+    const email = 'user@example.com';
+
+    it('tells the user to wait once signup OTP is locked', async () => {
+      redis.runScript.mockResolvedValue('locked');
+
+      await expect(service.verifyOtp({ email, otp: '222222' })).rejects.toThrow(
+        'Too many incorrect attempts. Please try again in a few minutes.',
+      );
+      expect(redis.del).not.toHaveBeenCalled();
+    });
+
+    it('keeps the generic reset message once a reset code is locked', async () => {
+      redis.runScript.mockResolvedValue('locked');
+
+      await expect(
+        service.confirmPasswordReset(email, '222222', 'NewPassword123!'),
+      ).rejects.toThrow('Invalid or expired reset code');
+      expect(redis.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyOtp', () => {
+    const email = 'new@example.com';
+
+    it('creates the user and reuses its customer without looking it up again', async () => {
+      const customer = { id: 'customer-1' };
+      const user = { ...createMockUser({ email }), customer };
+      redis.runScript.mockResolvedValue('valid');
+      redis.get.mockResolvedValue(
+        JSON.stringify({ email, password: 'hashed', name: 'New User' }),
+      );
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(user);
+      prisma.refreshToken.count.mockResolvedValue(0);
+
+      await service.verifyOtp({ email, otp: '123456' });
+
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({ include: { customer: true } }),
+      );
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+      expect(redis.del).toHaveBeenCalledWith(`signup:${email}`);
+    });
+  });
+
+  describe('resendOtp', () => {
+    const email = 'new@example.com';
+
+    beforeEach(() => {
+      redis.get.mockImplementation((key: string) =>
+        Promise.resolve(
+          key === `signup:${email}` ? JSON.stringify({ email }) : null,
+        ),
+      );
+    });
+
+    it('reserves the resend before sending, then stores the code', async () => {
+      await service.resendOtp({ email });
+
+      const reserveOrder = redis.incrementWithTtl.mock.invocationCallOrder[0];
+      const sendOrder = emailService.sendOtpEmail.mock.invocationCallOrder[0];
+      const storeOrder = redis.set.mock.invocationCallOrder[0];
+
+      expect(redis.incrementWithTtl).toHaveBeenCalledWith(
+        `otp-resend:${email}`,
+        600,
+      );
+      expect(redis.set).toHaveBeenCalledWith(
+        `otp:${email}`,
+        expect.stringMatching(/^\d{6}$/),
+        600,
+      );
+      expect(reserveOrder).toBeLessThan(sendOrder);
+      expect(sendOrder).toBeLessThan(storeOrder);
+    });
+
+    it('extends the pending signup along with the new code', async () => {
+      await service.resendOtp({ email });
+
+      expect(redis.set).toHaveBeenCalledWith(
+        `signup:${email}`,
+        JSON.stringify({ email }),
+        600,
+      );
+    });
+
+    it('rejects without sending once the resend limit is reached', async () => {
+      redis.incrementWithTtl.mockResolvedValue(4);
+
+      await expect(service.resendOtp({ email })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(emailService.sendOtpEmail).not.toHaveBeenCalled();
+      expect(redis.set).not.toHaveBeenCalled();
+    });
+
+    it('keeps the old code and gives back the resend when sending fails', async () => {
+      emailService.sendOtpEmail.mockRejectedValue(new Error('provider down'));
+
+      await expect(service.resendOtp({ email })).rejects.toThrow(
+        new BadRequestException('Failed to send verification email'),
+      );
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(redis.del).not.toHaveBeenCalled();
+      expect(redis.runScript).toHaveBeenCalledWith(
+        expect.stringContaining('DECR'),
+        [`otp-resend:${email}`],
+        [],
+      );
+    });
+  });
+
+  describe('OTP logging', () => {
+    const email = 'new@example.com';
+
+    it('does not log the OTP on signup', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      mockedArgon2.hash.mockResolvedValue('hashed');
+      const loggerSpy = jest.spyOn(service['logger'], 'log');
+
+      await service.signup({
+        email,
+        password: 'Password123!',
+        name: 'New User',
+      } as any);
+
+      const otp = redis.set.mock.calls.find(
+        ([key]) => key === `otp:${email}`,
+      )![1];
+      for (const [message] of loggerSpy.mock.calls) {
+        expect(String(message)).not.toContain(otp);
+      }
+    });
+
+    it('does not log the OTP on resend', async () => {
+      redis.get.mockImplementation((key: string) =>
+        Promise.resolve(
+          key === `signup:${email}` ? JSON.stringify({ email }) : null,
+        ),
+      );
+      redis.getClient.mockReturnValue({
+        incr: jest.fn().mockResolvedValue(1),
+        expire: jest.fn(),
+      });
+      const loggerSpy = jest.spyOn(service['logger'], 'log');
+
+      await service.resendOtp({ email });
+
+      const otp = redis.set.mock.calls.find(
+        ([key]) => key === `otp:${email}`,
+      )![1];
+      for (const [message] of loggerSpy.mock.calls) {
+        expect(String(message)).not.toContain(otp);
+      }
     });
   });
 
