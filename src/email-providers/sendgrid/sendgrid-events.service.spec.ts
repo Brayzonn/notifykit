@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EmailEventType } from '@prisma/client';
 import { SendgridEventsService } from './sendgrid-events.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { SuppressionService } from '@/suppression/suppression.service';
 
 describe('SendgridEventsService', () => {
   let service: SendgridEventsService;
@@ -9,18 +10,21 @@ describe('SendgridEventsService', () => {
     job: { findFirst: jest.fn() },
     emailEvent: { upsert: jest.fn() },
   };
+  const suppression = { suppressFromEvent: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SendgridEventsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: SuppressionService, useValue: suppression },
       ],
     }).compile();
 
     service = module.get(SendgridEventsService);
     prisma.job.findFirst.mockReset();
     prisma.emailEvent.upsert.mockReset();
+    suppression.suppressFromEvent.mockReset();
   });
 
   it('returns early when called with a non-array payload', async () => {
@@ -78,7 +82,7 @@ describe('SendgridEventsService', () => {
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
       where: { id: 'job-x' },
-      select: { id: true },
+      select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
@@ -101,7 +105,7 @@ describe('SendgridEventsService', () => {
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
       where: { id: 'job-x', customerId: 'cust-1' },
-      select: { id: true },
+      select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
@@ -253,5 +257,49 @@ describe('SendgridEventsService', () => {
     ).resolves.toBeUndefined();
 
     expect(prisma.emailEvent.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  describe('suppression', () => {
+    const bounce = (type?: string) => ({
+      email: 'a@b.com',
+      timestamp: 1700000000,
+      event: 'bounce',
+      sg_event_id: 'sg-1',
+      job_id: 'job-x',
+      ...(type ? { type } : {}),
+    });
+
+    it.each([
+      ['bounce', true],
+      ['blocked', false],
+      [undefined, false],
+    ])('passes hardBounce for type=%s as %s', async (type, hard) => {
+      prisma.job.findFirst.mockResolvedValueOnce({
+        id: 'job-x',
+        customerId: 'cust-1',
+      });
+
+      await service.processEvents([bounce(type)], 'cust-1');
+
+      expect(suppression.suppressFromEvent).toHaveBeenCalledWith({
+        customerId: 'cust-1',
+        email: 'a@b.com',
+        eventType: EmailEventType.BOUNCED,
+        hardBounce: hard,
+      });
+    });
+
+    it("suppresses against the job's owner on the shared platform route", async () => {
+      prisma.job.findFirst.mockResolvedValueOnce({
+        id: 'job-x',
+        customerId: 'owner-1',
+      });
+
+      await service.processEvents([bounce('bounce')]);
+
+      expect(suppression.suppressFromEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ customerId: 'owner-1' }),
+      );
+    });
   });
 });

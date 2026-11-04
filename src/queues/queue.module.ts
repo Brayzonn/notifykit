@@ -9,6 +9,7 @@ import { WebhookWorkerProcessor } from './processors/webhook-worker.processor';
 import { PlatformEmailProcessor } from './processors/platform-email.processor';
 import { EncryptionModule } from '@/common/encryption/encryption.module';
 import { CommonModule } from '@/common/common.module';
+import { SuppressionModule } from '@/suppression/suppression.module';
 
 @Global()
 @Module({
@@ -17,6 +18,7 @@ import { CommonModule } from '@/common/common.module';
     EmailProvidersModule,
     EncryptionModule,
     CommonModule,
+    SuppressionModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EmailEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { getErrorMessage } from '@/common/utils/error.util';
+import { SuppressionService } from '@/suppression/suppression.service';
 
 interface PostmarkWebhookEvent {
   RecordType: string;
+  Type?: string;
   MessageID?: string;
   Recipient?: string;
   Email?: string;
@@ -14,6 +16,7 @@ interface PostmarkWebhookEvent {
   ChangedAt?: string;
   Metadata?: Record<string, string>;
   SuppressSending?: boolean;
+  Inactive?: boolean;
   [key: string]: unknown;
 }
 
@@ -30,7 +33,10 @@ const EVENT_MAP: Record<string, EmailEventType> = {
 export class PostmarkEventsService {
   private readonly logger = new Logger(PostmarkEventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly suppression: SuppressionService,
+  ) {}
 
   async processEvent(
     customerId: string,
@@ -106,6 +112,13 @@ export class PostmarkEventsService {
       });
 
       this.logger.debug(`Recorded ${eventType} event for job ${jobId}`);
+
+      await this.suppression.suppressFromEvent({
+        customerId,
+        email,
+        eventType,
+        hardBounce: event.Inactive === true,
+      });
     } catch (error) {
       this.logger.error(
         `Failed to store Postmark event for job ${jobId}: ${getErrorMessage(error)}`,

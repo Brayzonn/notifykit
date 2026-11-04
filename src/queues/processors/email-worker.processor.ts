@@ -17,6 +17,7 @@ import {
   ResolvedProvider,
 } from '@/email-providers/email-provider.factory';
 import { PrismaService } from '@/prisma/prisma.service';
+import { SuppressionService } from '@/suppression/suppression.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { FeatureGateService } from '@/common/feature-gate/feature-gate.service';
 import {
@@ -38,6 +39,7 @@ export class EmailWorkerProcessor extends WorkerHost {
     private readonly configService: ConfigService,
     private readonly encryptionService: EncryptionService,
     private readonly featureGate: FeatureGateService,
+    private readonly suppression: SuppressionService,
   ) {
     super();
     this.defaultFromEmail = this.configService.get<string>(
@@ -106,6 +108,14 @@ export class EmailWorkerProcessor extends WorkerHost {
         from,
         customer.sendingDomains,
       );
+
+      const suppressed = await this.suppression.findSuppression(customerId, to);
+
+      if (suppressed) {
+        throw new UnrecoverableError(
+          `Recipient ${to} is suppressed (${suppressed.reason}). This address previously bounced or reported spam.`,
+        );
+      }
 
       await this.prisma.job.update({
         where: { id: jobId },

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EmailEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { getErrorMessage } from '@/common/utils/error.util';
+import { SuppressionService } from '@/suppression/suppression.service';
 
 interface ResendWebhookEvent {
   type: string;
@@ -13,6 +14,7 @@ interface ResendWebhookEvent {
     subject: string;
     created_at: string;
     tags?: Record<string, string>;
+    bounce?: { type?: string; subType?: string; message?: string };
     [key: string]: unknown;
   };
 }
@@ -30,7 +32,10 @@ const EVENT_MAP: Record<string, EmailEventType> = {
 export class ResendEventsService {
   private readonly logger = new Logger(ResendEventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly suppression: SuppressionService,
+  ) {}
 
   async processEvent(
     customerId: string,
@@ -87,6 +92,13 @@ export class ResendEventsService {
       });
 
       this.logger.debug(`Recorded ${eventType} event for job ${jobId}`);
+
+      await this.suppression.suppressFromEvent({
+        customerId,
+        email,
+        eventType,
+        hardBounce: event.data.bounce?.type === 'Permanent',
+      });
     } catch (error) {
       this.logger.error(
         `Failed to store Resend event for job ${jobId}: ${getErrorMessage(error)}`,

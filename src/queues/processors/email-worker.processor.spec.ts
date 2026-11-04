@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EmailWorkerProcessor } from './email-worker.processor';
 import { EmailProviderFactory } from '@/email-providers/email-provider.factory';
 import { PrismaService } from '@/prisma/prisma.service';
+import { SuppressionService } from '@/suppression/suppression.service';
 import { QueueService } from '../queue.service';
 import { ConfigService } from '@nestjs/config';
 import { EncryptionService } from '@/common/encryption/encryption.service';
@@ -43,6 +44,9 @@ describe('EmailWorkerProcessor', () => {
     resolveOne: jest.fn(),
   };
   const mockPrismaService = createMockPrismaService();
+  const mockSuppressionService = {
+    findSuppression: jest.fn().mockResolvedValue(null),
+  };
   const mockQueueService: MockedQueueService = {
     moveToDeadLetterQueue: jest.fn(),
   };
@@ -106,6 +110,7 @@ describe('EmailWorkerProcessor', () => {
         { provide: QueueService, useValue: mockQueueService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: EncryptionService, useValue: mockEncryptionService },
+        { provide: SuppressionService, useValue: mockSuppressionService },
       ],
     }).compile();
 
@@ -741,6 +746,34 @@ describe('EmailWorkerProcessor', () => {
   });
 
   describe('Edge Cases', () => {
+    it('fails without sending when the recipient is suppressed', async () => {
+      const emailData = createMockEmailData();
+      const mockJob = createMockJob(emailData, 0);
+
+      prisma.job.findUnique.mockResolvedValue({
+        id: emailData.jobId,
+        attempts: 0,
+      });
+      prisma.customer.findUnique.mockResolvedValue(makeCustomer());
+      mockSuppressionService.findSuppression.mockResolvedValueOnce({
+        reason: 'BOUNCED',
+      });
+      mockEmailProviderFactory.resolveAll.mockReturnValue([
+        { provider: mockProvider, apiKey: 'shared-key' },
+      ]);
+      prisma.job.update.mockResolvedValue({});
+      prisma.deliveryLog.create.mockResolvedValue({});
+
+      await expect(processor.process(mockJob as Job)).rejects.toThrow(
+        /is suppressed \(BOUNCED\)/,
+      );
+      expect(mockSuppressionService.findSuppression).toHaveBeenCalledWith(
+        emailData.customerId,
+        emailData.to,
+      );
+      expect(mockProvider.sendEmail).not.toHaveBeenCalled();
+    });
+
     it('should handle missing customer gracefully', async () => {
       const emailData = createMockEmailData();
       const mockJob = createMockJob(emailData, 0);

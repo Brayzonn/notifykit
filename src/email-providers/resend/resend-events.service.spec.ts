@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EmailEventType } from '@prisma/client';
 import { ResendEventsService } from './resend-events.service';
 import { PrismaService } from '@/prisma/prisma.service';
+import { SuppressionService } from '@/suppression/suppression.service';
 
 const baseEvent = (overrides: Record<string, any> = {}) => ({
   type: 'email.delivered',
@@ -24,18 +25,21 @@ describe('ResendEventsService', () => {
     job: { findFirst: jest.fn() },
     emailEvent: { upsert: jest.fn() },
   };
+  const suppression = { suppressFromEvent: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ResendEventsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: SuppressionService, useValue: suppression },
       ],
     }).compile();
 
     service = module.get(ResendEventsService);
     prisma.job.findFirst.mockReset();
     prisma.emailEvent.upsert.mockReset();
+    suppression.suppressFromEvent.mockReset();
   });
 
   it('ignores untracked Resend event types', async () => {
@@ -208,5 +212,40 @@ describe('ResendEventsService', () => {
     await expect(
       service.processEvent('cust-1', baseEvent() as any),
     ).resolves.toBeUndefined();
+  });
+
+  describe('suppression', () => {
+    it.each([
+      ['Permanent', true],
+      ['Transient', false],
+      ['Undetermined', false],
+    ])('passes hardBounce for bounce.type=%s as %s', async (type, hard) => {
+      prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+
+      await service.processEvent('cust-1', {
+        ...baseEvent({ type: 'email.bounced' }),
+        data: { ...baseEvent().data, bounce: { type } },
+      } as any);
+
+      expect(suppression.suppressFromEvent).toHaveBeenCalledWith({
+        customerId: 'cust-1',
+        email: 'a@b.com',
+        eventType: EmailEventType.BOUNCED,
+        hardBounce: hard,
+      });
+    });
+
+    it('forwards complaints as SPAM_REPORT', async () => {
+      prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+
+      await service.processEvent(
+        'cust-1',
+        baseEvent({ type: 'email.complained' }) as any,
+      );
+
+      expect(suppression.suppressFromEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: EmailEventType.SPAM_REPORT }),
+      );
+    });
   });
 });

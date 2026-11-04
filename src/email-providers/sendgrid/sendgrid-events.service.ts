@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailEventType, Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { SuppressionService } from '@/suppression/suppression.service';
 
 interface SendgridRawEvent {
   email: string;
@@ -8,6 +9,7 @@ interface SendgridRawEvent {
   event: string;
   sg_event_id?: string;
   job_id?: string;
+  type?: string;
   [key: string]: unknown;
 }
 
@@ -25,7 +27,10 @@ const EVENT_MAP: Record<string, EmailEventType> = {
 export class SendgridEventsService {
   private readonly logger = new Logger(SendgridEventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly suppression: SuppressionService,
+  ) {}
 
   async processEvents(
     events: SendgridRawEvent[],
@@ -45,12 +50,12 @@ export class SendgridEventsService {
         continue;
       }
 
-      const jobExists = await this.prisma.job.findFirst({
+      const job = await this.prisma.job.findFirst({
         where: { id: jobId, ...(customerId ? { customerId } : {}) },
-        select: { id: true },
+        select: { id: true, customerId: true },
       });
 
-      if (!jobExists) {
+      if (!job) {
         this.logger.warn(
           customerId
             ? `Received SendGrid event for job_id ${jobId} not owned by customer ${customerId}`
@@ -88,6 +93,13 @@ export class SendgridEventsService {
         });
 
         this.logger.debug(`Recorded ${eventType} event for job ${jobId}`);
+
+        await this.suppression.suppressFromEvent({
+          customerId: job.customerId,
+          email,
+          eventType,
+          hardBounce: event.type === 'bounce',
+        });
       } catch (error) {
         this.logger.error(
           `Failed to store email event for job ${jobId}: ${error instanceof Error ? error.message : String(error)}`,

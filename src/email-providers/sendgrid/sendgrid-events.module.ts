@@ -4,9 +4,10 @@ import { SendgridEventsService } from './sendgrid-events.service';
 import { SendgridSignatureGuard } from './guards/sendgrid-signature.guard';
 import { SendgridCustomerSignatureGuard } from './guards/sendgrid-customer-signature.guard';
 import { PrismaModule } from '@/prisma/prisma.module';
+import { SuppressionModule } from '@/suppression/suppression.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SuppressionModule],
   controllers: [SendgridEventsController],
   providers: [
     SendgridEventsService,
