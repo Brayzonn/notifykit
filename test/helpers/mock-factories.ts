@@ -55,6 +55,7 @@ export const createMockCustomer = (
     apiKeyHash:
       'hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd',
     apiKeyLastFour: 'abcd',
+    apiKeyCreatedAt: null,
     emailProviders: [],
     sendingDomains: [],
     _count: { emailProviders: 0 },

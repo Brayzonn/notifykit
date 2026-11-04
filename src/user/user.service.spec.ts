@@ -570,87 +570,146 @@ describe('UserService', () => {
       );
     });
 
-    it('should return the plaintext key on first reveal and null it in DB', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({
-          apiKey: 'nh_plaintextkey1234',
-          apiKeyHash: 'somehash',
-        }),
-      );
+    it('should return a masked key built from the last four and creation date', async () => {
+      const createdAt = new Date('2026-10-07T00:00:00Z');
+      prisma.customer.findUnique.mockResolvedValue({
+        apiKeyHash: 'somehash',
+        apiKeyLastFour: 'abcd',
+        apiKeyCreatedAt: createdAt,
+        createdAt: new Date('2024-01-01'),
+      });
 
       const result = await service.getApiKey('user-123');
 
-      expect(result).toMatchObject({
-        apiKey: 'nh_plaintextkey1234',
-        firstTime: true,
-      });
-      expect(prisma.customer.update).toHaveBeenCalledWith({
-        where: { userId: 'user-123' },
-        data: { apiKey: null },
+      expect(result).toEqual({
+        apiKey: expect.stringMatching(/^nh_•+abcd$/),
+        masked: true,
+        createdAt,
       });
     });
 
-    it('should return a masked key on subsequent requests', async () => {
-      prisma.customer.findUnique.mockResolvedValue(
-        createMockCustomer({
-          apiKey: null,
-          apiKeyHash: 'somehash',
-          apiKeyLastFour: 'abcd',
-        }),
-      );
+    it('should fall back to the customer createdAt when apiKeyCreatedAt is null', async () => {
+      const customerCreatedAt = new Date('2024-01-01');
+      prisma.customer.findUnique.mockResolvedValue({
+        apiKeyHash: 'somehash',
+        apiKeyLastFour: 'abcd',
+        apiKeyCreatedAt: null,
+        createdAt: customerCreatedAt,
+      });
 
       const result = await service.getApiKey('user-123');
 
-      expect(result.apiKey).toMatch(/nh_•+abcd$/);
-      expect(result).toMatchObject({ masked: true });
+      expect(result).toMatchObject({ createdAt: customerCreatedAt });
+    });
+
+    it('should never select the plaintext apiKey column', async () => {
+      prisma.customer.findUnique.mockResolvedValue({
+        apiKeyHash: 'somehash',
+        apiKeyLastFour: 'abcd',
+        apiKeyCreatedAt: null,
+        createdAt: new Date(),
+      });
+
+      await service.getApiKey('user-123');
+
+      const { select } = prisma.customer.findUnique.mock.calls[0][0];
+      expect(select).not.toHaveProperty('apiKey');
     });
   });
 
-  describe('regenerateApiKey', () => {
-    it('should throw BadRequestException when confirm email does not match', async () => {
-      await expect(
-        service.regenerateApiKey(
-          'user-123',
-          'me@example.com',
-          'wrong@example.com',
-        ),
-      ).rejects.toThrow('Confirmation email does not match');
+  describe('generateOrRegenerateApiKey', () => {
+    const withCustomer = (customerOverrides = {}) => ({
+      ...createMockUser({ email: 'me@example.com' }),
+      customer: createMockCustomer(customerOverrides),
     });
 
     it('should throw NotFoundException when user or customer is not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.regenerateApiKey(
-          'user-123',
-          'me@example.com',
-          'me@example.com',
-        ),
+        service.generateOrRegenerateApiKey('user-123', 'me@example.com'),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should generate a new nh_ prefixed key and persist it', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...createMockUser(),
-        customer: createMockCustomer(),
+    it('should throw BadRequestException when confirm email does not match', async () => {
+      prisma.user.findUnique.mockResolvedValue(withCustomer());
+
+      await expect(
+        service.generateOrRegenerateApiKey('user-123', 'wrong@example.com'),
+      ).rejects.toThrow('Confirmation email does not match');
+    });
+
+    it('should accept the confirm email case- and whitespace-insensitively', async () => {
+      prisma.user.findUnique.mockResolvedValue(
+        withCustomer({ apiKeyHash: null }),
+      );
+      prisma.customer.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(
+        service.generateOrRegenerateApiKey('user-123', '  ME@Example.com '),
+      ).resolves.toHaveProperty('apiKey');
+    });
+
+    describe('first-time generation (no existing hash)', () => {
+      it('should store only the hash, last four and creation date', async () => {
+        prisma.user.findUnique.mockResolvedValue(
+          withCustomer({ apiKeyHash: null }),
+        );
+        prisma.customer.updateMany.mockResolvedValue({ count: 1 });
+
+        const result = await service.generateOrRegenerateApiKey(
+          'user-123',
+          'me@example.com',
+        );
+
+        expect(result.apiKey).toMatch(/^nh_[0-9a-f]{64}$/);
+        expect(prisma.customer.updateMany).toHaveBeenCalledWith({
+          where: { userId: 'user-123', apiKeyHash: null },
+          data: {
+            apiKeyHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+            apiKeyLastFour: result.apiKey.slice(-4),
+            apiKeyCreatedAt: expect.any(Date),
+          },
+        });
+        expect(prisma.customer.update).not.toHaveBeenCalled();
       });
 
-      const result = await service.regenerateApiKey(
-        'user-123',
-        'me@example.com',
-        'me@example.com',
-      );
+      it('should throw ConflictException when a concurrent request generated a key first', async () => {
+        prisma.user.findUnique.mockResolvedValue(
+          withCustomer({ apiKeyHash: null }),
+        );
+        prisma.customer.updateMany.mockResolvedValue({ count: 0 });
 
-      expect(result.apiKey).toMatch(/^nh_[0-9a-f]{64}$/);
-      expect(prisma.customer.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            apiKey: expect.stringMatching(/^nh_/),
-            apiKeyHash: expect.any(String),
-            apiKeyLastFour: expect.any(String),
-          }),
-        }),
-      );
+        await expect(
+          service.generateOrRegenerateApiKey('user-123', 'me@example.com'),
+        ).rejects.toThrow('An API key already exists');
+      });
+    });
+
+    describe('rotation (existing hash)', () => {
+      it('should replace the key, null the plaintext column and evict the old hash from cache', async () => {
+        prisma.user.findUnique.mockResolvedValue(
+          withCustomer({ apiKeyHash: 'old-hash' }),
+        );
+        prisma.customer.update.mockResolvedValue({});
+
+        const result = await service.generateOrRegenerateApiKey(
+          'user-123',
+          'me@example.com',
+        );
+
+        expect(result.apiKey).toMatch(/^nh_[0-9a-f]{64}$/);
+        expect(prisma.customer.update).toHaveBeenCalledWith({
+          where: { userId: 'user-123' },
+          data: {
+            apiKey: null,
+            apiKeyHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+            apiKeyLastFour: result.apiKey.slice(-4),
+            apiKeyCreatedAt: expect.any(Date),
+          },
+        });
+        expect(redis.del).toHaveBeenCalledWith('apikey:old-hash');
+      });
     });
   });
 
