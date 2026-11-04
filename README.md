@@ -46,7 +46,7 @@ provider ultimately delivered it is queryable.
 
 ```
 src/
-├── main.ts                               # Entry point — global pipes, filters, interceptors
+├── main.ts                               # Entry point — bootstraps the app, Swagger (non-prod)
 ├── app.module.ts                         # Root module
 ├── app.controller.ts                     # GET /ping, GET /info
 │
@@ -65,9 +65,17 @@ src/
 │   ├── strategies/
 │   │   ├── github.strategy.ts            # GitHub OAuth
 │   │   └── jwt.strategy.ts               # JWT — attaches user + plan to request
+│   ├── services/
+│   │   ├── session.service.ts            # Access/refresh tokens, rotation, reuse detection, 5-session cap
+│   │   ├── otp.service.ts                # Signup/reset codes — atomic check, wrong-guess lock, resend limit
+│   │   └── user-provisioning.service.ts  # Email/GitHub user upsert, FREE customer creation, pending signups
+│   ├── constants/
+│   │   └── auth.constants.ts             # OTP/session limits and TTLs, Redis key builders
+│   ├── helpers/
+│   │   └── auth.helpers.ts               # normalizeEmail, sanitizeUser
 │   ├── auth.controller.ts
 │   ├── auth.module.ts
-│   └── auth.service.ts
+│   └── auth.service.ts                   # Orchestrates each auth flow
 │
 ├── common/
 │   ├── constants/
@@ -88,13 +96,16 @@ src/
 │   ├── slack/
 │   │   └── slack.service.ts              # Slack Incoming Webhook alerts (SLACK_WEBHOOK_URL)
 │   └── utils/
+│       ├── date.util.ts                  # addMonths (calendar-month billing dates)
+│       ├── duration.util.ts              # parseDurationMs for "15m" / "7d" style settings
 │       ├── enum.util.ts
 │       ├── error.util.ts                 # getErrorMessage / getAxiosErrorData / getAxiosErrorStatus /isTransientError
+│       ├── hash.util.ts                  # hashToken (sha256) for API keys and refresh tokens
 │       └── response.util.ts
 │
 ├── admin/                                # Admin-only endpoints (ADMIN role)
 ├── billing/                              # Plan upgrades, subscriptions, invoices
-├── config/                               # Cookie, CORS, validation, request-size config
+├── config/                               # configureApp pipeline, env validation, JWT/cookie/CORS/request-size config
 ├── platform-email/                       # Internal platform email dispatch + HTML templates
 ├── health/                               # GET /health, GET /health/simple
 ├── notifications/                        # Customer-facing API — send email & webhook
@@ -116,7 +127,7 @@ src/
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+ (required by NestJS 11)
 - Docker & Docker Compose
 - At least one of: SendGrid, Resend, or Postmark account (any combination — used in priority order for the FREE tier)
 - A Paystack account (NGN billing) and/or a Polar account (USD billing)
@@ -165,6 +176,8 @@ ENCRYPTION_KEY=
 JWT_SECRET=your-jwt-secret
 JWT_REFRESH_SECRET=your-refresh-secret
 JWT_EXPIRES_IN=3600s
+# Optional, defaults to 7d
+# JWT_REFRESH_EXPIRES_IN=7d
 
 # Cookies
 COOKIE_SECRET=your-cookie-secret
@@ -228,6 +241,13 @@ RATE_LIMIT_PER_MINUTE=100
 ADMIN_EMAIL=your-admin-email
 ```
 
+The app validates its configuration at startup and refuses to start if something is wrong:
+
+- `JWT_SECRET`, `JWT_REFRESH_SECRET` and `COOKIE_SECRET` must be at least 16 characters.
+- `ENCRYPTION_KEY` must be a 64-character hex string.
+- `DATABASE_URL` must be set.
+- `JWT_EXPIRES_IN` is required, and `JWT_REFRESH_EXPIRES_IN` (if set) must use the same format: a whole number followed by `s`, `m`, `h` or `d`, such as `3600s`, `15m` or `7d`. Plain numbers (`3600`) and other forms (`1w`, `7 days`) are rejected, because the JWT library reads a unitless value as milliseconds.
+
 ### 4. Start PostgreSQL and Redis with Docker
 
 ```bash
@@ -259,7 +279,7 @@ The API will be available at `http://localhost:3000/api/v1`.
 cp .env.example .env.production
 ```
 
-Fill in production values — use live Paystack/Polar keys, set `POLAR_SERVER=production`, and use a strong `COOKIE_SECRET`.
+Fill in production values — use live Paystack/Polar keys, set `POLAR_SERVER=production`, and use a strong `COOKIE_SECRET`. The startup checks listed under [Set up environment variables](#3-set-up-environment-variables) apply here too, so the API container won't start with a missing or malformed value.
 
 ### 2. Build and start with Docker Compose
 
@@ -330,6 +350,22 @@ GET /api/v1/health
 | GET    | `/api/v1/auth/github/callback`        | GitHub OAuth callback  |
 | POST   | `/api/v1/auth/reset-password/request` | Request password reset |
 | POST   | `/api/v1/auth/reset-password/confirm` | Confirm password reset |
+
+#### Verification and reset codes
+
+Signup and password reset both use a 6-digit code sent by email.
+
+- A code is valid for 10 minutes and can only be used once.
+- After 5 wrong guesses for an email, every guess for that email is refused for 10 minutes (counted from the first wrong guess), including the correct code. Requesting a new code doesn't lift the lock.
+- `resend-otp` allows 3 resends per email per 10 minutes. If the email fails to send, the resend isn't counted and the previous code stays valid. Each resend also extends the pending signup by 10 minutes.
+- Password reset always returns the same message whether or not the email has an account, and reports a locked code as `Invalid or expired reset code`.
+
+#### Sessions
+
+- Access tokens last `JWT_EXPIRES_IN`. Refresh tokens last `JWT_REFRESH_EXPIRES_IN` (default `7d`) and are set as an httpOnly `refreshToken` cookie.
+- `refresh-token` returns a new access token. It also replaces the refresh token once the current one is within 3 days of expiring, or within half its lifetime if that is shorter.
+- Each user can have 5 active sessions; signing in again removes the oldest.
+- Presenting a refresh token that has already been replaced or revoked signs the user out of every session, since it may have been stolen. A password reset also signs out every session.
 
 ### User
 
@@ -518,20 +554,21 @@ All guards use an atomic Redis Lua script (INCR + EXPIRE) with a 60-second windo
 | INDIE   | 50                 |
 | STARTUP | 200                |
 
-> **Behind a proxy:** `IpRateLimitGuard` reads `X-Forwarded-For` (first hop) before falling back to `req.ip`. Ensure your proxy sets this header correctly to avoid all traffic being keyed to a single IP.
+> **Behind a proxy:** the app trusts one proxy hop (`trust proxy` is `1`), so `IpRateLimitGuard` keys on the client address reported by the nearest proxy in `X-Forwarded-For`. Run exactly one proxy in front of the API (e.g. nginx). With a second layer such as a CDN in front of it, every request appears to come from the CDN's addresses and shares their limits.
 
 ---
 
 ## Testing
 
-This project includes a Jest test suite with 483 unit tests (27 suites) and 39 e2e scenarios covering:
+This project includes Jest unit and e2e suites covering:
 
-- **Auth & guards**: signin, password reset, token refresh, logout, API key validation, quota enforcement, JWT/IP/customer rate limiting
+- **Auth & guards**: signin, password reset, token refresh and rotation, session limits, logout, OTP lockout and resend limits, API key validation, quota enforcement, JWT/IP/customer rate limiting
+- **Config**: startup env validation, duration parsing, refresh cookie lifetime
 - **Email providers**: SendGrid, Resend, and Postmark send services + domain verification services + the shared `EmailProviderFactory` (FREE-tier fallback order, paid-tier per-customer resolution)
 - **Webhook receivers**: SendGrid / Resend / Postmark signature guards (ECDSA, svix, Basic Auth respectively) and event-type mapping for each provider
 - **Payment webhooks**: Paystack signature verification, subscription events, payment-failure handling
 - **Queue processors**: email/webhook job processing, multi-provider failover, retry logic
-- **E2E**: complete signup → verify → signin flow, password reset, refresh-token rotation, session limits, OTP resend
+- **E2E**: complete signup → verify → signin flow, password reset, refresh-token rotation, session limits, OTP resend, OTP lockout, parallel-guess and double-submit races
 
 Run tests with:
 
@@ -542,7 +579,8 @@ npm run test
 # With coverage
 npm run test:cov
 
-# E2E tests
+# E2E tests (needs PostgreSQL and Redis running; cleanup deletes all
+# customers and refresh tokens, so point .env at a disposable database)
 npm run test:e2e
 
 # Watch mode
