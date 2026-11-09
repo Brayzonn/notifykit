@@ -21,7 +21,7 @@ import {
   createMockConfigService,
   createMockEmailService,
 } from '../../test/helpers/test-utils';
-import { AuthProvider } from '@prisma/client';
+import { AuthProvider } from '@/generated/prisma/client';
 import * as argon2 from 'argon2';
 
 jest.mock('argon2');

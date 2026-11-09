@@ -15,7 +15,7 @@ import {
   QueryJobsDto,
   QueryPlatformEmailLogsDto,
 } from './dto';
-import { CustomerPlan } from '@prisma/client';
+import { CustomerPlan } from '@/generated/prisma/client';
 
 @Injectable()
 export class AdminService {

@@ -5,7 +5,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { QueueService } from '../queue.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
 import { Job } from 'bullmq';
-import { JobStatus, DeliveryStatus, JobType, Prisma } from '@prisma/client';
+import { JobStatus, DeliveryStatus, JobType, Prisma } from '@/generated/prisma/client';
 import { of, throwError } from 'rxjs';
 import { AxiosError, AxiosResponse } from 'axios';
 import {

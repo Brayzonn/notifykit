@@ -8,7 +8,7 @@ import {
 import { QuotaGuard } from './api-quota.guard';
 import { BillingService } from '@/billing/billing.service';
 import { createMockAuthenticatedCustomer } from '../../../test/helpers/mock-factories';
-import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
+import { CustomerPlan, SubscriptionStatus } from '@/generated/prisma/client';
 
 type MockedBillingService = {
   consumeQuota: jest.Mock;

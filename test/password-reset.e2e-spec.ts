@@ -7,7 +7,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { RedisService } from '../src/redis/redis.service';
 import { EmailService } from '../src/platform-email/email.service';
 import { IpRateLimitGuard } from '../src/auth/guards/ip-rate-limit.guard';
-import { AuthProvider } from '@prisma/client';
+import { AuthProvider } from '@/generated/prisma/client';
 import * as argon2 from 'argon2';
 import {
   closeBullQueues,

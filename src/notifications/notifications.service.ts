@@ -10,7 +10,7 @@ import { QueueService } from '../queues/queue.service';
 import { QUEUE_PRIORITIES } from '../queues/queue.constants';
 import { SendEmailDto } from './dto/send-email.dto';
 import { SendWebhookDto } from './dto/send-webhook.dto';
-import { JobType, JobStatus, CustomerPlan, Prisma, Job } from '@prisma/client';
+import { JobType, JobStatus, CustomerPlan, Prisma, Job } from '@/generated/prisma/client';
 import { toApiStatus } from '@/common/utils/enum.util';
 import {
   JobResponse,

@@ -16,7 +16,7 @@ import {
   CustomerPlan,
   PaymentProvider,
   SubscriptionStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import { PLAN_LIMITS } from '@/common/constants/plans.constants';
 
 type MockedPaymentService = {

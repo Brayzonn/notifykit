@@ -10,7 +10,7 @@ import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { EventWebhook } from '@sendgrid/eventwebhook';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EmailProviderType } from '@prisma/client';
+import { EmailProviderType } from '@/generated/prisma/client';
 
 @Injectable()
 export class SendgridCustomerSignatureGuard implements CanActivate {

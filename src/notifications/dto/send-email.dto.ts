@@ -7,7 +7,7 @@ import {
   IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { EmailProviderType } from '@prisma/client';
+import { EmailProviderType } from '@/generated/prisma/client';
 
 export class SendEmailDto {
   @ApiProperty({

@@ -3,7 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
-import { PlatformEmailStatus } from '@prisma/client';
+import { PlatformEmailStatus } from '@/generated/prisma/client';
 
 const makeStats = (overrides: Partial<Record<string, any>> = {}) => ({
   users: { total: 10, active: 8, deleted: 2 },

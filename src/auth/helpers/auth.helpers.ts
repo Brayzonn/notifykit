@@ -1,4 +1,4 @@
-import { User } from '@prisma/client';
+import { User } from '@/generated/prisma/client';
 
 export type SanitizedUser = Omit<User, 'password' | 'providerId'>;
 

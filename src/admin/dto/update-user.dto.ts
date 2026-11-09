@@ -1,6 +1,6 @@
 import { IsOptional, IsEnum, IsString, Matches } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { UserRole } from '@/generated/prisma/client';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({ description: 'User name' })

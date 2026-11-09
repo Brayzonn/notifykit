@@ -1,7 +1,7 @@
 import { IsOptional, IsInt, Min, Max, IsEnum, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { CustomerPlan } from '@prisma/client';
+import { CustomerPlan } from '@/generated/prisma/client';
 
 export class QueryCustomersDto {
   @ApiPropertyOptional({ description: 'Page number', default: 1, minimum: 1 })

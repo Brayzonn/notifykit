@@ -1,7 +1,7 @@
 import { IsOptional, IsInt, Min, Max, IsEnum, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PlatformEmailStatus } from '@prisma/client';
+import { PlatformEmailStatus } from '@/generated/prisma/client';
 
 export class QueryPlatformEmailLogsDto {
   @ApiPropertyOptional({ description: 'Page number', default: 1, minimum: 1 })

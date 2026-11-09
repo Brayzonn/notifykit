@@ -20,7 +20,7 @@ import {
   type MockedPrismaService,
   type MockedRedisService,
 } from '../../test/helpers/test-utils';
-import { AuthProvider, CustomerPlan, EmailProviderType } from '@prisma/client';
+import { AuthProvider, CustomerPlan, EmailProviderType } from '@/generated/prisma/client';
 import axios from 'axios';
 
 jest.mock('argon2');

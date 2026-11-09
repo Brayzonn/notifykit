@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { EmailProviderType } from '@prisma/client';
+import { EmailProviderType } from '@/generated/prisma/client';
 import {
   QUEUE_NAMES,
   QueueType,

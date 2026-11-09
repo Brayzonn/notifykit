@@ -1,6 +1,6 @@
 import { IsEnum, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { CustomerPlan } from '@prisma/client';
+import { CustomerPlan } from '@/generated/prisma/client';
 import { Currency } from '../interfaces/billing.interface';
 
 export class UpgradePlanDto {

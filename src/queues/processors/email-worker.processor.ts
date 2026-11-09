@@ -8,7 +8,7 @@ import {
   EmailProviderType,
   JobStatus,
   Prisma,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import { QUEUE_NAMES } from '@/queues/queue.constants';
 import { EmailJobData, QueueService } from '@/queues/queue.service';
 import {

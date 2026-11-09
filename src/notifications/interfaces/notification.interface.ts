@@ -1,4 +1,4 @@
-import { EmailProviderType } from '@prisma/client';
+import { EmailProviderType } from '@/generated/prisma/client';
 
 export interface JobResponse {
   jobId: string;

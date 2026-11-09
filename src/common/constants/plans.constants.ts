@@ -1,4 +1,4 @@
-import { CustomerPlan } from '@prisma/client';
+import { CustomerPlan } from '@/generated/prisma/client';
 
 export const PLAN_LIMITS = {
   [CustomerPlan.FREE]: {

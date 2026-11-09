@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EmailProviderType } from '@prisma/client';
+import { EmailProviderType } from '@/generated/prisma/client';
 import * as crypto from 'crypto';
 
 export const isValidPostmarkBasicAuth = (

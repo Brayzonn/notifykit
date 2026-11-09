@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PostmarkEventsService } from './postmark-events.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { SuppressionService } from '@/suppression/suppression.service';
-import { EmailEventType } from '@prisma/client';
+import { EmailEventType } from '@/generated/prisma/client';
 
 describe('PostmarkEventsService', () => {
   let service: PostmarkEventsService;

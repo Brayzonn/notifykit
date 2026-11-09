@@ -10,7 +10,7 @@ import { RawBodyRequest } from '@nestjs/common';
 import { Request } from 'express';
 import { Webhook } from 'svix';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EmailProviderType } from '@prisma/client';
+import { EmailProviderType } from '@/generated/prisma/client';
 import { getErrorMessage } from '@/common/utils/error.util';
 
 export const verifyResendSignature = (

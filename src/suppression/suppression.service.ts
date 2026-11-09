@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EmailEventType, SuppressedRecipient } from '@prisma/client';
+import { EmailEventType, SuppressedRecipient } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 
 export interface SuppressionEvent {

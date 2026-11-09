@@ -51,7 +51,7 @@ pids
 # Diagnostic reports 
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-/generated/prisma
+/src/generated/prisma
 
 .env.production
 .env.local

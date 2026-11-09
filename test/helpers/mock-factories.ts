@@ -8,7 +8,7 @@ import {
   AuthProvider,
   CustomerPlan,
   EmailProviderType,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 
 export const createMockUser = (overrides?: Partial<User>): User => ({
   id: 'user-123',
