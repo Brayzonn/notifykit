@@ -1,5 +1,5 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
-import { CustomerPlan } from '@prisma/client';
+import { CustomerPlan } from '@/generated/prisma/client';
 
 export type GateableCustomer = {
   plan: CustomerPlan;

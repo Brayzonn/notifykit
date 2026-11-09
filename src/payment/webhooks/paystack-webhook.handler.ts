@@ -9,7 +9,7 @@ import {
   CustomerPlan,
   PaymentProvider,
   SubscriptionStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import { PaystackPaymentProvider } from '../providers/paystack-payment.provider';
 import { QueueService } from '@/queues/queue.service';
 import { PaymentWebhookEventService } from '../payment-webhook-event.service';

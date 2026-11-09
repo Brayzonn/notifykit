@@ -21,7 +21,7 @@ import {
   PaymentProvider,
   CustomerPlan,
   SubscriptionStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 
 type MockedBillingService = {
   handleSubscriptionActivated: jest.Mock;

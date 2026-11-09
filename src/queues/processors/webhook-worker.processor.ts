@@ -1,7 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { JobStatus, DeliveryStatus, Prisma } from '@prisma/client';
+import { JobStatus, DeliveryStatus, Prisma } from '@/generated/prisma/client';
 import * as crypto from 'crypto';
 import { QUEUE_NAMES } from '../queue.constants';
 import { WebhookJobData, QueueService } from '../queue.service';

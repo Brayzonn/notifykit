@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { PaymentProvider as PaymentProviderEnum } from '@prisma/client';
+import { PaymentProvider as PaymentProviderEnum } from '@/generated/prisma/client';
 import { PaymentProvider } from './payment-provider.interface';
 import { PaystackPaymentProvider } from './paystack-payment.provider';
 import { PolarPaymentProvider } from './polar-payment.provider';

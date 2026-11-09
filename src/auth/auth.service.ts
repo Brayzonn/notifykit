@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { AuthProvider, User } from '@prisma/client';
+import { AuthProvider, User } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EmailService } from '@/platform-email/email.service';
 import {

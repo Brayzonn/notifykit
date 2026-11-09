@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuthProvider, Customer, CustomerPlan, User } from '@prisma/client';
+import { AuthProvider, Customer, CustomerPlan, User } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/platform-email/email.service';

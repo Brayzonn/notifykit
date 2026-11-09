@@ -5,7 +5,7 @@ import {
   EmailProviderType,
   JobStatus,
   JobType,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 
 export interface SendingDomainSummary {
   domain: string;

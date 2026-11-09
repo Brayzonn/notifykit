@@ -14,7 +14,7 @@ import {
   EmailProviderType,
   JobStatus,
   DeliveryStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import {
   createMockPrismaService,
   createMockConfigService,

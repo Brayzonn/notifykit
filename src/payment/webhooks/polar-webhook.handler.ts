@@ -6,7 +6,7 @@ import {
   CustomerPlan,
   PaymentProvider,
   SubscriptionStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentWebhookEventService } from '../payment-webhook-event.service';
 import { getErrorMessage } from '@/common/utils/error.util';

@@ -13,6 +13,7 @@ RUN npm ci
 # Copy source and Prisma schema
 COPY src ./src
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -38,10 +39,8 @@ RUN npm ci --only=production
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy Prisma generated client
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

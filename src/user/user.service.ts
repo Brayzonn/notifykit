@@ -20,7 +20,7 @@ import {
   EmailProviderType,
   JobStatus,
   JobType,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import {
   UpdateProfileDto,
   ChangePasswordDto,

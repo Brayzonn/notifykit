@@ -8,7 +8,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
+import { CustomerPlan, SubscriptionStatus } from '@/generated/prisma/client';
 import { AuthenticatedCustomer } from '../interfaces/api-guard.interface';
 import { BillingService } from '@/billing/billing.service';
 import { getPlanLimit } from '@/common/constants/plans.constants';

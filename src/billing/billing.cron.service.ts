@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '@/prisma/prisma.service';
 import { BillingService } from './billing.service';
 import { getErrorMessage } from '@/common/utils/error.util';
-import { CustomerPlan, SubscriptionStatus } from '@prisma/client';
+import { CustomerPlan, SubscriptionStatus } from '@/generated/prisma/client';
 
 const PAST_DUE_GRACE_DAYS = 7;
 

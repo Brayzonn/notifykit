@@ -2,7 +2,7 @@ import {
   CustomerPlan,
   PaymentProvider,
   SubscriptionStatus,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 
 export type Currency = 'USD' | 'NGN';
 

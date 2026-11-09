@@ -19,7 +19,7 @@ import {
   JobStatus,
   JobType,
   Prisma,
-} from '@prisma/client';
+} from '@/generated/prisma/client';
 import { QUEUE_PRIORITIES } from '@/queues/queue.constants';
 
 const uniqueViolation = () =>

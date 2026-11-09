@@ -1,5 +1,5 @@
 import { IsEnum } from 'class-validator';
-import { CustomerPlan } from '@prisma/client';
+import { CustomerPlan } from '@/generated/prisma/client';
 
 export class CreateCheckoutDto {
   @IsEnum(CustomerPlan)

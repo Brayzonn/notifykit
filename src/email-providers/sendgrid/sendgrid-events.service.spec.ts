@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EmailEventType } from '@prisma/client';
+import { EmailEventType } from '@/generated/prisma/client';
 import { SendgridEventsService } from './sendgrid-events.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { SuppressionService } from '@/suppression/suppression.service';

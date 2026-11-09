@@ -3,7 +3,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { CheckoutSessionRequest } from '@/billing/interfaces/billing.interface';
 import { PaymentProviderFactory } from './providers/payment-provider.factory';
 import { ProviderSubscriptionStatus } from './providers/payment-provider.interface';
-import { PaymentProvider } from '@prisma/client';
+import { PaymentProvider } from '@/generated/prisma/client';
 
 @Injectable()
 export class PaymentService {
