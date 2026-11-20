@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
+import { redactUrl } from '@/common/utils/url.util';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -26,7 +27,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     const request = context.switchToHttp().getRequest();
-    this.logger.debug(`Auth check: ${request.method} ${request.url}`);
+    this.logger.debug(
+      `Auth check: ${request.method} ${redactUrl(request.url)}`,
+    );
 
     return super.canActivate(context);
   }
@@ -36,7 +39,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       const request = context.switchToHttp().getRequest();
 
       this.logger.warn(
-        `Auth failed: ${request.method} ${request.url} - ${info?.message || err?.message}`,
+        `Auth failed: ${request.method} ${redactUrl(request.url)} - ${info?.message || err?.message}`,
       );
 
       if (info?.name === 'TokenExpiredError') {
