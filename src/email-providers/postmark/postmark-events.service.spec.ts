@@ -54,18 +54,23 @@ describe('PostmarkEventsService', () => {
       MessageID: 'm-1',
       Recipient: 'a@b.com',
       DeliveredAt: '2026-04-28T10:00:00Z',
-      Metadata: { job_id: 'job-x' },
+      Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
     } as any);
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
-      where: { id: 'job-x', customerId: 'cust-1' },
+      where: {
+        id: '11111111-1111-4111-8111-111111111111',
+        customerId: 'cust-1',
+      },
       select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('upserts a DELIVERED event using DeliveredAt as occurredAt', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
     prisma.emailEvent.upsert.mockResolvedValueOnce(undefined);
 
     const occurredIso = '2026-04-28T10:00:00.000Z';
@@ -74,7 +79,7 @@ describe('PostmarkEventsService', () => {
       MessageID: 'm-1',
       Recipient: 'a@b.com',
       DeliveredAt: occurredIso,
-      Metadata: { job_id: 'job-x' },
+      Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
       Tag: 'welcome',
     } as any);
 
@@ -82,7 +87,7 @@ describe('PostmarkEventsService', () => {
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith({
       where: { eventId: expectedKey },
       create: {
-        jobId: 'job-x',
+        jobId: '11111111-1111-4111-8111-111111111111',
         event: EmailEventType.DELIVERED,
         email: 'a@b.com',
         eventId: expectedKey,
@@ -94,21 +99,23 @@ describe('PostmarkEventsService', () => {
   });
 
   it('maps SpamComplaint -> SPAM_REPORT and SubscriptionChange -> UNSUBSCRIBED', async () => {
-    prisma.job.findFirst.mockResolvedValue({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValue({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent('cust-1', {
       RecordType: 'SpamComplaint',
       MessageID: 'm-1',
       Email: 'a@b.com',
       BouncedAt: '2026-04-28T10:00:00Z',
-      Metadata: { job_id: 'job-x' },
+      Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
     } as any);
     await service.processEvent('cust-1', {
       RecordType: 'SubscriptionChange',
       MessageID: 'm-2',
       Recipient: 'a@b.com',
       ChangedAt: '2026-04-28T10:00:00Z',
-      Metadata: { job_id: 'job-x' },
+      Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
     } as any);
 
     const events = prisma.emailEvent.upsert.mock.calls.map(
@@ -121,14 +128,16 @@ describe('PostmarkEventsService', () => {
   });
 
   it('falls back to Email field when Recipient is absent', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent('cust-1', {
       RecordType: 'Bounce',
       MessageID: 'm-1',
       Email: 'fallback@b.com',
       BouncedAt: '2026-04-28T10:00:00Z',
-      Metadata: { job_id: 'job-x' },
+      Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
     } as any);
 
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith(
@@ -139,7 +148,9 @@ describe('PostmarkEventsService', () => {
   });
 
   it('swallows upsert errors so the webhook still 200s', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
     prisma.emailEvent.upsert.mockRejectedValueOnce(new Error('db down'));
 
     await expect(
@@ -148,7 +159,7 @@ describe('PostmarkEventsService', () => {
         MessageID: 'm-1',
         Recipient: 'a@b.com',
         DeliveredAt: '2026-04-28T10:00:00Z',
-        Metadata: { job_id: 'job-x' },
+        Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
       } as any),
     ).resolves.toBeUndefined();
   });
@@ -162,7 +173,7 @@ describe('PostmarkEventsService', () => {
         MessageID: 'm-1',
         Email: 'a@b.com',
         BouncedAt: '2026-04-28T10:00:00Z',
-        Metadata: { job_id: 'job-x' },
+        Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
       }) as any;
 
     it.each([
@@ -175,7 +186,7 @@ describe('PostmarkEventsService', () => {
       'passes hardBounce for Type=%s Inactive=%s as %s',
       async (type, inactive, hard) => {
         prisma.job.findFirst.mockResolvedValueOnce({
-          id: 'job-x',
+          id: '11111111-1111-4111-8111-111111111111',
           customerId: 'cust-1',
         });
 
@@ -192,7 +203,7 @@ describe('PostmarkEventsService', () => {
 
     it('does not suppress when the event fails to store', async () => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'cust-1',
       });
       prisma.emailEvent.upsert.mockRejectedValueOnce(new Error('db down'));
@@ -206,7 +217,7 @@ describe('PostmarkEventsService', () => {
   describe('shared platform route (no customerId)', () => {
     it('looks up the job without a customer scope and suppresses against its owner', async () => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'owner-1',
       });
 
@@ -217,11 +228,11 @@ describe('PostmarkEventsService', () => {
         MessageID: 'm-1',
         Email: 'a@b.com',
         BouncedAt: '2026-04-28T10:00:00Z',
-        Metadata: { job_id: 'job-x' },
+        Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
       } as any);
 
       expect(prisma.job.findFirst).toHaveBeenCalledWith({
-        where: { id: 'job-x' },
+        where: { id: '11111111-1111-4111-8111-111111111111' },
         select: { id: true, customerId: true },
       });
       expect(suppression.suppressFromEvent).toHaveBeenCalledWith(
@@ -239,7 +250,7 @@ describe('PostmarkEventsService', () => {
         MessageID: 'm-1',
         Email: 'a@b.com',
         BouncedAt: '2026-04-28T10:00:00Z',
-        Metadata: { job_id: 'job-x' },
+        Metadata: { job_id: '11111111-1111-4111-8111-111111111111' },
       } as any);
 
       expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();

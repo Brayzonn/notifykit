@@ -46,7 +46,7 @@ describe('SendgridEventsService', () => {
         timestamp: 1700000000,
         event: 'processed',
         sg_event_id: 'sg-1',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
     ]);
 
@@ -76,12 +76,12 @@ describe('SendgridEventsService', () => {
         timestamp: 1700000000,
         event: 'delivered',
         sg_event_id: 'sg-1',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
     ]);
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
-      where: { id: 'job-x' },
+      where: { id: '11111111-1111-4111-8111-111111111111' },
       select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
@@ -97,21 +97,26 @@ describe('SendgridEventsService', () => {
           timestamp: 1700000000,
           event: 'delivered',
           sg_event_id: 'sg-1',
-          job_id: 'job-x',
+          job_id: '11111111-1111-4111-8111-111111111111',
         },
       ],
       'cust-1',
     );
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
-      where: { id: 'job-x', customerId: 'cust-1' },
+      where: {
+        id: '11111111-1111-4111-8111-111111111111',
+        customerId: 'cust-1',
+      },
       select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('upserts a DELIVERED event using sg_event_id as the dedupe key and ms timestamp', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
     prisma.emailEvent.upsert.mockResolvedValueOnce(undefined);
 
     await service.processEvents([
@@ -120,7 +125,7 @@ describe('SendgridEventsService', () => {
         timestamp: 1700000000,
         event: 'delivered',
         sg_event_id: 'sg-evt-1',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
         smtp_id: '<abc@sendgrid>',
       },
     ]);
@@ -128,7 +133,7 @@ describe('SendgridEventsService', () => {
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith({
       where: { eventId: 'sg-evt-1' },
       create: {
-        jobId: 'job-x',
+        jobId: '11111111-1111-4111-8111-111111111111',
         event: EmailEventType.DELIVERED,
         email: 'a@b.com',
         eventId: 'sg-evt-1',
@@ -140,21 +145,23 @@ describe('SendgridEventsService', () => {
   });
 
   it('synthesizes a dedupe key when sg_event_id is absent', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvents([
       {
         email: 'a@b.com',
         timestamp: 1700000000,
         event: 'open',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
     ]);
 
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          eventId: `job-x:${EmailEventType.OPENED}:1700000000`,
+          eventId: `11111111-1111-4111-8111-111111111111:${EmailEventType.OPENED}:1700000000`,
         },
       }),
     );
@@ -169,7 +176,9 @@ describe('SendgridEventsService', () => {
     ['unsubscribe', EmailEventType.UNSUBSCRIBED],
     ['deferred', EmailEventType.DEFERRED],
   ])('maps "%s" to %s', async (sgType, expected) => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvents([
       {
@@ -177,7 +186,7 @@ describe('SendgridEventsService', () => {
         timestamp: 1700000000,
         event: sgType,
         sg_event_id: `sg-${sgType}`,
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
     ]);
 
@@ -189,7 +198,9 @@ describe('SendgridEventsService', () => {
   });
 
   it('processes multiple events in a batch', async () => {
-    prisma.job.findFirst.mockResolvedValue({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValue({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvents([
       {
@@ -197,14 +208,14 @@ describe('SendgridEventsService', () => {
         timestamp: 1700000000,
         event: 'delivered',
         sg_event_id: 'sg-1',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
       {
         email: 'a@b.com',
         timestamp: 1700000010,
         event: 'open',
         sg_event_id: 'sg-2',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
     ]);
 
@@ -212,7 +223,9 @@ describe('SendgridEventsService', () => {
   });
 
   it('omits metadata when no extra fields remain', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvents([
       {
@@ -220,7 +233,7 @@ describe('SendgridEventsService', () => {
         timestamp: 1700000000,
         event: 'delivered',
         sg_event_id: 'sg-1',
-        job_id: 'job-x',
+        job_id: '11111111-1111-4111-8111-111111111111',
       },
     ]);
 
@@ -232,7 +245,9 @@ describe('SendgridEventsService', () => {
   });
 
   it('swallows upsert errors so other events in the batch still process', async () => {
-    prisma.job.findFirst.mockResolvedValue({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValue({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
     prisma.emailEvent.upsert
       .mockRejectedValueOnce(new Error('db down'))
       .mockResolvedValueOnce(undefined);
@@ -244,14 +259,14 @@ describe('SendgridEventsService', () => {
           timestamp: 1700000000,
           event: 'delivered',
           sg_event_id: 'sg-1',
-          job_id: 'job-x',
+          job_id: '11111111-1111-4111-8111-111111111111',
         },
         {
           email: 'a@b.com',
           timestamp: 1700000010,
           event: 'open',
           sg_event_id: 'sg-2',
-          job_id: 'job-x',
+          job_id: '11111111-1111-4111-8111-111111111111',
         },
       ]),
     ).resolves.toBeUndefined();
@@ -265,7 +280,7 @@ describe('SendgridEventsService', () => {
       timestamp: 1700000000,
       event: 'bounce',
       sg_event_id: 'sg-1',
-      job_id: 'job-x',
+      job_id: '11111111-1111-4111-8111-111111111111',
       ...(type ? { type } : {}),
     });
 
@@ -275,7 +290,7 @@ describe('SendgridEventsService', () => {
       [undefined, false],
     ])('passes hardBounce for type=%s as %s', async (type, hard) => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'cust-1',
       });
 
@@ -291,7 +306,7 @@ describe('SendgridEventsService', () => {
 
     it("suppresses against the job's owner on the shared platform route", async () => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'owner-1',
       });
 

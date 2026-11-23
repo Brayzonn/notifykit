@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailEventType, Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { findEmailEventJob } from '../email-event-job.util';
 import { getErrorMessage } from '@/common/utils/error.util';
 import { SuppressionService } from '@/suppression/suppression.service';
 
@@ -53,10 +54,7 @@ export class ResendEventsService {
       return;
     }
 
-    const job = await this.prisma.job.findFirst({
-      where: { id: jobId, ...(customerId ? { customerId } : {}) },
-      select: { id: true, customerId: true },
-    });
+    const job = await findEmailEventJob(this.prisma, jobId, customerId);
 
     if (!job) {
       this.logger.warn(
