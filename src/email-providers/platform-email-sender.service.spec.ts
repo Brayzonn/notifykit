@@ -4,6 +4,7 @@ import { PlatformEmailSenderService } from './platform-email-sender.service';
 import { ResendService } from './resend/resend.service';
 import { SendGridService } from './sendgrid/sendgrid.service';
 import { PostmarkService } from './postmark/postmark.service';
+import { BrevoService } from './brevo/brevo.service';
 
 const params = { to: 'user@example.com', subject: 'Hello', html: '<p>Hi</p>' };
 
@@ -11,6 +12,7 @@ function buildModule(env: Record<string, string>) {
   const resend = { sendEmail: jest.fn() } as unknown as ResendService;
   const sendgrid = { sendEmail: jest.fn() } as unknown as SendGridService;
   const postmark = { sendEmail: jest.fn() } as unknown as PostmarkService;
+  const brevo = { sendEmail: jest.fn() } as unknown as BrevoService;
 
   return Test.createTestingModule({
     providers: [
@@ -18,6 +20,7 @@ function buildModule(env: Record<string, string>) {
       { provide: ResendService, useValue: resend },
       { provide: SendGridService, useValue: sendgrid },
       { provide: PostmarkService, useValue: postmark },
+      { provide: BrevoService, useValue: brevo },
       {
         provide: ConfigService,
         useValue: {
@@ -32,6 +35,7 @@ function buildModule(env: Record<string, string>) {
       resend,
       sendgrid,
       postmark,
+      brevo,
     }));
 }
 
@@ -53,6 +57,24 @@ describe('PlatformEmailSenderService', () => {
       const { service } = await buildModule({});
       await expect(service.send(params)).rejects.toThrow(
         'All platform email providers failed',
+      );
+    });
+  });
+
+  describe('brevo', () => {
+    it('falls back to Brevo when Postmark fails', async () => {
+      const { service, postmark, brevo } = await buildModule({
+        POSTMARK_API_KEY: 'pm_key',
+        BREVO_API_KEY: 'bv_key',
+      });
+      (postmark.sendEmail as jest.Mock).mockRejectedValue(new Error('down'));
+      (brevo.sendEmail as jest.Mock).mockResolvedValue(undefined);
+
+      await service.send(params);
+
+      expect(brevo.sendEmail).toHaveBeenCalledWith(
+        { to: params.to, subject: params.subject, body: params.html },
+        'bv_key',
       );
     });
   });

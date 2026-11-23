@@ -22,6 +22,7 @@ import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { SendgridEventsModule } from './email-providers/sendgrid/sendgrid-events.module';
 import { ResendEventsModule } from './email-providers/resend/resend-events.module';
 import { PostmarkEventsModule } from './email-providers/postmark/postmark-events.module';
+import { BrevoEventsModule } from './email-providers/brevo/brevo-events.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PostmarkEventsModule } from './email-providers/postmark/postmark-events
     SendgridEventsModule,
     ResendEventsModule,
     PostmarkEventsModule,
+    BrevoEventsModule,
   ],
   controllers: [AppController],
   providers: [

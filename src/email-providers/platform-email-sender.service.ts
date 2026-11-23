@@ -4,6 +4,7 @@ import { IEmailProvider } from './email-provider.interface';
 import { ResendService } from './resend/resend.service';
 import { SendGridService } from './sendgrid/sendgrid.service';
 import { PostmarkService } from './postmark/postmark.service';
+import { BrevoService } from './brevo/brevo.service';
 import { getErrorMessage } from '@/common/utils/error.util';
 
 interface ResolvedPlatformProvider {
@@ -18,7 +19,12 @@ export interface PlatformSendParams {
   html: string;
 }
 
-const PROVIDER_REGISTRY_KEYS = ['resend', 'sendgrid', 'postmark'] as const;
+const PROVIDER_REGISTRY_KEYS = [
+  'resend',
+  'sendgrid',
+  'postmark',
+  'brevo',
+] as const;
 
 @Injectable()
 export class PlatformEmailSenderService {
@@ -30,6 +36,7 @@ export class PlatformEmailSenderService {
     resendService: ResendService,
     sendGridService: SendGridService,
     postmarkService: PostmarkService,
+    brevoService: BrevoService,
   ) {
     const registry: Record<
       string,
@@ -46,6 +53,10 @@ export class PlatformEmailSenderService {
       postmark: {
         service: postmarkService,
         apiKey: configService.get<string>('POSTMARK_API_KEY', ''),
+      },
+      brevo: {
+        service: brevoService,
+        apiKey: configService.get<string>('BREVO_API_KEY', ''),
       },
     };
 
