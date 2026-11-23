@@ -7,6 +7,7 @@ import { NotificationsService } from '@/notifications/notifications.service';
 import { SendGridDomainService } from '@/email-providers/sendgrid/sendgrid-domain.service';
 import { ResendDomainService } from '@/email-providers/resend/resend-domain.service';
 import { PostmarkDomainService } from '@/email-providers/postmark/postmark-domain.service';
+import { BrevoDomainService } from '@/email-providers/brevo/brevo-domain.service';
 import { RedisService } from '@/redis/redis.service';
 import { EmailService } from '@/platform-email/email.service';
 import { EncryptionService } from '@/common/encryption/encryption.service';
@@ -20,7 +21,11 @@ import {
   type MockedPrismaService,
   type MockedRedisService,
 } from '../../test/helpers/test-utils';
-import { AuthProvider, CustomerPlan, EmailProviderType } from '@/generated/prisma/client';
+import {
+  AuthProvider,
+  CustomerPlan,
+  EmailProviderType,
+} from '@/generated/prisma/client';
 import axios from 'axios';
 
 jest.mock('argon2');
@@ -78,6 +83,12 @@ describe('UserService', () => {
     deleteDomain: jest.fn(),
   };
 
+  const mockBrevoDomainService = {
+    authenticateDomain: jest.fn(),
+    validateDomain: jest.fn(),
+    deleteDomain: jest.fn(),
+  };
+
   const mockEncryptionService = {
     encrypt: jest.fn((v: string) => `enc:${v}`),
     decrypt: jest.fn((v: string) => v.replace('enc:', '')),
@@ -99,6 +110,7 @@ describe('UserService', () => {
         { provide: SendGridDomainService, useValue: mockSendGridDomainService },
         { provide: ResendDomainService, useValue: mockResendDomainService },
         { provide: PostmarkDomainService, useValue: mockPostmarkDomainService },
+        { provide: BrevoDomainService, useValue: mockBrevoDomainService },
         { provide: RedisService, useValue: mockRedisService },
         { provide: EmailService, useValue: mockEmailService },
         { provide: ConfigService, useValue: mockConfigService },

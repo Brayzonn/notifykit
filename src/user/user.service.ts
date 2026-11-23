@@ -45,6 +45,7 @@ import {
 import { SendGridDomainService } from '@/email-providers/sendgrid/sendgrid-domain.service';
 import { ResendDomainService } from '@/email-providers/resend/resend-domain.service';
 import { PostmarkDomainService } from '@/email-providers/postmark/postmark-domain.service';
+import { BrevoDomainService } from '@/email-providers/brevo/brevo-domain.service';
 import { NotificationsService } from '@/notifications/notifications.service';
 
 @Injectable()
@@ -57,6 +58,7 @@ export class UserService {
     private readonly sendGridDomainService: SendGridDomainService,
     private readonly resendDomainService: ResendDomainService,
     private readonly postmarkDomainService: PostmarkDomainService,
+    private readonly brevoDomainService: BrevoDomainService,
     private readonly redis: RedisService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
@@ -561,6 +563,7 @@ export class UserService {
     const sendgrid = getProvider(EmailProviderType.SENDGRID);
     const resend = getProvider(EmailProviderType.RESEND);
     const postmark = getProvider(EmailProviderType.POSTMARK);
+    const brevo = getProvider(EmailProviderType.BREVO);
 
     const buildTracking = (record: typeof sendgrid, webhookUrl: string) => {
       if (!isPaid) return { hasKey: false, addedAt: null, webhookUrl: null };
@@ -607,6 +610,15 @@ export class UserService {
           postmark,
           this.buildPostmarkWebhookUrl(customer.id),
         ),
+      },
+      brevo: {
+        hasKey: !!brevo,
+        addedAt: brevo?.addedAt ?? null,
+        lastFour: brevo
+          ? this.encryptionService.decrypt(brevo.apiKey).slice(-4)
+          : null,
+        priority: brevo?.priority ?? null,
+        tracking: buildTracking(brevo, this.buildBrevoWebhookUrl(customer.id)),
       },
       emailProviders: customer.emailProviders.map((r) => ({
         provider: r.provider,
@@ -1306,6 +1318,253 @@ export class UserService {
     }
   }
 
+  async saveCustomerBrevoKey(
+    userId: string,
+    apiKey: string,
+  ): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      throw new BadRequestException(
+        'Brevo API key is only available for paid plans',
+      );
+    }
+
+    const isValid = await this.validateCustomerBrevoKey(apiKey);
+    if (!isValid) {
+      throw new BadRequestException('Invalid Brevo API key');
+    }
+
+    const encryptedKey = this.encryptionService.encrypt(apiKey);
+    const nextPriority = await this.getNextProviderPriority(
+      customer.id,
+      EmailProviderType.BREVO,
+    );
+
+    await this.prisma.customerEmailProvider.upsert({
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.BREVO,
+        },
+      },
+      create: {
+        customerId: customer.id,
+        provider: EmailProviderType.BREVO,
+        apiKey: encryptedKey,
+        priority: nextPriority,
+      },
+      update: { apiKey: encryptedKey },
+    });
+
+    await this.autoRegisterDomainForNewProvider(
+      customer.id,
+      EmailProviderType.BREVO,
+      apiKey,
+    );
+
+    return { message: 'Brevo API key saved successfully' };
+  }
+
+  async getCustomerBrevoKey(userId: string): Promise<{
+    hasKey: boolean;
+    addedAt: Date | null;
+    lastFour: string | null;
+    priority: number | null;
+  }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const record = await this.prisma.customerEmailProvider.findUnique({
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.BREVO,
+        },
+      },
+    });
+
+    if (!record) {
+      return { hasKey: false, addedAt: null, lastFour: null, priority: null };
+    }
+
+    const decrypted = this.encryptionService.decrypt(record.apiKey);
+    return {
+      hasKey: true,
+      addedAt: record.addedAt,
+      lastFour: decrypted.slice(-4),
+      priority: record.priority,
+    };
+  }
+
+  async removeCustomerBrevoKey(userId: string): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        emailProviders: { where: { provider: EmailProviderType.BREVO } },
+        sendingDomains: {
+          where: { provider: EmailProviderType.BREVO },
+          select: { id: true, providerDomainId: true },
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const brevoRecord = customer.emailProviders[0];
+
+    for (const sendingDomain of customer.sendingDomains) {
+      if (sendingDomain.providerDomainId && brevoRecord) {
+        const decryptedKey = this.encryptionService.decrypt(brevoRecord.apiKey);
+        try {
+          await this.brevoDomainService.deleteDomain(
+            sendingDomain.providerDomainId,
+            decryptedKey,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete domain from Brevo during key removal: ${getErrorMessage(error)}`,
+          );
+        }
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.customerEmailProvider.deleteMany({
+        where: { customerId: customer.id, provider: EmailProviderType.BREVO },
+      }),
+      this.prisma.customerSendingDomain.deleteMany({
+        where: { customerId: customer.id, provider: EmailProviderType.BREVO },
+      }),
+    ]);
+
+    return { message: 'Brevo API key removed successfully' };
+  }
+
+  async saveBrevoWebhookSecret(
+    userId: string,
+    secret: string,
+  ): Promise<{ message: string; webhookUrl: string }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      throw new BadRequestException(
+        'Brevo webhook secret is only available for paid plans',
+      );
+    }
+
+    const updated = await this.prisma.customerEmailProvider.updateMany({
+      where: { customerId: customer.id, provider: EmailProviderType.BREVO },
+      data: { webhookSecret: secret, webhookSecretAddedAt: new Date() },
+    });
+
+    if (updated.count === 0) {
+      throw new BadRequestException(
+        'No Brevo API key found. Please add Brevo as an email provider first.',
+      );
+    }
+
+    return {
+      message: 'Brevo webhook token saved successfully',
+      webhookUrl: this.buildBrevoWebhookUrl(customer.id),
+    };
+  }
+
+  async getBrevoWebhookSecret(userId: string): Promise<{
+    hasKey: boolean;
+    addedAt: Date | null;
+    webhookUrl: string | null;
+  }> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true, plan: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.plan === CustomerPlan.FREE) {
+      return { hasKey: false, addedAt: null, webhookUrl: null };
+    }
+
+    const record = await this.prisma.customerEmailProvider.findUnique({
+      where: {
+        customerId_provider: {
+          customerId: customer.id,
+          provider: EmailProviderType.BREVO,
+        },
+      },
+      select: { webhookSecret: true, webhookSecretAddedAt: true },
+    });
+
+    return {
+      hasKey: !!record?.webhookSecret,
+      addedAt: record?.webhookSecretAddedAt ?? null,
+      webhookUrl: this.buildBrevoWebhookUrl(customer.id),
+    };
+  }
+
+  async removeBrevoWebhookSecret(userId: string): Promise<MessageResponse> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    await this.prisma.customerEmailProvider.updateMany({
+      where: { customerId: customer.id, provider: EmailProviderType.BREVO },
+      data: { webhookSecret: null, webhookSecretAddedAt: null },
+    });
+
+    return { message: 'Brevo webhook token removed successfully' };
+  }
+
+  private buildBrevoWebhookUrl(customerId: string): string {
+    const baseUrl = this.configService.get<string>(
+      'BACKEND_URL',
+      'https://api.notifykit.dev',
+    );
+    return `${baseUrl}/api/v1/webhooks/brevo/${customerId}`;
+  }
+
+  private async validateCustomerBrevoKey(apiKey: string): Promise<boolean> {
+    try {
+      const response = await axios.get('https://api.brevo.com/v3/account', {
+        headers: { Accept: 'application/json', 'api-key': apiKey },
+      });
+      return response.status === 200;
+    } catch {
+      return false;
+    }
+  }
+
   async saveCustomerResendKey(
     userId: string,
     apiKey: string,
@@ -1824,6 +2083,14 @@ export class UserService {
         domainId = result.domainId;
         dnsRecords = result.dnsRecords;
         valid = result.valid;
+      } else if (provider === EmailProviderType.BREVO) {
+        const result = await this.brevoDomainService.authenticateDomain(
+          domain,
+          decryptedApiKey,
+        );
+        domainId = result.domainId;
+        dnsRecords = result.dnsRecords;
+        valid = result.valid;
       } else {
         return;
       }
@@ -2026,6 +2293,14 @@ export class UserService {
         domainId = result.domainId;
         dnsRecords = result.dnsRecords;
         valid = result.valid;
+      } else if (provider === EmailProviderType.BREVO) {
+        const result = await this.brevoDomainService.authenticateDomain(
+          domain,
+          decryptedKey,
+        );
+        domainId = result.domainId;
+        dnsRecords = result.dnsRecords;
+        valid = result.valid;
       } else {
         continue;
       }
@@ -2170,6 +2445,13 @@ export class UserService {
         const result = await this.postmarkDomainService.validateDomain(
           row.providerDomainId,
           decryptedAccountKey,
+        );
+        valid = result.valid;
+        validationResults = result.validationResults;
+      } else if (row.provider === EmailProviderType.BREVO) {
+        const result = await this.brevoDomainService.validateDomain(
+          row.providerDomainId,
+          decryptedKey,
         );
         valid = result.valid;
         validationResults = result.validationResults;
@@ -2336,6 +2618,17 @@ export class UserService {
         } catch (error) {
           this.logger.warn(
             `Failed to delete domain from Postmark: ${getErrorMessage(error)}`,
+          );
+        }
+      } else if (sendingDomain.provider === EmailProviderType.BREVO) {
+        try {
+          await this.brevoDomainService.deleteDomain(
+            sendingDomain.providerDomainId,
+            decryptedKey,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete domain from Brevo: ${getErrorMessage(error)}`,
           );
         }
       }
