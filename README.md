@@ -36,7 +36,7 @@ provider ultimately delivered it is queryable.
 - **Database**: PostgreSQL + Prisma ORM
 - **Cache/Queue**: Redis
 - **Auth**: JWT (access + refresh tokens), GitHub OAuth
-- **Email**: SendGrid, Resend, Postmark (provider-agnostic, BYOK with priority fallback)
+- **Email**: SendGrid, Resend, Postmark, Brevo (provider-agnostic, BYOK with priority fallback)
 - **Payments**: Multi-provider (Paystack for NGN, Polar for USD, with extensible architecture)
 - **Containerization**: Docker
 
@@ -119,7 +119,8 @@ src/
 │   ├── email-providers.module.ts
 │   ├── sendgrid/                         # SendGrid send client, domain verification, webhook events + guards
 │   ├── resend/                           # Resend send client, domain verification, webhook events + guards
-│   └── postmark/                         # Postmark send client, domain verification, webhook events + guards
+│   ├── postmark/                         # Postmark send client, domain verification, webhook events + guards
+│   └── brevo/                            # Brevo send client, domain verification, webhook events + guards
 └── user/                                 # Profile, API key, provider keys, jobs history, domain management
 ```
 
@@ -129,7 +130,7 @@ src/
 
 - Node.js 20+ (required by NestJS 11)
 - Docker & Docker Compose
-- At least one of: SendGrid, Resend, or Postmark account (any combination — used in priority order for the FREE tier)
+- At least one of: SendGrid, Resend, Postmark, or Brevo account (any combination — used in priority order for the FREE tier)
 - A Paystack account (NGN billing) and/or a Polar account (USD billing)
 
 ---
@@ -224,6 +225,11 @@ POSTMARK_API_KEY=
 POSTMARK_FROM_EMAIL=
 POSTMARK_MESSAGE_STREAM=outbound
 POSTMARK_WEBHOOK_SECRET=
+
+# Brevo (platform shared key — fourth-tier fallback for FREE plan)
+BREVO_API_KEY=
+BREVO_FROM_EMAIL=
+BREVO_WEBHOOK_SECRET=
 
 # Database
 DATABASE_URL=postgresql://notifykit:localdev123@localhost:5432/notifykit
@@ -391,6 +397,9 @@ Signup and password reset both use a 6-digit code sent by email.
 | GET    | `/api/v1/user/postmark-key`                      | Get Postmark key status            |
 | POST   | `/api/v1/user/postmark-key`                      | Save Postmark Server Token         |
 | DELETE | `/api/v1/user/postmark-key`                      | Remove Postmark API key            |
+| GET    | `/api/v1/user/brevo-key`                         | Get Brevo key status               |
+| POST   | `/api/v1/user/brevo-key`                         | Save Brevo API key                 |
+| DELETE | `/api/v1/user/brevo-key`                         | Remove Brevo API key               |
 | GET    | `/api/v1/user/sendgrid-webhook-key`              | Get SendGrid webhook secret status |
 | POST   | `/api/v1/user/sendgrid-webhook-key`              | Save SendGrid webhook secret       |
 | DELETE | `/api/v1/user/sendgrid-webhook-key`              | Remove SendGrid webhook secret     |
@@ -400,6 +409,9 @@ Signup and password reset both use a 6-digit code sent by email.
 | GET    | `/api/v1/user/postmark-webhook-key`              | Get Postmark webhook secret status |
 | POST   | `/api/v1/user/postmark-webhook-key`              | Save Postmark webhook secret       |
 | DELETE | `/api/v1/user/postmark-webhook-key`              | Remove Postmark webhook secret     |
+| GET    | `/api/v1/user/brevo-webhook-key`                 | Get Brevo webhook token status     |
+| POST   | `/api/v1/user/brevo-webhook-key`                 | Save Brevo webhook token           |
+| DELETE | `/api/v1/user/brevo-webhook-key`                 | Remove Brevo webhook token         |
 | GET    | `/api/v1/user/email-provider`                    | List configured providers          |
 | PATCH  | `/api/v1/user/email-provider/:provider/priority` | Update provider failover priority  |
 | POST   | `/api/v1/user/domain/request`                    | Request domain verification        |
@@ -436,10 +448,10 @@ Signup and password reset both use a 6-digit code sent by email.
 
 `POST /api/v1/notifications/email` accepts two optional fields that override the customer's default priority order for a single message:
 
-| Field      | Type                                   | Behavior                                                                                             |
-| ---------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `provider` | `"SENDGRID" \| "RESEND" \| "POSTMARK"` | Forced routing is a contract: BullMQ does not retry through providers the customer didn't authorize. |
-| `fallback` | `"SENDGRID" \| "RESEND" \| "POSTMARK"` | Optional second provider tried only if `provider` fails. Other configured providers are not tried.   |
+| Field      | Type                                              | Behavior                                                                                             |
+| ---------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `provider` | `"SENDGRID" \| "RESEND" \| "POSTMARK" \| "BREVO"` | Forced routing is a contract: BullMQ does not retry through providers the customer didn't authorize. |
+| `fallback` | `"SENDGRID" \| "RESEND" \| "POSTMARK" \| "BREVO"` | Optional second provider tried only if `provider` fails. Other configured providers are not tried.   |
 
 Validation:
 
@@ -499,14 +511,15 @@ Every entry in the `deliveryLogs[]` array on `GET /api/v1/notifications/jobs/:id
 
 ### Webhooks
 
-| Method | Endpoint                                | Description                                             |
-| ------ | --------------------------------------- | ------------------------------------------------------- |
-| POST   | `/api/v1/payment/paystack/webhook`      | Paystack webhook handler                                |
-| POST   | `/api/v1/payment/polar/webhook`         | Polar webhook handler                                   |
-| POST   | `/api/v1/webhooks/sendgrid`             | SendGrid email events (shared platform key, ECDSA)      |
-| POST   | `/api/v1/webhooks/sendgrid/:customerId` | SendGrid email events (per-customer key, ECDSA)         |
-| POST   | `/api/v1/webhooks/resend/:customerId`   | Resend email events (per-customer secret, svix)         |
-| POST   | `/api/v1/webhooks/postmark/:customerId` | Postmark email events (per-customer secret, Basic Auth) |
+| Method | Endpoint                                | Description                                              |
+| ------ | --------------------------------------- | -------------------------------------------------------- |
+| POST   | `/api/v1/payment/paystack/webhook`      | Paystack webhook handler                                 |
+| POST   | `/api/v1/payment/polar/webhook`         | Polar webhook handler                                    |
+| POST   | `/api/v1/webhooks/sendgrid`             | SendGrid email events (shared platform key, ECDSA)       |
+| POST   | `/api/v1/webhooks/sendgrid/:customerId` | SendGrid email events (per-customer key, ECDSA)          |
+| POST   | `/api/v1/webhooks/resend/:customerId`   | Resend email events (per-customer secret, svix)          |
+| POST   | `/api/v1/webhooks/postmark/:customerId` | Postmark email events (per-customer secret, Basic Auth)  |
+| POST   | `/api/v1/webhooks/brevo/:customerId`    | Brevo email events (per-customer token, Bearer or Basic) |
 
 ---
 
