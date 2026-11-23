@@ -29,6 +29,7 @@ enum EmailProviderType {
   SENDGRID
   RESEND
   POSTMARK
+  BREVO
 }
 
 enum PaymentProvider {

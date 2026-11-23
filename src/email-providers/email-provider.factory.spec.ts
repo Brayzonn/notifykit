@@ -5,12 +5,14 @@ import { EmailProviderFactory } from './email-provider.factory';
 import { SendGridService } from './sendgrid/sendgrid.service';
 import { ResendService } from './resend/resend.service';
 import { PostmarkService } from './postmark/postmark.service';
+import { BrevoService } from './brevo/brevo.service';
 
 describe('EmailProviderFactory', () => {
   let factory: EmailProviderFactory;
   let sendGrid: SendGridService;
   let resend: ResendService;
   let postmark: PostmarkService;
+  let brevo: BrevoService;
   let env: Record<string, string | undefined>;
 
   beforeEach(async () => {
@@ -18,6 +20,7 @@ describe('EmailProviderFactory', () => {
     sendGrid = { sendEmail: jest.fn() } as unknown as SendGridService;
     resend = { sendEmail: jest.fn() } as unknown as ResendService;
     postmark = { sendEmail: jest.fn() } as unknown as PostmarkService;
+    brevo = { sendEmail: jest.fn() } as unknown as BrevoService;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -25,6 +28,7 @@ describe('EmailProviderFactory', () => {
         { provide: SendGridService, useValue: sendGrid },
         { provide: ResendService, useValue: resend },
         { provide: PostmarkService, useValue: postmark },
+        { provide: BrevoService, useValue: brevo },
         {
           provide: ConfigService,
           useValue: { get: jest.fn((key: string) => env[key]) },
@@ -78,6 +82,17 @@ describe('EmailProviderFactory', () => {
         { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm' },
       ]);
     });
+
+    it('appends Brevo after the other shared providers', () => {
+      env.POSTMARK_API_KEY = 'pm';
+      env.BREVO_API_KEY = 'bv';
+
+      const result = factory.resolveAll(CustomerPlan.FREE, []);
+      expect(result).toEqual([
+        { type: EmailProviderType.POSTMARK, provider: postmark, apiKey: 'pm' },
+        { type: EmailProviderType.BREVO, provider: brevo, apiKey: 'bv' },
+      ]);
+    });
   });
 
   describe('Paid plans (per-customer providers)', () => {
@@ -97,6 +112,15 @@ describe('EmailProviderFactory', () => {
           provider: postmark,
           apiKey: 'pm-key',
         },
+      ]);
+    });
+
+    it('resolves a Brevo provider config', () => {
+      const result = factory.resolveAll(CustomerPlan.INDIE, [
+        { provider: EmailProviderType.BREVO, apiKey: 'bv-key', priority: 1 },
+      ]);
+      expect(result).toEqual([
+        { type: EmailProviderType.BREVO, provider: brevo, apiKey: 'bv-key' },
       ]);
     });
 

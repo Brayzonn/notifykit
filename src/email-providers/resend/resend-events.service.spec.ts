@@ -13,7 +13,7 @@ const baseEvent = (overrides: Record<string, any> = {}) => ({
     to: ['a@b.com'],
     subject: 'hi',
     created_at: '2026-04-28T10:00:00Z',
-    tags: { job_id: 'job-x' },
+    tags: { job_id: '11111111-1111-4111-8111-111111111111' },
     ...((overrides.data as object) ?? {}),
   },
   ...overrides,
@@ -76,14 +76,19 @@ describe('ResendEventsService', () => {
     await service.processEvent('cust-1', baseEvent() as any);
 
     expect(prisma.job.findFirst).toHaveBeenCalledWith({
-      where: { id: 'job-x', customerId: 'cust-1' },
+      where: {
+        id: '11111111-1111-4111-8111-111111111111',
+        customerId: 'cust-1',
+      },
       select: { id: true, customerId: true },
     });
     expect(prisma.emailEvent.upsert).not.toHaveBeenCalled();
   });
 
   it('upserts using `${email_id}:${eventType}` as the dedupe key', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
     prisma.emailEvent.upsert.mockResolvedValueOnce(undefined);
 
     await service.processEvent('cust-1', baseEvent() as any);
@@ -91,7 +96,7 @@ describe('ResendEventsService', () => {
     expect(prisma.emailEvent.upsert).toHaveBeenCalledWith({
       where: { eventId: `rs-1:${EmailEventType.DELIVERED}` },
       create: expect.objectContaining({
-        jobId: 'job-x',
+        jobId: '11111111-1111-4111-8111-111111111111',
         event: EmailEventType.DELIVERED,
         email: 'a@b.com',
         eventId: `rs-1:${EmailEventType.DELIVERED}`,
@@ -102,7 +107,9 @@ describe('ResendEventsService', () => {
   });
 
   it('parses occurredAt from the top-level created_at, not data.created_at', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent(
       'cust-1',
@@ -114,7 +121,7 @@ describe('ResendEventsService', () => {
           to: ['a@b.com'],
           subject: 'hi',
           created_at: '2099-01-01T00:00:00Z',
-          tags: { job_id: 'job-x' },
+          tags: { job_id: '11111111-1111-4111-8111-111111111111' },
         },
       }) as any,
     );
@@ -129,7 +136,9 @@ describe('ResendEventsService', () => {
   });
 
   it('takes the first recipient when `to` is an array of multiple addresses', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent(
       'cust-1',
@@ -140,7 +149,7 @@ describe('ResendEventsService', () => {
           to: ['first@b.com', 'second@b.com'],
           subject: 'hi',
           created_at: '2026-04-28T10:00:00Z',
-          tags: { job_id: 'job-x' },
+          tags: { job_id: '11111111-1111-4111-8111-111111111111' },
         },
       }) as any,
     );
@@ -160,7 +169,9 @@ describe('ResendEventsService', () => {
     ['email.complained', EmailEventType.SPAM_REPORT],
     ['email.delivery_delayed', EmailEventType.DEFERRED],
   ])('maps %s to %s', async (rsType, expected) => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent('cust-1', baseEvent({ type: rsType }) as any);
 
@@ -172,7 +183,9 @@ describe('ResendEventsService', () => {
   });
 
   it('strips email_id, tags, from, to, subject, created_at from metadata', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent(
       'cust-1',
@@ -183,7 +196,7 @@ describe('ResendEventsService', () => {
           to: ['a@b.com'],
           subject: 'hi',
           created_at: '2026-04-28T10:00:00Z',
-          tags: { job_id: 'job-x' },
+          tags: { job_id: '11111111-1111-4111-8111-111111111111' },
           custom_field: 'keep-me',
         },
       }) as any,
@@ -194,7 +207,9 @@ describe('ResendEventsService', () => {
   });
 
   it('omits metadata when no extra fields remain', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
 
     await service.processEvent('cust-1', baseEvent() as any);
 
@@ -206,7 +221,9 @@ describe('ResendEventsService', () => {
   });
 
   it('swallows upsert errors so the webhook still 200s', async () => {
-    prisma.job.findFirst.mockResolvedValueOnce({ id: 'job-x' });
+    prisma.job.findFirst.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+    });
     prisma.emailEvent.upsert.mockRejectedValueOnce(new Error('db down'));
 
     await expect(
@@ -221,7 +238,7 @@ describe('ResendEventsService', () => {
       ['Undetermined', false],
     ])('passes hardBounce for bounce.type=%s as %s', async (type, hard) => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'cust-1',
       });
 
@@ -240,7 +257,7 @@ describe('ResendEventsService', () => {
 
     it('forwards complaints as SPAM_REPORT', async () => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'cust-1',
       });
 
@@ -258,7 +275,7 @@ describe('ResendEventsService', () => {
   describe('shared platform route (no customerId)', () => {
     it('looks up the job without a customer scope and suppresses against its owner', async () => {
       prisma.job.findFirst.mockResolvedValueOnce({
-        id: 'job-x',
+        id: '11111111-1111-4111-8111-111111111111',
         customerId: 'owner-1',
       });
 
@@ -268,7 +285,7 @@ describe('ResendEventsService', () => {
       } as any);
 
       expect(prisma.job.findFirst).toHaveBeenCalledWith({
-        where: { id: 'job-x' },
+        where: { id: '11111111-1111-4111-8111-111111111111' },
         select: { id: true, customerId: true },
       });
       expect(suppression.suppressFromEvent).toHaveBeenCalledWith(

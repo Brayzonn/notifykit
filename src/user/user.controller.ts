@@ -238,6 +238,52 @@ export class UserController {
     return await this.userService.removePostmarkWebhookSecret(user.id);
   }
 
+  @Post('brevo-key')
+  @HttpCode(HttpStatus.OK)
+  async saveBrevoKey(
+    @User() user: AuthenticatedUser,
+    @Body('apiKey') apiKey: string,
+  ) {
+    if (!apiKey) {
+      throw new BadRequestException('Brevo API key is required');
+    }
+    return await this.userService.saveCustomerBrevoKey(user.id, apiKey);
+  }
+
+  @Get('brevo-key')
+  async getBrevoKey(@User() user: AuthenticatedUser) {
+    return await this.userService.getCustomerBrevoKey(user.id);
+  }
+
+  @Delete('brevo-key')
+  @HttpCode(HttpStatus.OK)
+  async removeBrevoKey(@User() user: AuthenticatedUser) {
+    return await this.userService.removeCustomerBrevoKey(user.id);
+  }
+
+  @Post('brevo-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async saveBrevoWebhookSecret(
+    @User() user: AuthenticatedUser,
+    @Body('secret') secret: string,
+  ) {
+    if (!secret) {
+      throw new BadRequestException('secret is required');
+    }
+    return await this.userService.saveBrevoWebhookSecret(user.id, secret);
+  }
+
+  @Get('brevo-webhook-key')
+  async getBrevoWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.getBrevoWebhookSecret(user.id);
+  }
+
+  @Delete('brevo-webhook-key')
+  @HttpCode(HttpStatus.OK)
+  async removeBrevoWebhookSecret(@User() user: AuthenticatedUser) {
+    return await this.userService.removeBrevoWebhookSecret(user.id);
+  }
+
   @Get('email-provider')
   async getEmailProvider(@User() user: AuthenticatedUser) {
     return await this.userService.getEmailProviderStatus(user.id);

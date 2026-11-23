@@ -5,6 +5,8 @@ import { ResendService } from './resend/resend.service';
 import { ResendDomainService } from './resend/resend-domain.service';
 import { PostmarkService } from './postmark/postmark.service';
 import { PostmarkDomainService } from './postmark/postmark-domain.service';
+import { BrevoService } from './brevo/brevo.service';
+import { BrevoDomainService } from './brevo/brevo-domain.service';
 import { EmailProviderFactory } from './email-provider.factory';
 import { PlatformEmailSenderService } from './platform-email-sender.service';
 import { SendGridModule } from './sendgrid/sendgrid.module';
@@ -16,6 +18,8 @@ import { SendGridModule } from './sendgrid/sendgrid.module';
     ResendDomainService,
     PostmarkService,
     PostmarkDomainService,
+    BrevoService,
+    BrevoDomainService,
     EmailProviderFactory,
     PlatformEmailSenderService,
   ],
@@ -23,6 +27,7 @@ import { SendGridModule } from './sendgrid/sendgrid.module';
     EmailProviderFactory,
     ResendDomainService,
     PostmarkDomainService,
+    BrevoDomainService,
     PlatformEmailSenderService,
   ],
 })

@@ -5,6 +5,7 @@ import { IEmailProvider } from './email-provider.interface';
 import { SendGridService } from './sendgrid/sendgrid.service';
 import { ResendService } from './resend/resend.service';
 import { PostmarkService } from './postmark/postmark.service';
+import { BrevoService } from './brevo/brevo.service';
 
 export interface ProviderConfig {
   provider: EmailProviderType;
@@ -24,6 +25,7 @@ export class EmailProviderFactory {
     private readonly sendGridService: SendGridService,
     private readonly resendService: ResendService,
     private readonly postmarkService: PostmarkService,
+    private readonly brevoService: BrevoService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -55,6 +57,14 @@ export class EmailProviderFactory {
           type: EmailProviderType.POSTMARK,
           provider: this.postmarkService,
           apiKey: postmarkKey,
+        });
+      }
+      const brevoKey = this.configService.get<string>('BREVO_API_KEY');
+      if (brevoKey) {
+        resolved.push({
+          type: EmailProviderType.BREVO,
+          provider: this.brevoService,
+          apiKey: brevoKey,
         });
       }
       if (!resolved.length) {
@@ -96,6 +106,8 @@ export class EmailProviderFactory {
         return this.resendService;
       case EmailProviderType.POSTMARK:
         return this.postmarkService;
+      case EmailProviderType.BREVO:
+        return this.brevoService;
       default:
         throw new Error(`Unsupported email provider: ${String(type)}`);
     }

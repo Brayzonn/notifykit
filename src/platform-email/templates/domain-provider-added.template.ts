@@ -8,6 +8,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   SENDGRID: 'SendGrid',
   RESEND: 'Resend',
   POSTMARK: 'Postmark',
+  BREVO: 'Brevo',
 };
 
 export const domainProviderAddedTemplate = (
